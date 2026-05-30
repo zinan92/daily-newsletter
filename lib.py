@@ -34,8 +34,23 @@ INDEPENDENT_LINKS_DIR = LIBRARY_DIR / "独立链接"
 # degrading.
 # -----------------------------------------------------------------------------
 CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost:8317/v1/messages")
-CLIPROXY_KEY = os.environ.get("PARKIO_CLIPROXY_KEY", "REDACTED-see-secrets-file")
 CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
+
+
+def _load_cliproxy_key() -> str:
+    """Proxy key from env or a local untracked secret file — never hardcoded,
+    so the repo carries no credential. Set PARKIO_CLIPROXY_KEY, or write the key
+    to ~/park-io/secrets/cliproxy-key."""
+    env = os.environ.get("PARKIO_CLIPROXY_KEY", "").strip()
+    if env:
+        return env
+    key_file = PARKIO / "secrets" / "cliproxy-key"
+    if key_file.exists():
+        return key_file.read_text(encoding="utf-8").strip()
+    return ""
+
+
+CLIPROXY_KEY = _load_cliproxy_key()
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
