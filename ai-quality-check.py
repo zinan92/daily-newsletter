@@ -13,11 +13,8 @@ import urllib.request
 from html import unescape
 from pathlib import Path
 
-from lib import PARKIO, batch_artifact_paths, today
+from lib import PARKIO, LLMUnavailable, batch_artifact_paths, llm_call, today
 
-CLIPROXY_ENDPOINT = "http://localhost:8317/v1/messages"
-CLIPROXY_KEY = "REDACTED-see-secrets-file"
-MODEL = "claude-sonnet-4-5-20250929"
 PUSH_RE = re.compile(r"<!-- parkio-push-items:(.*?) -->", re.S)
 PROCESSED_RE = re.compile(r"<!-- parkio-processed-items:(.*?) -->", re.S)
 
@@ -104,30 +101,6 @@ def trim(text: str, limit: int) -> str:
     head = text[: limit // 2]
     tail = text[-limit // 2 :]
     return f"{head}\n\n...[trimmed]...\n\n{tail}"
-
-
-def llm_call(prompt: str, max_tokens: int = 2200) -> str:
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        CLIPROXY_ENDPOINT,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": CLIPROXY_KEY,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=180) as r:
-        resp = json.loads(r.read())
-    return "".join(
-        c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
-    ).strip()
 
 
 def parse_json(text: str) -> dict:
@@ -228,7 +201,7 @@ def main() -> int:
 </html_visible_text>
 """
     try:
-        result = parse_json(llm_call(prompt))
+        result = parse_json(llm_call(prompt, max_tokens=2200, timeout=180))
     except Exception as exc:
         print(f"[ai-quality-check] FAIL qc call failed: {type(exc).__name__}: {exc}")
         return 1

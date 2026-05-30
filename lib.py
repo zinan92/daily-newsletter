@@ -3,7 +3,10 @@ import json
 import os
 import re
 import sys
+import time
 import hashlib
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
@@ -22,6 +25,64 @@ SENT_DIR = INBOX / "sent"
 LIBRARY_DIR = PARKIO / "library"
 PROFILE_LIBRARY_DIR = LIBRARY_DIR / "profiles"
 INDEPENDENT_LINKS_DIR = LIBRARY_DIR / "独立链接"
+
+# -----------------------------------------------------------------------------
+# Shared LLM client (CLIProxyAPI). Single definition — every script imports this
+# instead of copy-pasting its own llm_call. Adds retry/backoff so a transient
+# 502 no longer cascades into "no scores + English summaries" (gotcha #21), and
+# raises LLMUnavailable so callers can surface the outage instead of silently
+# degrading.
+# -----------------------------------------------------------------------------
+CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost:8317/v1/messages")
+CLIPROXY_KEY = os.environ.get("PARKIO_CLIPROXY_KEY", "REDACTED-see-secrets-file")
+CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+class LLMUnavailable(RuntimeError):
+    """Raised when the LLM endpoint cannot be reached after retries."""
+
+
+def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: int = 120) -> str:
+    """POST a single user message to CLIProxyAPI and return the text response.
+
+    Retries transient failures (connection errors and retryable HTTP statuses)
+    with exponential backoff. Raises LLMUnavailable if all attempts fail; a
+    non-retryable HTTP error (e.g. 400/401) fails fast.
+    """
+    body = json.dumps(
+        {
+            "model": CLIPROXY_MODEL,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+    ).encode("utf-8")
+    last_exc: Exception | None = None
+    for attempt in range(1, retries + 1):
+        req = urllib.request.Request(
+            CLIPROXY_ENDPOINT,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "anthropic-version": "2023-06-01",
+                "x-api-key": CLIPROXY_KEY,
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                resp = json.loads(r.read())
+            return "".join(
+                c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
+            ).strip()
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            if exc.code not in _RETRYABLE_STATUS:
+                break
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+            last_exc = exc
+        if attempt < retries:
+            time.sleep(min(2 ** attempt, 8))
+    raise LLMUnavailable(f"CLIProxyAPI unavailable after {retries} attempts: {last_exc}") from last_exc
 
 PROFILE_ID_BY_SOURCE_NAME = {
     "Anthropic News": "anthropic",

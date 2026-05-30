@@ -17,8 +17,10 @@ from pathlib import Path
 from lib import (
     PARKIO,
     ROOT,
+    LLMUnavailable,
     batch_artifact_paths,
     processed_batch_dir,
+    llm_call,
     load_sources,
     load_state,
     log,
@@ -61,33 +63,6 @@ CONTACT_PATH = PARKIO / "contact.md"
 SOURCE_HEALTH_PATH = ROOT / "source-health.json"
 PUSH_MARKER = "<!-- parkio-push-items:"
 PROCESSED_MARKER = "<!-- parkio-processed-items:"
-CLIPROXY_ENDPOINT = "http://localhost:8317/v1/messages"
-CLIPROXY_KEY = "REDACTED-see-secrets-file"
-MODEL = "claude-sonnet-4-5-20250929"
-
-
-def llm_call(prompt_text: str, max_tokens: int = 2000) -> str:
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        CLIPROXY_ENDPOINT,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": CLIPROXY_KEY,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        resp = json.loads(r.read())
-    return "".join(
-        c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
-    ).strip()
 
 
 def load_scores() -> dict:

@@ -25,7 +25,9 @@ from lib import (
     PARKIO,
     PROFILE_LIBRARY_DIR,
     ROOT,
+    LLMUnavailable,
     processed_batch_dir,
+    llm_call,
     log,
     today,
     now_utc,
@@ -36,9 +38,6 @@ from digest_config import media_source_names
 
 SCORES_PATH = ROOT / "scores.json"
 SOURCES_PATH = PARKIO / "sources.md"
-CLIPROXY_ENDPOINT = "http://localhost:8317/v1/messages"
-CLIPROXY_KEY = "REDACTED-see-secrets-file"
-MODEL = "claude-sonnet-4-5-20250929"
 BATCH_SIZE = 10
 MIN_INTERVAL_SEC = 1.0
 RESCORE_CONTEXT = os.environ.get("PARKIO_RESCORE_CONTEXT") == "1"
@@ -123,30 +122,6 @@ def owner_context() -> str:
     if profiles:
         chunks.append("## Source onboarding profiles\n\n" + "\n\n---\n\n".join(profiles)[:12000])
     return "\n\n".join(chunks)
-
-
-def llm_call(prompt: str, max_tokens: int = 3000) -> str:
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        CLIPROXY_ENDPOINT,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": CLIPROXY_KEY,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        resp = json.loads(r.read())
-    return "".join(
-        c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
-    )
 
 
 def extract_json_array(text: str) -> list:
