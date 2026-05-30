@@ -13,12 +13,9 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from lib import PROFILE_LIBRARY_DIR, ROOT, load_sources, log, profile_id_for_source, today
+from lib import PROFILE_LIBRARY_DIR, ROOT, LLMUnavailable, llm_call, load_sources, log, profile_id_for_source, today
 
 SOURCES_PATH = Path.home() / "park-io" / "sources.md"
-CLIPROXY_ENDPOINT = "http://localhost:8317/v1/messages"
-CLIPROXY_KEY = "REDACTED-see-secrets-file"
-MODEL = "claude-sonnet-4-5-20250929"
 
 
 def load_module(filename: str, name: str):
@@ -39,30 +36,6 @@ def read_sources_section(title: str, limit: int = 8000) -> str:
     next_match = re.search(r"^## .+$", text[match.end():], re.M)
     end = match.end() + next_match.start() if next_match else len(text)
     return text[match.end():end].strip()[:limit]
-
-
-def llm_call(prompt: str, max_tokens: int = 2600) -> str:
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        CLIPROXY_ENDPOINT,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": CLIPROXY_KEY,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=180) as r:
-        resp = json.loads(r.read())
-    return "".join(
-        c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
-    ).strip()
 
 
 def clean_markdown(text: str) -> str:
@@ -217,7 +190,7 @@ Recent items:
 Blockers:
 {blockers_text}
 """
-    return clean_markdown(llm_call(prompt))
+    return clean_markdown(llm_call(prompt, max_tokens=2600, timeout=180))
 
 
 def write_profile(profile_id: str, sources: list[dict], items: list[dict], blockers: list[str], body: str) -> Path:

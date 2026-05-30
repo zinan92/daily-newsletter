@@ -13,12 +13,9 @@ import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lib import PROFILE_LIBRARY_DIR, ROOT, load_sources, log, profile_id_for_source, today
+from lib import PROFILE_LIBRARY_DIR, ROOT, LLMUnavailable, llm_call, load_sources, log, profile_id_for_source, today
 
 SOURCES_PATH = Path.home() / "park-io" / "sources.md"
-CLIPROXY_ENDPOINT = "http://localhost:8317/v1/messages"
-CLIPROXY_KEY = "REDACTED-see-secrets-file"
-MODEL = "claude-sonnet-4-5-20250929"
 
 
 def load_fetch_rss_module():
@@ -73,30 +70,6 @@ def find_source(query: str) -> dict:
         names = ", ".join(src["name"] for src in matches)
         raise SystemExit(f"source query is ambiguous: {names}")
     return matches[0]
-
-
-def llm_call(prompt: str, max_tokens: int = 3200) -> str:
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        CLIPROXY_ENDPOINT,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": CLIPROXY_KEY,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=180) as r:
-        resp = json.loads(r.read())
-    return "".join(
-        c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
-    ).strip()
 
 
 def clean_llm_markdown(text: str) -> str:
@@ -266,7 +239,7 @@ Recent history:
 {item_lines(items)}
 """
     try:
-        return clean_llm_markdown(llm_call(prompt, max_tokens=2200))
+        return clean_llm_markdown(llm_call(prompt, max_tokens=2200, timeout=180))
     except Exception as ex:
         log("onboard-source", f"LLM profile failed: {type(ex).__name__}: {ex}")
         return fallback_profile(source, items)

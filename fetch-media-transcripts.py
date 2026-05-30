@@ -19,11 +19,8 @@ import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lib import PARKIO, ROOT, log, parse_frontmatter, parse_md_items, today
+from lib import PARKIO, ROOT, LLMUnavailable, llm_call, log, parse_frontmatter, parse_md_items, today
 from summarize import (
-    CLIPROXY_ENDPOINT,
-    CLIPROXY_KEY,
-    MODEL,
     one_line,
     strip_html,
 )
@@ -88,30 +85,6 @@ def media_record(item: dict, status: str, **extra) -> dict:
         "updated_at": datetime.now().isoformat(timespec="seconds"),
         **extra,
     }
-
-
-def llm_call(prompt_text: str, max_tokens: int = 1400) -> str:
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        CLIPROXY_ENDPOINT,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": CLIPROXY_KEY,
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        resp = json.loads(r.read())
-    return "".join(
-        c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
-    ).strip()
 
 
 def read_today_media_items() -> list[dict]:
