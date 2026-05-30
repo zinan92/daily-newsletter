@@ -184,6 +184,32 @@ def duplicate_visible_urls(*texts: str) -> list[str]:
     return sorted({u for u in candidates if candidates.count(u) > 1})
 
 
+ENGLISH_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'-]+")
+
+
+def raw_english_body_lines(visible_md: str) -> list[str]:
+    """Body prose lines that are raw English with no Chinese (gotcha #5).
+
+    The consumer newsletter is Chinese. A body line carrying >=6 English words
+    and no Chinese character is un-rewritten source text. Markdown link labels
+    and URLs are stripped first (reference links may legitimately quote an
+    English X title); headings are checked elsewhere.
+    """
+    offenders: list[str] = []
+    for line in visible_md.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        stripped = re.sub(r"\[[^\]]*\]\([^)]*\)", "", s)
+        stripped = re.sub(r"https?://\S+", "", stripped)
+        stripped = stripped.strip(" *_-：:·")
+        if not stripped or re.search(r"[一-鿿]", stripped):
+            continue
+        if len(ENGLISH_WORD_RE.findall(stripped)) >= 6:
+            offenders.append(s[:80])
+    return offenders
+
+
 def main() -> int:
     date = today()
     if os.environ.get("PARKIO_BATCH_ID") or os.environ.get("PARKIO_BATCH_DIR"):
@@ -220,6 +246,10 @@ def main() -> int:
     for pattern in METADATA_PATTERNS:
         if pattern in visible_md or pattern in visible_html:
             fail(f"metadata leaked into visible product: {pattern}", failures)
+
+    english_lines = raw_english_body_lines(visible_md)
+    if english_lines:
+        fail(f"raw English in consumer body (not rewritten to Chinese): {english_lines[:2]}", failures)
 
     required_sections = ("## 今日精选",)
     for section in required_sections:
