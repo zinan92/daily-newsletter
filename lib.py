@@ -27,68 +27,98 @@ PROFILE_LIBRARY_DIR = LIBRARY_DIR / "profiles"
 INDEPENDENT_LINKS_DIR = LIBRARY_DIR / "独立链接"
 
 # -----------------------------------------------------------------------------
-# Shared LLM client (CLIProxyAPI). Single definition — every script imports this
-# instead of copy-pasting its own llm_call. Adds retry/backoff so a transient
-# 502 no longer cascades into "no scores + English summaries" (gotcha #21), and
-# raises LLMUnavailable so callers can surface the outage instead of silently
-# degrading.
+# Shared LLM client. Single definition — every script imports this instead of
+# copy-pasting its own llm_call. Adds retry/backoff so a transient failure no
+# longer cascades into "no scores + English summaries" (gotcha #21), and raises
+# LLMUnavailable so callers can surface the outage instead of degrading silently.
+#
+# Provider is switchable via PARKIO_LLM_PROVIDER:
+#   "deepseek"  (default) — OpenAI-compatible: /chat/completions, Bearer auth
+#   "anthropic"           — CLIProxyAPI: /v1/messages, x-api-key
+# Keys are read from env or a local untracked secret file — never hardcoded, so
+# the repo carries no credential.
 # -----------------------------------------------------------------------------
+LLM_PROVIDER = os.environ.get("PARKIO_LLM_PROVIDER", "deepseek").lower()
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+# DeepSeek (OpenAI-compatible)
+DEEPSEEK_ENDPOINT = os.environ.get("PARKIO_DEEPSEEK_ENDPOINT", "https://api.deepseek.com/v1/chat/completions")
+DEEPSEEK_MODEL = os.environ.get("PARKIO_DEEPSEEK_MODEL", "deepseek-chat")
+
+# Anthropic via CLIProxyAPI (legacy / fallback)
 CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost:8317/v1/messages")
 CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
 
 
-def _load_cliproxy_key() -> str:
-    """Proxy key from env or a local untracked secret file — never hardcoded,
-    so the repo carries no credential. Set PARKIO_CLIPROXY_KEY, or write the key
-    to ~/park-io/secrets/cliproxy-key."""
-    env = os.environ.get("PARKIO_CLIPROXY_KEY", "").strip()
+def _load_secret(env_name: str, secret_filename: str) -> str:
+    """Credential from env or ~/park-io/secrets/<file> — never hardcoded."""
+    env = os.environ.get(env_name, "").strip()
     if env:
         return env
-    key_file = PARKIO / "secrets" / "cliproxy-key"
-    if key_file.exists():
-        return key_file.read_text(encoding="utf-8").strip()
+    secret_file = PARKIO / "secrets" / secret_filename
+    if secret_file.exists():
+        return secret_file.read_text(encoding="utf-8").strip()
     return ""
-
-
-CLIPROXY_KEY = _load_cliproxy_key()
-_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 class LLMUnavailable(RuntimeError):
     """Raised when the LLM endpoint cannot be reached after retries."""
 
 
+def _llm_endpoint_config(max_tokens: int):
+    """Return (url, headers, body_bytes, parser) for the active provider.
+
+    Request body shape ({model, max_tokens, messages}) is identical for both
+    providers; only the URL, auth headers, and response shape differ.
+    """
+    if LLM_PROVIDER == "anthropic":
+        key = _load_secret("PARKIO_CLIPROXY_KEY", "cliproxy-key")
+        headers = {
+            "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
+            "x-api-key": key,
+        }
+        def parse(resp):
+            return "".join(
+                c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
+            ).strip()
+        return CLIPROXY_ENDPOINT, CLIPROXY_MODEL, headers, parse
+    # default: deepseek (OpenAI-compatible)
+    key = _load_secret("PARKIO_DEEPSEEK_KEY", "deepseek-key")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {key}",
+    }
+    def parse(resp):
+        choices = resp.get("choices") or []
+        if not choices:
+            return ""
+        return (choices[0].get("message", {}).get("content", "") or "").strip()
+    return DEEPSEEK_ENDPOINT, DEEPSEEK_MODEL, headers, parse
+
+
 def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: int = 120) -> str:
-    """POST a single user message to CLIProxyAPI and return the text response.
+    """POST a single user message to the active LLM provider, return its text.
 
     Retries transient failures (connection errors and retryable HTTP statuses)
     with exponential backoff. Raises LLMUnavailable if all attempts fail; a
     non-retryable HTTP error (e.g. 400/401) fails fast.
     """
+    url, model, headers, parse = _llm_endpoint_config(max_tokens)
     body = json.dumps(
         {
-            "model": CLIPROXY_MODEL,
+            "model": model,
             "max_tokens": max_tokens,
             "messages": [{"role": "user", "content": prompt}],
         }
     ).encode("utf-8")
     last_exc: Exception | None = None
     for attempt in range(1, retries + 1):
-        req = urllib.request.Request(
-            CLIPROXY_ENDPOINT,
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "anthropic-version": "2023-06-01",
-                "x-api-key": CLIPROXY_KEY,
-            },
-        )
+        req = urllib.request.Request(url, data=body, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 resp = json.loads(r.read())
-            return "".join(
-                c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
-            ).strip()
+            return parse(resp)
         except urllib.error.HTTPError as exc:
             last_exc = exc
             if exc.code not in _RETRYABLE_STATUS:
@@ -97,7 +127,7 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
             last_exc = exc
         if attempt < retries:
             time.sleep(min(2 ** attempt, 8))
-    raise LLMUnavailable(f"CLIProxyAPI unavailable after {retries} attempts: {last_exc}") from last_exc
+    raise LLMUnavailable(f"{LLM_PROVIDER} LLM unavailable after {retries} attempts: {last_exc}") from last_exc
 
 PROFILE_ID_BY_SOURCE_NAME = {
     "Anthropic News": "anthropic",
