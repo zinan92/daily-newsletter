@@ -119,24 +119,18 @@ def parse_article(url: str, html: str) -> dict:
     )
     desc = first_match(html, [r'<meta name="description" content="(.*?)"'])
     content = clean_text(content) if content else desc
-    metadata = []
-    if account:
-        metadata.append(f"公众号：{account}")
-    if author and author != account:
-        metadata.append(f"作者：{author}")
-    if user_name:
-        metadata.append(f"WeChat ID：{user_name}")
-    if desc:
-        metadata.append(f"简介：{desc}")
-    body = "\n".join(metadata)
-    if content:
-        body += "\n\n" + content
     published = today() if IMPORT_SEEDS else article_date(html)
     return {
         "title": title or "微信公众号文章",
         "url": url,
         "published": published,
-        "content": body.strip(),
+        "content": (content or "").strip(),
+        # Provenance kept OUT of `content` so 公众号/作者/WeChat ID can never leak
+        # into the consumer newsletter (gotcha #4). For status/metadata only;
+        # the display author already comes from the source name downstream.
+        "wechat_account": account,
+        "wechat_author": author if author and author != account else "",
+        "wechat_id": user_name,
     }
 
 
