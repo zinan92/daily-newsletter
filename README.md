@@ -135,7 +135,7 @@ PARKIO_BATCH_ID=$BATCH PARKIO_FORCE_PUSH=1 python3 send-artifacts.py
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PARKIO_CLIPROXY_ENDPOINT` | LLM 端点（本地 Claude 代理） | `http://localhost:8317/v1/messages` |
-| `PARKIO_CLIPROXY_KEY` | 代理密钥（仅本机） | `REDACTED-see-secrets-file` |
+| `PARKIO_CLIPROXY_KEY` | 代理密钥（仅本机；或写入 `~/park-io/secrets/cliproxy-key`） | 无（必填） |
 | `PARKIO_CLIPROXY_MODEL` | 模型 | `claude-sonnet-4-5-20250929` |
 | `PARKIO_BATCH_ID` | 指定批次（手动跑某天） | 当天 |
 | `PARKIO_STRICT_AI_QUALITY` | 让 AI 质检变成硬门 | 未设（非阻塞） |
