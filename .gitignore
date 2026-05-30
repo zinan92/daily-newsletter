@@ -7,6 +7,7 @@ scores.json
 state.json
 tg-push-state.json
 source-health.json
+scoring-health.json
 media-queue.json
 media-summaries.json
 x-saved-items.json

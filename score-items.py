@@ -203,6 +203,42 @@ def score_batch(batch: list) -> list:
     return valid
 
 
+SCORING_HEALTH_PATH = ROOT / "scoring-health.json"
+
+
+def write_scoring_health(total_batches: int, failed_batches: int, queued: int, scored: int) -> None:
+    """Persist a scoring-outage signal so the status dashboard can surface it.
+
+    gotcha #21: a scoring outage must degrade visibly, not silently. When the
+    LLM was unreachable for some/all batches, this records it; ordinary content
+    that went unscored will be missing from the newsletter and the owner needs
+    to know it was an outage, not an empty feed.
+    """
+    outage = total_batches > 0 and failed_batches > 0
+    status = "ok"
+    if outage:
+        status = "outage" if failed_batches == total_batches else "degraded"
+    payload = {
+        "date": today(),
+        "checked_at": now_utc(),
+        "status": status,
+        "total_batches": total_batches,
+        "failed_batches": failed_batches,
+        "queued_items": queued,
+        "scored_items": scored,
+    }
+    SCORING_HEALTH_PATH.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    if outage:
+        log(
+            "score",
+            f"  !!! SCORING {status.upper()}: {failed_batches}/{total_batches} batches failed "
+            f"({scored}/{queued} items scored). Ordinary feed may be missing — this is an "
+            f"outage, not an empty feed. See scoring-health.json.",
+        )
+
+
 def main() -> None:
     scores: dict = {}
     if SCORES_PATH.exists():
@@ -251,8 +287,12 @@ def main() -> None:
     log("score", f"  {len(queue)} new items to score")
 
     last_call = 0.0
+    total_batches = 0
+    failed_batches = 0
+    scored_count = 0
     for i in range(0, len(queue), BATCH_SIZE):
         batch = queue[i : i + BATCH_SIZE]
+        total_batches += 1
         # Rate limit
         elapsed = time.time() - last_call
         if elapsed < MIN_INTERVAL_SEC:
@@ -270,11 +310,13 @@ def main() -> None:
                     "reason": r.get("reason", ""),
                     "scored_at": now,
                 }
+            scored_count += len(results)
             log(
                 "score",
                 f"  batch {i // BATCH_SIZE + 1}: {len(results)}/{len(batch)} scored",
             )
         except Exception as ex:
+            failed_batches += 1
             log(
                 "score",
                 f"  batch {i // BATCH_SIZE + 1}: ERROR {type(ex).__name__}: {ex}",
@@ -283,6 +325,7 @@ def main() -> None:
     SCORES_PATH.write_text(
         json.dumps(scores, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+    write_scoring_health(total_batches, failed_batches, len(queue), scored_count)
     log("score", f"DONE — total scored: {len(scores)}")
 
 
