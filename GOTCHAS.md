@@ -25,7 +25,7 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 6 | No stale-title pollution; titles from current content | 🧪 | `event_title()` (map removed) + `display_title()` · `test_titles.py` |
 | 7 | Dedup only within today's batch | 🔵 | `read_today_items()` within-batch dedupe; `state.json` status-only |
 | 8 | X quote/retweet: prefer the quoted long content | 🔵 | `fetch-twitter.nested_tweets()` / `tweet_text()` |
-| 9 | X thread replies merge into one event, not split | 🟡 | **TODO 2D-c**: needs `conversation_id` in `fetch-twitter.py` (future fetches only) |
+| 9 | X thread replies merge into one event, not split | 🧪 | `fetch-twitter` captures `conversation_id`; `build_events` merges same-thread · `test_thread_merge.py` (future fetches only) |
 | 10 | Cross-source merge only on URL/thread/semantic, not keyword alone | 🟡 | keyword cascade kept (net-positive today); false-merge not firing. Semantic merge = future |
 | 11 | Section structure fixed; ordinary X not in official section | 🔵 | `summarize.py` `official_plus_raw` excludes app-layer |
 | 12 | Empty sections hidden on consumer page | 🔵 | `render_html_*_card()` return "" on empty |
@@ -37,22 +37,20 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 18 | Library: `library/profiles/<id>/items/`, no legacy layers | ⚪ | convention |
 | 19 | Workflow diagram is a closed system | 🔵 | `validate-workflow.py`. **Note:** v12 contract = 4 independent paths (see `inbox-workflow.yaml`); `AGENTS.md` updated to match |
 | 20 | Quality gate is deterministic first, AI second | 🟢 | `quality-check.py` (hard) → `ai-quality-check.py` (non-blocking) |
-| 21 | Scoring outage degrades but is NOT silent | 🟡 | bypass keeps official/manual/media (done). **TODO 2A**: surface outage in status dashboard |
+| 21 | Scoring outage degrades but is NOT silent | 🟢🔵 | bypass keeps official/manual/media · `score-items` writes `scoring-health.json` + log · `generate-status` shows banner |
 | 22 | Source health on owner page, not newsletter body | 🔵 | `health` isolated from `render_panel` body |
 | 23 | WeChat auto-fetch is fragile; manual links reliable | 🟡 | manual path reliable. **TODO**: surface auto-feed success/failure in status |
-| 24 | Empty-content X items don't enter consumer body | 🟡 | **TODO**: verify empty X items routed to health/debug, not newsletter |
+| 24 | Empty-content X items don't enter consumer body | 🧪 | `x_item_has_content()` skips link-only single-X events · `test_empty_x.py` |
 
 ---
 
 ## Open items (tracked)
 
-- **2A** — Consolidate the 7 copy-pasted `llm_call` into `lib.py` with retry +
-  **visible** degraded mode (gotcha #21, #23).
-- **2C** — `fetch-wechat.py` should store account/author/WeChat-ID as structured
-  fields instead of prepending them into content (defense-in-depth for #4).
-- **2D-c** — `conversation_id` thread merge (gotcha #9). Future fetches only;
-  cannot be verified on already-fetched batches.
-- **#24** — Confirm empty-content X items are excluded from the consumer body.
+- **#23** — Surface WeChat auto-feed success/failure in the status dashboard
+  (manual-links path is already reliable). The only remaining 🟡.
+- **#10 (cross-source semantic merge)** — the keyword cascade is kept because it
+  currently produces net-positive merges; a semantic-similarity replacement is a
+  future improvement, not a present bug.
 
 ## How this maps to the workflow contract
 
