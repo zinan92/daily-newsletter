@@ -1,0 +1,23 @@
+# Secrets — NEVER commit
+*.env
+twitter-auth.env
+
+# Runtime state / data (regenerated each run, not source)
+scores.json
+state.json
+tg-push-state.json
+source-health.json
+media-queue.json
+media-summaries.json
+x-saved-items.json
+x-saved-source-candidates.json
+x-saved-state.json
+
+# Runtime services (wewe-rss db, etc.)
+.runtime/
+
+# Logs & caches
+logs/
+__pycache__/
+*.pyc
+.DS_Store
