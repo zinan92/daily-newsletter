@@ -327,6 +327,32 @@ def translate_release_note_source(text: str) -> str:
     return f"{text}。价值：减少工具使用中的不确定性，降低排查成本。"
 
 
+def bypasses_score(item: dict, platform: str = "", fm: dict | None = None) -> bool:
+    """Sources that must appear regardless of score (gotcha #1/#2/#3).
+
+    Official channels, code releases, key people, media, user-saved, and WeChat
+    are curated inputs. They must survive even when the scoring service is down
+    (a 502 outage leaves items at score=0), so they never depend on the score
+    threshold. Only ordinary feed items are score-gated.
+    """
+    fm = fm or {}
+    item_source = item.get("source", "")
+    item_category = item.get("category") or fm.get("category", "")
+    return (
+        platform in {"wechat", "douyin"}
+        or item_category.startswith("video-")
+        or item_category.startswith("wechat-")
+        or item_source in (
+            source_names_for_group("code")
+            | source_names_for_group("official")
+            | source_names_for_group("people")
+            | media_source_names()
+            | source_names_for_group("saved")
+            | source_names_for_group("wechat")
+        )
+    )
+
+
 def read_today_items(today_str: str, scores: dict) -> tuple[list, list]:
     batch_mode = bool(os.environ.get("PARKIO_BATCH_ID") or os.environ.get("PARKIO_BATCH_DIR"))
     inbox_today = processed_batch_dir() if batch_mode else PARKIO / "inbox" / "unprocessed"
@@ -360,28 +386,12 @@ def read_today_items(today_str: str, scores: dict) -> tuple[list, list]:
                     seen_urls.add(url)
                 deduped_items.append(item)
             items = deduped_items
-            def item_always_include(item: dict) -> bool:
-                item_source = item.get("source", "")
-                item_category = item.get("category") or fm.get("category", "")
-                return (
-                    platform in {"wechat", "douyin"}
-                    or item_category.startswith("video-")
-                    or item_category.startswith("wechat-")
-                    or item_source in (
-                        source_names_for_group("code")
-                        | source_names_for_group("official")
-                        | source_names_for_group("people")
-                        | media_source_names()
-                        | source_names_for_group("saved")
-                        | source_names_for_group("wechat")
-                    )
-                )
             source = {
                 "file": mf,
                 "fm": fm,
                 "items": items,
-                "kept": [it for it in items if item_always_include(it) or it["score"] >= SCORE_THRESHOLD],
-                "filtered": [it for it in items if not item_always_include(it) and it["score"] < SCORE_THRESHOLD],
+                "kept": [it for it in items if bypasses_score(it, platform, fm) or it.get("score", 0) >= SCORE_THRESHOLD],
+                "filtered": [it for it in items if not bypasses_score(it, platform, fm) and it.get("score", 0) < SCORE_THRESHOLD],
             }
             sources.append(source)
             for it in items:
