@@ -132,6 +132,21 @@ def tweet_id(tweet):
     )
 
 
+def tweet_conversation_id(tweet):
+    """Thread/conversation id, so replies in the same thread can be merged into
+    one event (gotcha #9). Falls back to the in-reply-to root, else "" (the
+    caller defaults a standalone tweet to its own id)."""
+    for key in ("conversationId", "conversationIdStr", "conversation_id", "conversation_id_str"):
+        val = tweet.get(key)
+        if val:
+            return str(val)
+    for key in ("inReplyToStatusId", "inReplyToStatusIdStr", "in_reply_to_status_id", "in_reply_to_status_id_str"):
+        val = tweet.get(key)
+        if val:
+            return str(val)
+    return ""
+
+
 def unwrap_tweet(value):
     if not isinstance(value, dict):
         return None
@@ -307,6 +322,7 @@ def main():
                         "text": text,
                         "author": tweet_author(t, handle),
                         "handle": tweet_handle(t, handle),
+                        "conversation_id": tweet_conversation_id(t) or tid,
                         "time": t.get("createdAtLocal") or t.get("createdAtISO") or t.get("time", ""),
                         "published": tweet_local_date(t),
                         "likes": metrics["likes"],

@@ -406,6 +406,7 @@ def parse_md_items(body: str) -> list:
         author_match = re.search(r"author:\s*([^·*]+)", meta)
         source_match = re.search(r"source:\s*([^·*]+)", meta)
         handle_match = re.search(r"\(@([^)]+)\)", meta)
+        conv_match = re.search(r"conv:\s*(\d+)", meta)
         items.append(
             {
                 "title": title,
@@ -416,6 +417,7 @@ def parse_md_items(body: str) -> list:
                 "source": source_match.group(1).strip() if source_match else "",
                 "author": re.sub(r"\s*\(@[^)]+\)", "", author_match.group(1)).strip() if author_match else "",
                 "handle": handle_match.group(1).strip() if handle_match else "",
+                "conversation_id": conv_match.group(1) if conv_match else "",
             }
         )
     return items
@@ -449,7 +451,9 @@ def _twitter_item_md(item: dict) -> str:
         author_part += f" (@{handle})"
     source = item.get("source") or ""
     source_part = f"source: {source} · " if source else ""
-    meta = f"**{source_part}{author_part} · likes: {likes} · rts: {rts}** · [link]({url})"
+    conv = item.get("conversation_id") or ""
+    conv_part = f" · conv: {conv}" if conv else ""
+    meta = f"**{source_part}{author_part} · likes: {likes} · rts: {rts}{conv_part}** · [link]({url})"
     parts = [f"## {title}", meta]
     if text:
         parts.extend(["", text])

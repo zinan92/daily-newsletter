@@ -157,11 +157,30 @@ def tags_union(items: list[dict]) -> list[str]:
     return tags[:4]
 
 
+def conversation_counts(items: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        conv = item.get("conversation_id", "")
+        if conv:
+            counts[conv] = counts.get(conv, 0) + 1
+    return counts
+
+
 def build_events(items: list[dict], limit: int | None = 8, title_func=None) -> list[dict]:
     title_func = title_func or (lambda item: item.get("title", ""))
+    # Same-thread tweets (>=2 in this batch sharing a conversation_id) merge into
+    # one event (gotcha #9) — the parent tweet plus its replies. Standalone
+    # tweets keep their normal event_key, so cross-source keyword merges are
+    # unaffected (gotcha #10). Only fetches that captured conversation_id carry
+    # it; older items have none and fall through unchanged.
+    conv_counts = conversation_counts(items)
     buckets: dict[str, list[dict]] = {}
     for item in items:
-        key = event_key(item)
+        conv = item.get("conversation_id", "")
+        if conv and conv_counts.get(conv, 0) >= 2:
+            key = f"thread:{conv}"
+        else:
+            key = event_key(item)
         bucket = buckets.setdefault(key, [])
         if item.get("url") and any(existing.get("url") == item.get("url") for existing in bucket):
             continue
