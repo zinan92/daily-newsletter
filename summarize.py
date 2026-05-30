@@ -773,9 +773,20 @@ def x_item_heading(item: dict) -> str:
     return author or "X 更新"
 
 
+def x_item_has_content(item: dict) -> bool:
+    """An X item carries real content only if its tweet text survives cleaning
+    (URLs/meta stripped). Quote/retweet text is already folded into content at
+    fetch time. Link-only / empty tweets have nothing to show (gotcha #24)."""
+    return bool(clean_reader_text(item.get("content", "")))
+
+
 def render_summary_event(event: dict, heading_level: int = 3) -> list[str]:
     primary = event["primary"]
     if len(event["items"]) == 1 and is_x_style_item(primary):
+        # gotcha #24: an empty/link-only X item belongs in debug, not the
+        # consumer newsletter — skip it rather than emit a title-only stub.
+        if not x_item_has_content(primary):
+            return []
         url = primary.get("url", "")
         heading = "#" * heading_level
         lines = [f"{heading} [{x_item_heading(primary)}]({url})", ""]
