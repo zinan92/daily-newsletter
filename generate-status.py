@@ -568,6 +568,28 @@ def render_channel_chart(profile_stats: list[dict], independent_total: int) -> s
     return render_bar_chart("长期资产渠道构成", rows[:10], "看资料库主要由哪些渠道构成，避免误以为每日简报只是一堆 X。")
 
 
+def render_scoring_banner() -> str:
+    """Surface a scoring outage on the owner page (gotcha #21). score-items
+    writes scoring-health.json; only degraded/outage states show a banner."""
+    data = load_json(ROOT / "scoring-health.json")
+    status = data.get("status")
+    if status not in ("outage", "degraded"):
+        return ""
+    failed = data.get("failed_batches", 0)
+    total = data.get("total_batches", 0)
+    scored = data.get("scored_items", 0)
+    queued = data.get("queued_items", 0)
+    color = "#be123c" if status == "outage" else "#b45309"
+    label = "评分服务中断" if status == "outage" else "评分部分降级"
+    return f"""
+    <section class="panel" style="border-left:6px solid {color};background:#fff7f5">
+      <h2 style="color:{color}">⚠ {escape(label)}</h2>
+      <p>评分服务今天有 {failed}/{total} 批失败（{scored}/{queued} 条完成评分）。
+      官方 / 手动 / 媒体内容仍照常进入正文（它们不依赖评分）；普通 X feed 可能缺失——
+      这是评分中断，不是今天没有内容。</p>
+    </section>"""
+
+
 def render() -> str:
     date = today()
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -771,6 +793,8 @@ def render() -> str:
       </div>
       {render_donut("今日内容去向", today_parts, max(funnel["total"], 0), "条原始内容")}
     </section>
+
+    {render_scoring_banner()}
 
     <section class="grid">
       {render_metric("活跃来源", len(configured), "来源清单中启用的来源")}
