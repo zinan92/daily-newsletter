@@ -52,6 +52,7 @@ from digest_text import (
     release_bullets,
     sanitize_product_text,
     strip_html,
+    strip_source_meta,
 )
 
 SCORES_PATH = ROOT / "scores.json"
@@ -1192,7 +1193,7 @@ def clean_media_summary(text: str) -> str:
     text = re.sub(r"^(摘要|一句话摘要)[：:]*\s*", "", text).strip()
     if text in {"摘要", ""}:
         return ""
-    return text
+    return strip_source_meta(text)
 
 
 def media_duration(item: dict) -> str:

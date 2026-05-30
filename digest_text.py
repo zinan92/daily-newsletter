@@ -50,8 +50,34 @@ def bad_llm_text(text: str) -> bool:
     return any(marker in text for marker in BAD_LLM_MARKERS)
 
 
+# Canonical raw-metadata patterns. Source/ingestion fields like "公众号：" or
+# "WeChat ID：" must NEVER reach reader-facing output — they belong in status,
+# not in the consumer newsletter (gotcha #4). This is the single definition;
+# both sanitize_product_text() (LLM-output path) and summarize.clean_reader_text()
+# (raw-content path) apply it, so meta cannot leak through either lineage.
+_SOURCE_META_PATTERNS = (
+    (re.compile(r"公众号[：:]\s*[^\s，。！？、]{1,40}"), ""),
+    (re.compile(r"作者[：:]\s*[^\s，。！？、]{1,40}"), ""),
+    (re.compile(r"WeChat ID[：:]\s*\S+", re.I), ""),
+    (re.compile(r"简介[：:]\s*"), ""),
+    (re.compile(r"文章标题[：:]\s*"), ""),
+    (re.compile(r"(?:Source|channel|platform|category)[：:]\s*\S+", re.I), ""),
+    (re.compile(r"(?:引用内容|引用|原文链接|链接)[：:]\s*(?:https?://\S+)?"), ""),
+    (re.compile(r"https://t\.co/\S+"), " "),
+)
+
+
+def strip_source_meta(text: str) -> str:
+    """Remove raw source/channel metadata that must never reach reader-facing output."""
+    text = text or ""
+    for pattern, repl in _SOURCE_META_PATTERNS:
+        text = pattern.sub(repl, text)
+    return re.sub(r"\s{2,}", " ", text).strip()
+
+
 def sanitize_product_text(text: str) -> str:
     text = clean_llm_text(text)
+    text = strip_source_meta(text)
     text = text.replace("---", " ")
     text = re.sub(r"^根据你的要求[，,：:].*?(?:中文摘要|摘要)[：:]\s*", "", text)
     text = re.sub(r"^根据这条信息[，,，]*为您准备以下摘要[：:]\s*", "", text)
