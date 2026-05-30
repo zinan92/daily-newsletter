@@ -270,18 +270,20 @@ def event_summary(event: dict) -> str:
     except Exception as ex:
         log("summarize", f"event summary failed: {type(ex).__name__}: {ex}")
         text = source_event_summary(event)
-    if bad_llm_text(text):
+    if bad_llm_text(text) or not has_chinese(text):
         text = source_event_summary(event)
     event["summary"] = text
     return text
 
 
 def source_event_summary(event: dict) -> str:
-    primary = event["primary"]
+    # gotcha #5: never join raw English bodies into the consumer summary. Keep
+    # only Chinese source bodies; if none are Chinese (LLM rewrite unavailable),
+    # return empty so the content-derived Chinese title carries the event.
     bodies = [reader_item_body(item, 260) for item in event.get("items", [])[:4]]
-    bodies = [body for body in bodies if body]
+    bodies = [body for body in bodies if body and has_chinese(body)]
     if not bodies:
-        return reader_item_title(primary)
+        return ""
     return "；".join(bodies)
 
 
@@ -552,15 +554,23 @@ def value_paragraph(item: dict) -> str:
         log("summarize", f"value paragraph failed: {type(ex).__name__}: {ex}")
         return source_item_paragraph(item)
     text = sanitize_product_text(text)
-    if bad_llm_text(text):
+    # A rewrite that came back non-Chinese (model echoed English) is a failure,
+    # not a result — route to the (English-suppressing) fallback (gotcha #5).
+    if bad_llm_text(text) or not has_chinese(text):
         return source_item_paragraph(item)
     return text
 
 
 def source_item_paragraph(item: dict) -> str:
     content = reader_item_body(item, limit=220)
+    # gotcha #5: the consumer body must never be raw English. When the LLM
+    # rewrite is unavailable, only surface the source content if it is already
+    # Chinese; otherwise leave the body empty so the (content-derived Chinese)
+    # title and link carry the item.
+    if content and not has_chinese(content):
+        return ""
     if not content:
-        content = reader_item_title(item)
+        return ""
     return f"{content}。"
 
 
