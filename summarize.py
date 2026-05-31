@@ -1613,50 +1613,118 @@ def digest_event_count(topic_clusters: list[dict], *event_groups: list[dict]) ->
     return total
 
 
-def render_today_conclusion_md(
-    total: int,
-    main_items: int,
-    event_count: int,
-    expanded_count: int,
-    media_count: int,
-    saved_count: int,
-    wechat_count: int,
-    filtered_count: int,
-) -> list[str]:
+# Reader-facing structure = four independent paths. The "today" conclusion is
+# reported per path because each path has different rules (P1/P3/P4 bypass score,
+# only P2/X is score-filtered). A single blended funnel (217→44→18→Top10) was
+# misleading: it hid that ALL filtering happens in the X path, and the "Top N"
+# label was a min() artifact, not a real second filter.
+PATH_DEFS = (
+    ("official", "官方 / 代码源", True),
+    ("x", "X 应用层", False),
+    ("media", "音视频 (Podcast/YouTube/抖音)", True),
+    ("saved", "收藏 / 公众号", True),
+)
+
+
+def _classify_path(name: str, platform: str = "") -> str:
+    if name in (source_names_for_group("code") | source_names_for_group("official") | source_names_for_group("people")):
+        return "official"
+    if name in source_names_for_group("twitter"):
+        return "x"
+    if name in media_source_names() or platform == "douyin":
+        return "media"
+    if name in source_names_for_group("saved") or name in source_names_for_group("wechat") or platform == "wechat":
+        return "saved"
+    return "x"  # default: ordinary feed is score-gated like the X path
+
+
+def _source_name(src: dict) -> str:
+    items = src.get("items", [])
+    fm = src.get("fm", {})
+    name = (items[0].get("source") if items else None) or fm.get("source_name", "")
+    return name or src.get("file").stem if src.get("file") else (name or "")
+
+
+def compute_path_breakdown(sources: list) -> dict:
+    """Per-path funnel: fetched → kept → merged events, plus silent channels.
+
+    Channels are deduped by source name (a batch can hold several files for the
+    same channel). channels_total/silent come from the configured source list.
+    """
+    by_path = {key: {"fetched": 0, "kept": 0, "channels": {}, "kept_items": []} for key, _, _ in PATH_DEFS}
+    for src in sources:
+        name = _source_name(src)
+        platform = src.get("fm", {}).get("platform", "")
+        key = _classify_path(name, platform)
+        agg = by_path[key]
+        n_items, kept = len(src.get("items", [])), src.get("kept", [])
+        agg["fetched"] += n_items
+        agg["kept"] += len(kept)
+        agg["kept_items"].extend(kept)
+        ch = agg["channels"].setdefault(name, {"fetched": 0, "kept": 0})
+        ch["fetched"] += n_items
+        ch["kept"] += len(kept)
+
+    cfg_by_path: dict[str, list[str]] = {key: [] for key, _, _ in PATH_DEFS}
+    try:
+        for row in load_sources():
+            cfg_by_path[_classify_path(row.get("name", ""), row.get("platform", ""))].append(row.get("name", ""))
+    except Exception:
+        pass
+
+    paths = []
+    for key, label, bypass in PATH_DEFS:
+        agg = by_path[key]
+        events = len(build_events(agg["kept_items"], limit=None)) if agg["kept_items"] else 0
+        configured = [n for n in cfg_by_path[key] if n]
+        silent = sorted(n for n in configured if n not in agg["channels"])
+        top_filtered = sorted(
+            [(n, c["fetched"], c["kept"]) for n, c in agg["channels"].items() if c["fetched"] - c["kept"] > 0],
+            key=lambda t: -(t[1] - t[2]),
+        )[:3]
+        paths.append({
+            "key": key, "label": label, "bypass": bypass,
+            "channels_updated": len(agg["channels"]),
+            "channels_total": max(len(configured), len(agg["channels"])),
+            "fetched": agg["fetched"], "kept": agg["kept"], "filtered": agg["fetched"] - agg["kept"],
+            "events": events, "rendered": min(events, TOP_DIGEST_EVENTS),
+            "channels": {n: dict(c) for n, c in agg["channels"].items()},
+            "silent": silent, "top_filtered": top_filtered,
+        })
+    return {"total": sum(p["fetched"] for p in paths), "paths": paths}
+
+
+def render_today_conclusion_md(breakdown: dict) -> list[str]:
+    """Consumer-facing per-path summary (concise — one line per path)."""
     lines = ["", "## 今日结论"]
-    lines.append(f"- 今日抓到 {total} 条当天内容，其中 {main_items} 条进入主简报。")
-    lines.append(f"- 已合并成 {event_count} 个事件，正文展开 Top {expanded_count}。")
-    if media_count:
-        lines.append(f"- 另有 {media_count} 条 Podcast / YouTube / 抖音长内容进入精选区。")
-    if saved_count:
-        lines.append(f"- 另有 {saved_count} 条我的 X 收藏进入正文，收藏内容不按分数过滤。")
-    if wechat_count:
-        lines.append(f"- 另有 {wechat_count} 条公众号文章进入正文，种子文章不按分数过滤。")
-    lines.append(f"- {filtered_count} 条低信号内容已过滤，不在正文展开。")
+    for p in breakdown["paths"]:
+        if p["fetched"] == 0:
+            if p["key"] == "media":
+                lines.append(f"- **{p['label']}** — {p['channels_total']} 个渠道今日均无更新")
+            continue
+        if p["bypass"]:
+            lines.append(f"- **{p['label']}** — {p['channels_updated']} 渠道更新 · {p['fetched']} 条全部收录（不过滤）")
+        else:
+            lines.append(
+                f"- **{p['label']}** — {p['channels_updated']} 渠道 {p['fetched']} 条 → 保留 {p['kept']} 条（过滤 {p['filtered']}）"
+            )
+    total = breakdown["total"]
+    kept_total = sum(p["kept"] for p in breakdown["paths"])
+    filtered_total = sum(p["filtered"] for p in breakdown["paths"])
+    tail = "，过滤集中在 X 应用层" if filtered_total else ""
+    lines.append(f"- 合计 {total} 条抓取 → {kept_total} 条进入正文{tail}。")
     return lines
 
 
-def render_today_conclusion_html(
-    total: int,
-    main_items: int,
-    event_count: int,
-    expanded_count: int,
-    media_count: int,
-    saved_count: int,
-    wechat_count: int,
-    filtered_count: int,
-) -> str:
-    bullets = render_today_conclusion_md(
-        total,
-        main_items,
-        event_count,
-        expanded_count,
-        media_count,
-        saved_count,
-        wechat_count,
-        filtered_count,
-    )[2:]
-    body = "".join(f"<li>{escape(line.removeprefix('- '))}</li>" for line in bullets)
+def _md_inline_to_html(text: str) -> str:
+    # escape first, then turn **bold** into <strong> (consumer conclusion only)
+    escaped = escape(text)
+    return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+
+
+def render_today_conclusion_html(breakdown: dict) -> str:
+    bullets = render_today_conclusion_md(breakdown)[2:]
+    body = "".join(f"<li>{_md_inline_to_html(line.removeprefix('- '))}</li>" for line in bullets)
     return f"""
       <section class="card conclusion-card">
         <header class="card-header">
@@ -1930,16 +1998,7 @@ def render_html_panel(today_str: str, sources: list, health: list) -> str:
     expanded_count = min(TOP_DIGEST_EVENTS, event_count)
 
     cards = [
-        render_today_conclusion_html(
-            all_total,
-            all_kept,
-            event_count,
-            expanded_count,
-            len(media_raw),
-            len(saved_raw),
-            len(wechat_raw),
-            filtered_count,
-        ),
+        render_today_conclusion_html(compute_path_breakdown(sources)),
     ]
     official_card = render_html_official_card(
         "AI 官方与代码源",
@@ -2197,18 +2256,7 @@ def render_panel(today_str: str, sources: list, health: list) -> str:
         f"# Park-IO Daily Summary — {today_str}",
         "",
     ]
-    lines.extend(
-        render_today_conclusion_md(
-            total_items,
-            len(non_media_kept),
-            event_count,
-            expanded_count,
-            len(media_items),
-            len(saved_items),
-            len(wechat_items),
-            len(filtered),
-        )
-    )
+    lines.extend(render_today_conclusion_md(compute_path_breakdown(sources)))
     lines.extend(["## 今日精选"])
     if official_events or application_events or saved_events or wechat_events:
         if official_events:

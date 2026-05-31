@@ -590,6 +590,56 @@ def render_scoring_banner() -> str:
     </section>"""
 
 
+def render_path_breakdown(breakdown: dict) -> str:
+    """Detailed per-path funnel for the owner page: per-channel fetched→kept,
+    merged events, and the configured channels that had no update today."""
+    blocks = []
+    for i, p in enumerate(breakdown["paths"], 1):
+        if p["bypass"]:
+            funnel = f"{p['channels_updated']}/{p['channels_total']} 渠道更新 · 抓取 {p['fetched']} · 全部收录（不过滤）"
+        else:
+            funnel = (
+                f"{p['channels_updated']}/{p['channels_total']} 渠道 · 抓取 {p['fetched']} · "
+                f"进正文 {p['kept']} · 过滤 {p['filtered']}"
+            )
+        if p["events"]:
+            cap = f"（正文展开前 {p['rendered']}）" if p["events"] > p["rendered"] else ""
+            funnel += f" · 合并 {p['events']} 事件{cap}"
+
+        rows = ""
+        channels = sorted(
+            p["channels"].items(),
+            key=lambda kv: -(kv[1]["fetched"] - kv[1]["kept"]) if not p["bypass"] else -kv[1]["fetched"],
+        )
+        for name, c in channels:
+            filt = c["fetched"] - c["kept"]
+            rows += (
+                f"<tr><td>{escape(name)}</td><td>{c['fetched']}</td><td>{c['kept']}</td>"
+                f"<td>{filt if not p['bypass'] else '—'}</td></tr>"
+            )
+        table = (
+            f"<table class='mini'><thead><tr><th>渠道</th><th>抓取</th><th>进正文</th><th>过滤</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>"
+            if rows else "<p style='color:#94a3b8'>今日无更新</p>"
+        )
+        silent = ""
+        if p["silent"]:
+            names = "、".join(escape(n) for n in p["silent"])
+            silent = f"<p style='color:#94a3b8;font-size:14px'>无更新渠道（{len(p['silent'])}）：{names}</p>"
+        blocks.append(
+            f"<div class='path-block'><h3>P{i} · {escape(p['label'])}</h3>"
+            f"<p class='path-funnel'>{funnel}</p>{table}{silent}</div>"
+        )
+    kept_total = sum(p["kept"] for p in breakdown["paths"])
+    return f"""
+    <section class="panel">
+      <h2>四条路径漏斗</h2>
+      <p>每条 path 规则不同：官方 / 音视频 / 收藏不按评分过滤，只有 X 应用层走评分门。
+      合计 {breakdown['total']} 条抓取 → {kept_total} 条进入正文。</p>
+      {''.join(blocks)}
+    </section>"""
+
+
 def render() -> str:
     date = today()
     generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -804,6 +854,8 @@ def render() -> str:
     </section>
 
     {render_intake_funnel(intake_buckets, pushed_count)}
+
+    {render_path_breakdown(summarize.compute_path_breakdown(sources_today))}
 
     <h2>今日处理总览</h2>
     <section class="visual-grid">
