@@ -326,7 +326,10 @@ def main() -> None:
         json.dumps(scores, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     write_scoring_health(total_batches, failed_batches, len(queue), scored_count)
-    log("score", f"DONE — total scored: {len(scores)}")
+    from lib import get_usage
+    u = get_usage()
+    log("score", f"DONE — total scored: {len(scores)} · LLM tokens: {u['total']} "
+                 f"(prompt {u['prompt']} / completion {u['completion']} / reasoning {u['reasoning']}) over {u['calls']} calls")
 
 
 if __name__ == "__main__":

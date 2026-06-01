@@ -41,13 +41,47 @@ INDEPENDENT_LINKS_DIR = LIBRARY_DIR / "独立链接"
 LLM_PROVIDER = os.environ.get("PARKIO_LLM_PROVIDER", "deepseek").lower()
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
-# DeepSeek (OpenAI-compatible)
+# DeepSeek (OpenAI-compatible). Default is the V4 Pro reasoning model.
 DEEPSEEK_ENDPOINT = os.environ.get("PARKIO_DEEPSEEK_ENDPOINT", "https://api.deepseek.com/v1/chat/completions")
-DEEPSEEK_MODEL = os.environ.get("PARKIO_DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_MODEL = os.environ.get("PARKIO_DEEPSEEK_MODEL", "deepseek-v4-pro")
+# Reasoning models spend tokens thinking (reasoning_content) BEFORE the answer
+# (content), and max_tokens caps the TOTAL. Too small a cap → all tokens go to
+# reasoning and content comes back empty. max_tokens is a ceiling billed by
+# actual use, so we raise it for reasoning models to guarantee room for the
+# answer; prompt instructions still control answer length.
+DEEPSEEK_MAX_OUTPUT = int(os.environ.get("PARKIO_DEEPSEEK_MAX_OUTPUT", "8000"))
 
 # Anthropic via CLIProxyAPI (legacy / fallback)
 CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost:8317/v1/messages")
 CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
+
+
+def _is_reasoning_model(model: str) -> bool:
+    m = (model or "").lower()
+    return "v4" in m or "reasoner" in m or "r1" in m
+
+
+# Token-usage accounting so the owner can see cost. Accumulates across a run;
+# scripts log get_usage() at the end.
+_USAGE = {"calls": 0, "prompt": 0, "completion": 0, "reasoning": 0, "total": 0}
+
+
+def record_usage(resp: dict) -> None:
+    u = resp.get("usage") or {}
+    _USAGE["calls"] += 1
+    _USAGE["prompt"] += int(u.get("prompt_tokens", 0) or 0)
+    _USAGE["completion"] += int(u.get("completion_tokens", 0) or 0)
+    _USAGE["reasoning"] += int((u.get("completion_tokens_details") or {}).get("reasoning_tokens", 0) or 0)
+    _USAGE["total"] += int(u.get("total_tokens", 0) or 0)
+
+
+def get_usage() -> dict:
+    return dict(_USAGE)
+
+
+def reset_usage() -> None:
+    for k in _USAGE:
+        _USAGE[k] = 0
 
 
 def _load_secret(env_name: str, secret_filename: str) -> str:
@@ -105,10 +139,15 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
     non-retryable HTTP error (e.g. 400/401) fails fast.
     """
     url, model, headers, parse = _llm_endpoint_config(max_tokens)
+    # Reasoning models need headroom for thinking + answer, and run slower.
+    effective_max = max_tokens
+    if LLM_PROVIDER == "deepseek" and _is_reasoning_model(model):
+        effective_max = max(max_tokens, DEEPSEEK_MAX_OUTPUT)
+        timeout = max(timeout, 300)
     body = json.dumps(
         {
             "model": model,
-            "max_tokens": max_tokens,
+            "max_tokens": effective_max,
             "messages": [{"role": "user", "content": prompt}],
         }
     ).encode("utf-8")
@@ -118,6 +157,7 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 resp = json.loads(r.read())
+            record_usage(resp)
             return parse(resp)
         except urllib.error.HTTPError as exc:
             last_exc = exc

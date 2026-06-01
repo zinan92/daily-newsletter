@@ -2313,7 +2313,10 @@ def main() -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(render_panel(today_str, sources, health), encoding="utf-8")
     html_path.write_text(render_html_panel(today_str, sources, health), encoding="utf-8")
-    log("summarize", f"DONE — wrote {out_path} and {html_path}")
+    from lib import get_usage
+    u = get_usage()
+    log("summarize", f"DONE — wrote {out_path} and {html_path} · LLM tokens: {u['total']} "
+                     f"(prompt {u['prompt']} / completion {u['completion']} / reasoning {u['reasoning']}) over {u['calls']} calls")
     print(f"Panel: {out_path}")
     print(f"HTML: {html_path}")
 
