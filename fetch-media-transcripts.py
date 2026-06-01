@@ -29,7 +29,11 @@ MEDIA_SUMMARIES_PATH = ROOT / "media-summaries.json"
 MEDIA_QUEUE_PATH = ROOT / "media-queue.json"
 DOWNLOAD_CAPABILITY = Path.home() / "content-toolkit/capabilities/download"
 DOUYIN_COOKIE_FILE = Path.home() / "park-io/secrets/content-ops/douyin-cookies.json"
-TRANSCRIPT_MIN_CHARS = 1200
+# Lowered from 1200: a YouTube Short / brief clip's full transcript can be
+# 400-1000 chars and still summarize fine. 1200 silently dropped Shorts to
+# title-only (e.g. the No Priors "Claude Code can destroy your database" Short
+# at 996 chars). Env-configurable.
+TRANSCRIPT_MIN_CHARS = int(os.environ.get("PARKIO_TRANSCRIPT_MIN_CHARS", "400"))
 MAX_TRANSCRIPT_CHARS = 22000
 DEFAULT_LIMIT = 4
 MAX_ASR_SECONDS = int(os.environ.get("PARKIO_MEDIA_MAX_ASR_SECONDS", "5400"))
