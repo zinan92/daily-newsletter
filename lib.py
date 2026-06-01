@@ -6,6 +6,7 @@ import sys
 import time
 import hashlib
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -97,6 +98,22 @@ def _load_secret(env_name: str, secret_filename: str) -> str:
 
 class LLMUnavailable(RuntimeError):
     """Raised when the LLM endpoint cannot be reached after retries."""
+
+
+def send_telegram(text: str) -> bool:
+    """Send a plain-text Telegram message (owner alerts). Token/chat from env or
+    ~/park-io/secrets/telegram-*. Returns True on success, never raises."""
+    token = _load_secret("PARKIO_TELEGRAM_BOT_TOKEN", "telegram-bot-token")
+    chat = _load_secret("PARKIO_TELEGRAM_CHAT_ID", "telegram-chat-id")
+    if not token or not chat:
+        return False
+    body = urllib.parse.urlencode({"chat_id": chat, "text": text, "disable_web_page_preview": "true"}).encode("utf-8")
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=body)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read()).get("ok", False)
+    except Exception:
+        return False
 
 
 def _llm_endpoint_config(max_tokens: int):
