@@ -26,7 +26,7 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 7 | Dedup only within today's batch | 🔵 | `read_today_items()` within-batch dedupe; `state.json` status-only |
 | 8 | X quote/retweet: prefer the quoted long content | 🔵 | `fetch-twitter.nested_tweets()` / `tweet_text()` |
 | 9 | X thread replies merge into one event, not split | 🧪 | `fetch-twitter` captures `conversation_id`; `build_events` merges same-thread · `test_thread_merge.py` (future fetches only) |
-| 10 | Cross-source merge only on URL/thread/semantic, not keyword alone | 🟡 | keyword cascade kept (net-positive today); false-merge not firing. Semantic merge = future |
+| 10 | Cross-source merge only on URL/thread/semantic, not keyword alone | 🔵 | `digest_events._semantic_cluster` (v4-pro judgment) replaced the ~40 hardcoded keyword rules; `event_key` is now unique-by-default. Kill switch: `PARKIO_SEMANTIC_CLUSTER=0`; safe fallback (no merge) on LLM failure |
 | 11 | Section structure fixed; ordinary X not in official section | 🔵 | `summarize.py` `official_plus_raw` excludes app-layer |
 | 12 | Empty sections hidden on consumer page | 🔵 | `render_html_*_card()` return "" on empty |
 | 13 | HTML / Markdown / PNG share cleaning + content | 🔵 | shared `render_panel`/`render_html_panel`; PNG from HTML |

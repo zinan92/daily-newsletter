@@ -12,6 +12,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Keep these tests deterministic and offline: disable the LLM semantic-cluster
+# pass (thread-merge runs before it, so thread behavior is still exercised).
+os.environ["PARKIO_SEMANTIC_CLUSTER"] = "0"
+
 import lib
 import digest_events as de
 
