@@ -9,10 +9,12 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from lib import SENT_DIR, batch_artifact_paths, batch_label, today
+from lib import SENT_DIR, _load_secret, batch_artifact_paths, batch_label, today
 
-BOT_TOKEN = "REDACTED-telegram-token"
-CHAT_ID = "REDACTED-chat-id"
+# Telegram credentials load from env or ~/park-io/secrets/<file> — never
+# hardcoded, so the (public) repo carries no bot token.
+BOT_TOKEN = _load_secret("PARKIO_TELEGRAM_BOT_TOKEN", "telegram-bot-token")
+CHAT_ID = _load_secret("PARKIO_TELEGRAM_CHAT_ID", "telegram-chat-id")
 INBOX = Path.home() / "park-io" / "inbox"
 PROCESSED_MD = INBOX / "processed_md"
 PROCESSED_HTML = INBOX / "processed_html"
