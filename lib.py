@@ -62,6 +62,29 @@ def _is_reasoning_model(model: str) -> bool:
     return "v4" in m or "reasoner" in m or "r1" in m
 
 
+YOUTUBE_MIN_SECONDS = int(os.environ.get("PARKIO_YOUTUBE_MIN_SECONDS", "90"))
+
+
+def is_youtube_short(url: str = "", duration=None) -> bool:
+    """True for YouTube Shorts / very-short clips the owner doesn't want.
+
+    `/shorts/` in the URL is the explicit marker (what most Shorts carry).
+    YouTube RSS can hand back a /watch URL even for a Short, so a known duration
+    below YOUTUBE_MIN_SECONDS is the fallback signal. Set the threshold to 0 to
+    disable duration-based filtering and rely on the URL only.
+    """
+    if "/shorts/" in (url or ""):
+        return True
+    if YOUTUBE_MIN_SECONDS > 0 and duration is not None:
+        try:
+            secs = float(duration)
+            if 0 < secs < YOUTUBE_MIN_SECONDS:
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
+
+
 # Token-usage accounting so the owner can see cost. Accumulates across a run;
 # scripts log get_usage() at the end.
 _USAGE = {"calls": 0, "prompt": 0, "completion": 0, "reasoning": 0, "total": 0}

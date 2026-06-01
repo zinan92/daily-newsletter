@@ -16,6 +16,7 @@ from html import unescape
 from urllib.error import HTTPError
 
 from lib import (
+    is_youtube_short,
     load_sources,
     load_state,
     save_state,
@@ -179,6 +180,7 @@ def fetch_youtube_fallback(src: dict) -> list:
     html = fetch_url(url, timeout=30)
     items = parse_youtube_videos_page(html)
     titles = youtube_titles_with_ytdlp(handle, limit=8)
+    kept = []
     for item in items:
         video_id = item["url"].rsplit("=", 1)[-1]
         meta = titles.get(video_id) or {}
@@ -188,7 +190,12 @@ def fetch_youtube_fallback(src: dict) -> list:
             item["url"] = meta["url"]
         if meta.get("duration"):
             item["summary"] += f" Duration: {int(meta['duration'])} seconds."
-    return items
+        # Owner wants long videos only — drop Shorts at ingestion.
+        if is_youtube_short(item.get("url", ""), meta.get("duration")):
+            log("fetch-rss", f"  skip YouTube short: {item.get('title', '')[:40]}")
+            continue
+        kept.append(item)
+    return kept
 
 
 def parse_feed(xml_text):

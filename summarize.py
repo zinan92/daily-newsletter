@@ -20,6 +20,7 @@ from lib import (
     LLMUnavailable,
     batch_artifact_paths,
     processed_batch_dir,
+    is_youtube_short,
     llm_call,
     load_sources,
     load_state,
@@ -1154,6 +1155,10 @@ def media_panel_items(sources: list, summaries: dict) -> tuple[list, int, int]:
     raw_items, total, filtered = all_items_for_names(sources, media_source_names())
     items = []
     for item in raw_items:
+        # The owner wants long videos only — drop YouTube Shorts / very-short
+        # clips so they never reach the consumer media section.
+        if is_youtube_short(item.get("url", ""), item.get("duration")):
+            continue
         item = {**item}
         record = summaries.get(item.get("url", ""))
         if record and record.get("status") == "summarized" and media_record_is_publishable(record):

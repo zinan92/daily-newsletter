@@ -19,7 +19,7 @@ import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lib import PARKIO, ROOT, LLMUnavailable, llm_call, log, parse_frontmatter, parse_md_items, today
+from lib import PARKIO, ROOT, LLMUnavailable, is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, today
 from summarize import (
     one_line,
     strip_html,
@@ -574,6 +574,16 @@ def main() -> None:
     log("fetch-media-transcripts", f"START — {len(items)} media items")
     for item in items:
         url = item.get("url", "")
+        # Owner wants long videos only — never spend a download/transcription on
+        # a YouTube Short.
+        if is_youtube_short(url, item.get("duration")):
+            queue[url] = media_record(item, "skipped_short")
+            cache[url] = {
+                "status": "skipped_short", "title": item.get("title", ""), "url": url,
+                "source": item.get("source", ""),
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            continue
         queue.setdefault(url, media_record(item, "pending"))
         if not should_retry(cache.get(url, {})):
             queue[url] = {
