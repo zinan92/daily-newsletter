@@ -4,7 +4,6 @@ from pathlib import Path
 import shutil
 
 from lib import (
-    PROCESSED_DIR,
     UNPROCESSED_DIR,
     batch_id,
     log,

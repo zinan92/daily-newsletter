@@ -9,11 +9,10 @@ import json
 import os
 import re
 import sys
-import urllib.request
 from html import unescape
 from pathlib import Path
 
-from lib import PARKIO, LLMUnavailable, batch_artifact_paths, llm_call, today
+from lib import PARKIO, batch_artifact_paths, llm_call, today
 
 PUSH_RE = re.compile(r"<!-- parkio-push-items:(.*?) -->", re.S)
 PROCESSED_RE = re.compile(r"<!-- parkio-processed-items:(.*?) -->", re.S)

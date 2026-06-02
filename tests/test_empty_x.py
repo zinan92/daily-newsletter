@@ -1,5 +1,6 @@
 """Regression test for gotcha #24: empty/link-only X items stay out of the body."""
-import os, sys
+import os
+import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import summarize
 

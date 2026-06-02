@@ -2,7 +2,6 @@
 """Fetch the user's own X bookmarks/likes as a personal saved-items source."""
 import json
 import os
-import re
 import subprocess
 from datetime import datetime
 from pathlib import Path

@@ -6,14 +6,11 @@ stay today-only; onboarding turns recent history into durable source context.
 """
 import argparse
 import importlib.util
-import json
 import re
-import subprocess
-import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lib import PROFILE_LIBRARY_DIR, ROOT, LLMUnavailable, llm_call, load_sources, log, profile_id_for_source, today
+from lib import PROFILE_LIBRARY_DIR, ROOT, llm_call, load_sources, log, profile_id_for_source, today
 
 SOURCES_PATH = Path.home() / "park-io" / "sources.md"
 

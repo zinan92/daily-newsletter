@@ -13,7 +13,6 @@ Reports per-file change counts. Idempotent: re-runs on already-fixed files
 make zero changes.
 """
 import re
-import sys
 from pathlib import Path
 
 ROOT = Path.home() / "park-io" / "library" / "profiles" / "manxue-ai" / "items"

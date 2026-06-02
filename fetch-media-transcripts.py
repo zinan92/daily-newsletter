@@ -14,15 +14,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import urllib.request
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lib import PARKIO, ROOT, LLMUnavailable, is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, today
+from lib import PARKIO, ROOT, is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, today
 from summarize import (
     one_line,
-    strip_html,
 )
 
 MEDIA_SUMMARIES_PATH = ROOT / "media-summaries.json"

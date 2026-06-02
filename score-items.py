@@ -18,14 +18,12 @@ import json
 import os
 import re
 import time
-import urllib.request
 from pathlib import Path
 
 from lib import (
     PARKIO,
     PROFILE_LIBRARY_DIR,
     ROOT,
-    LLMUnavailable,
     processed_batch_dir,
     llm_call,
     log,

@@ -26,7 +26,7 @@ import re
 import sys
 from pathlib import Path
 
-from lib import LLMUnavailable, llm_call
+from lib import llm_call
 
 
 POLISH_PROMPT = """你是一个中文转录后处理助手。我会给你一段从抖音/视频里转录出来的中文文本，原始转录有以下问题：
