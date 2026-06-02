@@ -4,13 +4,12 @@ fetch-rss.py — Fetches RSS/Atom feeds for sources where platform=rss.
 Filters new entries against state.json's last_published per source.
 Appends new entries to inbox/unprocessed/<YY-MM-DD-profile>.md.
 """
-import sys
 import re
 import json
 import subprocess
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime
 from email.utils import parsedate_to_datetime
 from html import unescape
 from urllib.error import HTTPError
@@ -316,6 +315,7 @@ def main():
                     "last_fetch": today(),
                 }
         except Exception as ex:
+            state[key] = {**state.get(key, {}), "last_fetch": today(), "status": "failed", "error": f"{type(ex).__name__}: {ex}"}
             log("fetch-rss", f"  {src['name']}: ERROR {type(ex).__name__}: {ex}")
 
     save_state(state)

@@ -60,33 +60,65 @@ def check_command(cmd: list[str], timeout: int = 8) -> tuple[bool, str]:
 
 
 def dependency_checks() -> list[dict]:
+    """Functional probes — reflect whether things actually WORK, not just whether a file
+    exists. Source-backed deps (cookie/auth/bridge) are judged by recent real fetch
+    outcomes via channel-health, so an expired cookie or frozen bridge shows red, not green."""
+    import summarize
     twitter_auth = ROOT / "twitter-auth.env"
-    checks = [
-        {
-            "name": "Python 运行时",
-            "status": "ok" if sys.version_info >= (3, 11) else "failed",
-            "detail": f"{sys.executable} {sys.version.split()[0]}",
-        },
-        {
-            "name": "X 登录态",
-            "status": "ok" if twitter_auth.exists() else "failed",
-            "detail": "twitter-auth.env 可用" if twitter_auth.exists() else "twitter-auth.env 缺失",
-        }
-    ]
+    cookie = PARKIO / "secrets" / "content-ops" / "douyin-cookies.json"
+    try:
+        ch = summarize._channel_health_states()
+    except Exception:
+        ch = {}
+    def by_platform(*plats):
+        return [v for v in ch.values() if v.get("platform") in plats]
+
+    checks = [{
+        "name": "Python 运行时",
+        "status": "ok" if sys.version_info >= (3, 11) else "failed",
+        "detail": f"{sys.executable} {sys.version.split()[0]}",
+    }]
     ok, detail = check_command([sys.executable, "-c", "import mlx_whisper; print('mlx_whisper ok')"])
     checks.append({"name": "MLX Whisper", "status": "ok" if ok else "failed", "detail": detail})
-    ok, detail = check_command(["/usr/bin/curl", "-fsS", "http://localhost:4000/feeds/MP_WXS_3223096120.json"])
-    checks.append({"name": "WeWe RSS", "status": "ok" if ok else "failed", "detail": "localhost:4000 可访问" if ok else detail})
-    ok, detail = check_command(
-        [
-            sys.executable,
-            "-c",
-            "import sys; from pathlib import Path; sys.path.insert(0, str(Path.home()/'content-toolkit/capabilities/download')); from content_downloader.adapters.douyin.adapter import DouyinAdapter; from content_downloader.adapters.douyin.api_client import DouyinAPIClient; print('douyin downloader api client ok')",
-        ]
-    )
-    checks.append({"name": "抖音下载器", "status": "ok" if ok else "failed", "detail": detail})
-    cookie = PARKIO / "secrets" / "content-ops" / "douyin-cookies.json"
-    checks.append({"name": "抖音 Cookie", "status": "ok" if cookie.exists() else "failed", "detail": "cookie 文件存在" if cookie.exists() else "cookie 文件缺失"})
+
+    # WeWe RSS: reachable AND fresh (a frozen-but-reachable bridge is NOT healthy)
+    reachable, detail = check_command(["/usr/bin/curl", "-fsS", "http://localhost:4000/feeds/MP_WXS_3223096120.json"])
+    frozen = [v["name"] for v in by_platform("wechat") if v.get("state") == "STALE"]
+    if not reachable:
+        checks.append({"name": "WeWe RSS", "status": "failed", "detail": f"bridge 不可达：{detail}"})
+    elif frozen:
+        checks.append({"name": "WeWe RSS", "status": "stale", "detail": f"bridge 可达，但 {len(frozen)} 个公众号 feed 冻结（需重登微信读书）：{'、'.join(frozen[:4])}"})
+    else:
+        checks.append({"name": "WeWe RSS", "status": "ok", "detail": "localhost:4000 可达，feed 新鲜"})
+
+    ok, detail = check_command([
+        sys.executable, "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, str(Path.home()/'content-toolkit/capabilities/download')); "
+        "from content_downloader.adapters.douyin.api_client import DouyinAPIClient; print('ok')",
+    ])
+    checks.append({"name": "抖音下载器", "status": "ok" if ok else "failed",
+                   "detail": "api_client 可导入" if ok else f"导入失败（content-toolkit 已 archive？）：{detail}"})
+
+    # 抖音 Cookie: FUNCTIONAL — did recent douyin fetches actually succeed?
+    dy_down = [v["name"] for v in by_platform("douyin") if v.get("state") == "DOWN"]
+    if not cookie.exists():
+        checks.append({"name": "抖音 Cookie", "status": "failed", "detail": "cookie 文件缺失"})
+    elif dy_down:
+        checks.append({"name": "抖音 Cookie", "status": "failed", "detail": f"{len(dy_down)} 个抖音号最近抓取报错（cookie 过期/风控）：{'、'.join(dy_down[:4])}"})
+    else:
+        checks.append({"name": "抖音 Cookie", "status": "ok", "detail": "cookie 存在，最近抓取正常"})
+
+    # X 登录态: FUNCTIONAL — did recent X fetches actually succeed?
+    tw = by_platform("twitter")
+    tw_down = [v["name"] for v in tw if v.get("state") == "DOWN"]
+    if not twitter_auth.exists():
+        checks.append({"name": "X 登录态", "status": "failed", "detail": "twitter-auth.env 缺失"})
+    elif tw and len(tw_down) == len(tw):
+        checks.append({"name": "X 登录态", "status": "failed", "detail": f"全部 {len(tw)} 个 X 账号抓取失败（登录态可能过期）"})
+    elif tw_down:
+        checks.append({"name": "X 登录态", "status": "stale", "detail": f"{len(tw_down)} 个 X 账号抓取报错：{'、'.join(tw_down[:4])}"})
+    else:
+        checks.append({"name": "X 登录态", "status": "ok", "detail": "twitter-auth.env 可用，最近抓取正常"})
     return checks
 
 
@@ -95,6 +127,7 @@ def status_label(status: str) -> str:
         "ok_new": "有新增",
         "ok_no_new": "成功无新增",
         "filtered_out": "抓到但过滤",
+        "stale": "上游冻结",
         "failed": "抓取失败",
         "not_configured": "未配置",
         "unsupported": "暂不支持",
@@ -109,6 +142,8 @@ def status_bucket(row: dict) -> str:
         return "成功但无新增"
     if status == "filtered_out":
         return "抓到但被过滤"
+    if status == "stale":
+        return "上游 feed 冻结"
     if status == "failed":
         return "抓取失败"
     return "其他状态"

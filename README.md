@@ -119,6 +119,30 @@ PARKIO_BATCH_ID=$BATCH PARKIO_FORCE_PUSH=1 python3 send-artifacts.py
 | 归档 | `archive-items.py` | script | 写 `library/profiles/<id>/items/`，长期留存 |
 | 推送 | `send-artifacts.py` → `push-telegram.py` | script | Telegram；`sent/` 只留 `YY-MM-DD.md` |
 | 状态 | `generate-status.py` | script | 维护者状态页 `status.html`（抓取/评分/健康） |
+| 渠道健康 | `channel-health.py` | script | 按 fetch 日志真值 + feed 新鲜度，分 DOWN/STALE/QUIET/NEW |
+
+## 渠道健康与可观测性
+
+52 个 source 分布在 5 个平台（scrape / rss / twitter / wechat / douyin）。**核心原则：渠道「挂了」绝不能显示成「没更新」。**
+
+- `channel-health.py` 是健康真值源：读 **fetch 日志**（不是会撒谎的 `state.json`）+ 探测 feed 新鲜度，把每个渠道判成五态之一——
+  - **DOWN**：抓取报错（超时 / 拒连 / cookie 过期）
+  - **STALE**：抓取成功但上游 feed 冻结（如 wewe-rss 的微信读书登录过期，feed 多日不更新）
+  - **QUIET**：抓取成功、feed 新鲜、确实没有新内容
+  - **NEW**：有新内容入库
+  - **FILTERED**（状态页「抓到但过滤」）：抓到了新内容，但 0 条进入当天正文（被评分/dedup/质检丢掉）
+- `status.html` 的逐源健康与依赖检查都走 `channel-health` 真值；依赖检查是**功能型**（cookie/登录态按真实抓取结果判定、wewe-rss 检查 feed 新鲜度而非仅可达）。
+- 每日 Telegram digest 顶部带**渠道告警条**：哪些渠道挂了 / 冻结一眼可见，不用去翻状态页。
+
+### 运行时依赖（外部，需留意）
+
+| 依赖 | 服务谁 | 风险 |
+|------|--------|------|
+| `wewe-rss`（Colima/Docker，`localhost:4000`） | 8 个公众号的 RSS | 微信读书登录会过期 → feed 冻结；需偶尔重新扫码。**冻结会在 digest/status 红字告警。** |
+| `content-toolkit`（`~/content-toolkit/capabilities/download`） | `fetch-douyin` / `fetch-media-transcripts` 的抖音抓取 | 该 repo 已 archive，但仍是运行时依赖 |
+| `twitter-auth.env` | 20 个 X 账号 | 登录态过期会导致全部 X 抓取失败 |
+
+> 微信公众号没有官方开放 feed，任何方案都得借「微信读书登录」这类会过期的中介——所以策略是：**保留 wewe-rss 作主力 + 冻结即告警 + 最在乎的号用 `manual-links.md` 兜底**。
 
 ## 回归不变量（GOTCHAS）
 

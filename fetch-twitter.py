@@ -8,7 +8,6 @@ import os
 import re
 import subprocess
 import urllib.parse
-from datetime import datetime
 
 from lib import (
     inbox_dir,
@@ -343,6 +342,7 @@ def main():
                 prev = state.get(key, {})
                 state[key] = {"last_id": prev.get("last_id", ""), "last_fetch": today()}
         except Exception as ex:
+            state[key] = {**state.get(key, {}), "last_fetch": today(), "status": "failed", "error": f"{type(ex).__name__}: {ex}"}
             log("fetch-twitter", f"  @{handle}: ERROR {type(ex).__name__}: {ex}")
 
     save_state(state)

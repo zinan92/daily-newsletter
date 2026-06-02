@@ -9,7 +9,6 @@ import json
 import os
 import re
 import sys
-import urllib.request
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -17,7 +16,6 @@ from pathlib import Path
 from lib import (
     PARKIO,
     ROOT,
-    LLMUnavailable,
     batch_artifact_paths,
     processed_batch_dir,
     is_youtube_short,
@@ -38,18 +36,12 @@ from digest_config import (
 )
 from digest_events import (
     build_events,
-    event_company,
-    event_key,
-    event_layer,
-    group_events_for_digest,
     group_official_events,
     group_official_events_by_category,
-    normalized_topic_text,
     source_rank,
 )
 from digest_text import (
     bad_llm_text,
-    clean_llm_text,
     consumer_text,
     one_line,
     release_bullets,
@@ -391,9 +383,51 @@ def latest_error(component: str, needle: str) -> str:
     return ""
 
 
+_CHANNEL_HEALTH = None
+
+
+def _channel_health_states() -> dict:
+    """Lazy-load truthful per-source health (DOWN/STALE/QUIET/NEW) from channel-health.py.
+
+    channel-health reads the fetch logs (ground truth) + probes feed freshness, so it
+    tells a DEAD channel apart from a QUIET one — unlike a bare last_fetch==today check,
+    which marks errored fetches "成功无新增" (the false-green that hid the bridge outage).
+    """
+    global _CHANNEL_HEALTH
+    if _CHANNEL_HEALTH is None:
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location(
+            "channel_health", str(Path(__file__).resolve().parent / "channel-health.py")
+        )
+        _CHANNEL_HEALTH = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_CHANNEL_HEALTH)
+    try:
+        return _CHANNEL_HEALTH.states_by_name()
+    except Exception:
+        return {}
+
+
+def _health_from_channel(ch: dict | None) -> tuple[str, str]:
+    """Map channel-health truth → (status, detail) for a source absent from today's digest."""
+    if not ch:
+        return "failed", "无健康信号（最近一轮 fetch 未见此渠道）"
+    state = ch.get("state")
+    if state == "DOWN":
+        return "failed", ch.get("error") or "fetch 报错"
+    if state == "STALE":
+        age = ch.get("feed_age_days")
+        return "stale", (f"上游 feed 冻结（最新 {age}d 前）" if age and age != 9999 else "上游 feed 空/冻结")
+    if state == "NEW":
+        return "filtered_out", f"{ch.get('new')} 条抓到，但 0 条进入今日正文"
+    if state == "UNKNOWN":
+        return "failed", "最近一轮 fetch 未出现"
+    return "ok_no_new", "fetch 成功，无新增"
+
+
 def source_health(sources_today: list, today_str: str) -> list:
-    state = load_state()
     sla = load_source_sla()
+    ch_states = _channel_health_states()
     by_name: dict[str, dict] = {}
     for src in sources_today:
         kept_urls = {item.get("url", "") for item in src["kept"] if item.get("url", "")}
@@ -431,33 +465,13 @@ def source_health(sources_today: list, today_str: str) -> list:
             else:
                 status = "ok_new" if kept else "filtered_out"
                 detail = f"{total} new, {kept} kept, {filtered} filtered"
-        elif platform == "twitter":
-            handle = src["url"].rstrip("/").split("/")[-1]
-            st = state.get(f"twitter:{handle}", {})
-            status = "failed" if st.get("last_fetch") != today_str else "ok_no_new"
-            detail = latest_error("fetch-twitter", f"@{handle}") if status == "failed" else "no new tweets"
-        elif platform == "scrape":
-            st = state.get(f"scrape:{name}", {})
-            status = "ok_no_new" if st.get("last_fetch") == today_str else "failed"
-            detail = "fetched index, no new article" if status == "ok_no_new" else "no successful fetch today"
-        elif platform == "rss":
-            st = state.get(f"rss:{name}", {})
-            status = "ok_no_new" if st.get("last_fetch") == today_str else "failed"
-            detail = "feed ok, no new entry" if status == "ok_no_new" else "no successful fetch today"
-        elif platform == "wechat":
-            st = state.get(f"wechat:{name}", {})
-            status = "ok_no_new" if st.get("last_fetch") == today_str else "failed"
-            detail = "seed article checked, no new link" if status == "ok_no_new" else "no successful fetch today"
-        elif platform == "douyin":
-            st = state.get(f"douyin:{name}", {})
-            status = "ok_no_new" if st.get("last_fetch") == today_str else "failed"
-            count = st.get("profile_count")
-            detail = "profile checked, no new video" if status == "ok_no_new" else "no successful fetch today"
-            if count:
-                detail += f"; {count} public videos visible"
-        else:
+        elif platform not in {"twitter", "scrape", "rss", "wechat", "douyin"}:
             status = "unsupported"
             detail = f"platform={platform} is not handled by fetch-all"
+        else:
+            # Not in today's digest funnel → ask channel-health for the TRUTH (logs +
+            # feed freshness), instead of last_fetch==today which false-greens dead channels.
+            status, detail = _health_from_channel(ch_states.get(name))
         rows.append(
             {
                 "name": name,

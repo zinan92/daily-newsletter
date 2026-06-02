@@ -198,6 +198,7 @@ def main() -> None:
             }
             log("fetch-douyin", f"  {src['name']}: {len(new_awemes)} NEW / {len(fetched_ids)} total")
         except Exception as ex:
+            state[key] = {**state.get(key, {}), "last_fetch": today(), "status": "failed", "error": f"{type(ex).__name__}: {ex}"}
             log("fetch-douyin", f"  {src['name']}: ERROR {type(ex).__name__}: {ex}")
     save_state(state)
     log("fetch-douyin", "DONE")

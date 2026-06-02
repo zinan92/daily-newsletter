@@ -10,9 +10,8 @@ import re
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from html import unescape
-from pathlib import Path
 
 from lib import (
     PROFILE_LIBRARY_DIR,
@@ -32,6 +31,9 @@ USER_AGENT = (
 )
 MAX_ARTICLES_PER_SOURCE = 5
 ARTICLE_DELAY_SEC = 0.5
+CLAUDE_SITEMAP = "https://claude.com/sitemap.xml"
+CLAUDE_BLOG_MAX_AGE_DAYS = 21   # only ingest blog posts published within this window
+CLAUDE_FETCH_BUDGET = 80        # max article fetches/run — bounds the one-time sitemap catch-up
 
 
 def fetch_url(url, timeout=30, attempts=3):
@@ -194,6 +196,49 @@ def fetch_all_claude_blog_candidates(index_url: str) -> list:
     return all_articles
 
 
+def claude_blog_sitemap_urls(xml: str | None = None) -> list[str]:
+    """All /blog/<slug> article URLs from claude.com sitemap.
+
+    The Webflow index pagination silently drops recent posts (that's how the
+    May-27/28 articles were missed); the sitemap lists every article, so we use
+    it as the authoritative candidate set. Pass `xml` to unit-test the parser.
+    """
+    if xml is None:
+        try:
+            xml = fetch_url(CLAUDE_SITEMAP)
+        except Exception:
+            return []
+    out, seen = [], set()
+    for u in re.findall(r"<loc>\s*(https://claude\.com/blog/[a-z0-9-]+)\s*</loc>", xml, re.IGNORECASE):
+        slug = u.rstrip("/").rsplit("/", 1)[-1]
+        if slug in ("blog", "category") or u in seen:
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
+
+
+def parse_iso_date(raw: str) -> str:
+    """Best-effort → 'YYYY-MM-DD' (handles ISO 8601 and 'May 28, 2026')."""
+    if not raw:
+        return ""
+    try:
+        return datetime.fromisoformat(raw.strip().replace("Z", "+00:00")).strftime("%Y-%m-%d")
+    except ValueError:
+        return parse_display_date(raw.strip())
+
+
+def article_age_days(published: str) -> int | None:
+    """Days since `published` (any supported format); None if unparseable."""
+    d = parse_iso_date(published)
+    if not d:
+        return None
+    try:
+        return (datetime.now(timezone.utc).date() - datetime.strptime(d, "%Y-%m-%d").date()).days
+    except ValueError:
+        return None
+
+
 def _strip_to_text(html, limit=5000):
     text = re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>", "", html)
     text = re.sub(r"<[^>]+>", " ", text)
@@ -290,10 +335,15 @@ def extract_claude_blog_article(html):
     if m:
         summary = unescape(m.group(1))
 
+    published = ""
+    m = re.search(r'"datePublished"\s*:\s*"([^"]+)"', html)
+    if m:
+        published = parse_iso_date(m.group(1))
+
     return {
         "title": title,
         "author": "",
-        "published": None,
+        "published": published or None,
         "content": clean_claude_blog_text(_strip_to_text(html, limit=12000))[:7000],
         "summary": summary,
         "pdfs": extract_pdf_links(html, "https://claude.com"),
@@ -383,6 +433,9 @@ def main():
                 article_extractor = extract_anthropic_article
             elif "claude.com" in src["url"]:
                 candidates = fetch_all_claude_blog_candidates(src["url"])
+                known = {c["url"] for c in candidates}
+                # sitemap = authoritative complete set; index alone drops recent posts
+                candidates += [{"url": u} for u in claude_blog_sitemap_urls() if u not in known]
                 article_extractor = extract_claude_blog_article
             else:
                 log("fetch-scrape", f"  {src['name']}: NO PARSER CONFIGURED")
@@ -392,15 +445,28 @@ def main():
 
             seen_urls = state.get(key, {}).get("seen_urls", {})
             new_articles = []
+            is_claude = "claude.com" in src["url"]
             max_new = len(candidates) if os.environ.get("PARKIO_SCRAPE_BACKFILL") == "1" else MAX_ARTICLES_PER_SOURCE
+            fetches = 0
             for c in candidates:
                 if len(new_articles) >= max_new:
+                    break
+                if is_claude and fetches >= CLAUDE_FETCH_BUDGET:
                     break
                 if c["url"] in seen_urls:
                     continue
                 try:
                     article_html = fetch_url(c["url"])
+                    fetches += 1
+                    time.sleep(ARTICLE_DELAY_SEC)
                     extracted = article_extractor(article_html)
+                    # Age gate: ingest only recent posts; mark older backlog seen so the
+                    # one-time sitemap catch-up is absorbed once (not re-fetched or flooded).
+                    if is_claude:
+                        age = article_age_days(extracted.get("published") or c.get("published") or "")
+                        if age is None or age > CLAUDE_BLOG_MAX_AGE_DAYS:
+                            seen_urls[c["url"]] = now_utc()
+                            continue
                     if not extracted.get("content"):
                         log("fetch-scrape", f"    no content for {c['url']}")
                         continue
@@ -419,7 +485,6 @@ def main():
                     if "claude.com" in src["url"]:
                         save_library_article(src, new_articles[-1], article_html)
                     seen_urls[c["url"]] = now_utc()
-                    time.sleep(ARTICLE_DELAY_SEC)
                 except Exception as ex:
                     log("fetch-scrape", f"    article fetch failed for {c['url']}: {ex}")
 
@@ -428,6 +493,7 @@ def main():
                 write_source_output(src, new_articles)
             state[key] = {"seen_urls": seen_urls, "last_fetch": today()}
         except Exception as ex:
+            state[key] = {**state.get(key, {}), "last_fetch": today(), "status": "failed", "error": f"{type(ex).__name__}: {ex}"}
             log("fetch-scrape", f"  {src['name']}: ERROR {type(ex).__name__}: {ex}")
 
     save_state(state)

@@ -5,7 +5,6 @@ WeChat does not expose a stable unauthenticated RSS feed for a public account.
 For now each `platform=wechat` row uses its URL as a seed article. New links can
 be added as rows, and the same account identity is preserved in source health.
 """
-import json
 import os
 import re
 import urllib.request
@@ -208,6 +207,7 @@ def main() -> None:
                 "account": account or state.get(key, {}).get("account", ""),
             }
         except Exception as ex:
+            state[key] = {**state.get(key, {}), "last_fetch": today(), "status": "failed", "error": f"{type(ex).__name__}: {ex}"}
             log("fetch-wechat", f"  {src['name']}: ERROR {type(ex).__name__}: {ex}")
     save_state(state)
     log("fetch-wechat", "DONE")

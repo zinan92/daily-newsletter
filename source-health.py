@@ -5,10 +5,8 @@ This tracks fetch success only. It does not judge content quality.
 """
 import argparse
 import json
-import re
 import sys
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from lib import PARKIO, ROOT, load_sources, load_state, today
 
@@ -64,39 +62,48 @@ def fetch_component(src: dict) -> str:
     return "fetch"
 
 
+def classify_source(src: dict, st: dict, day: str) -> tuple[str, str]:
+    """Decide (status, detail) for one source from today's recorded state.
+
+    Pure and unit-testable. A source is only 'ok' if it ran today AND the
+    fetcher did not record a failure — fetchers stamp ``last_fetch`` even when
+    they error (e.g. WeChat RSS bridge Connection refused), so ``last_fetch``
+    alone is a false-green signal (gotcha #23).
+    """
+    platform = src.get("platform", "")
+    name = src.get("name", "")
+    if platform not in {"twitter", "rss", "scrape", "wechat", "wechat-rss", "douyin"}:
+        return "unsupported", f"platform={platform} is not fetched automatically"
+    ran_today = st.get("last_fetch") == day
+    recorded_failure = st.get("status") == "failed" or bool(st.get("error"))
+    if ran_today and not recorded_failure:
+        if platform == "wechat-rss" or (platform == "wechat" and "rss_url " in src.get("notes", "")):
+            return "ok", f"RSS/JSON bridge checked; {st.get('entries', 0)} entries, {st.get('imported', 0)} imported"
+        if platform == "wechat":
+            account = st.get("account", "")
+            return "ok", f"seed article fetched into library; account={account or 'unknown'}"
+        if platform == "douyin":
+            count = st.get("profile_count")
+            detail = f"profile checked for new videos; {count} public videos visible" if count else "profile checked for new videos"
+            return "ok", detail
+        return "ok", "fetch succeeded"
+    component = fetch_component(src)
+    needle = f"@{src.get('url', '').rstrip('/').split('/')[-1]}" if platform == "twitter" else name
+    detail = st.get("error") or latest_error(component, needle) or "no successful fetch today"
+    return "failed", detail
+
+
 def current_source_rows() -> list[dict]:
     state = load_state()
     day = today()
     rows = []
     for src in load_sources():
-        platform = src.get("platform", "")
-        name = src.get("name", "")
-        key = source_key(src)
-        st = state.get(key, {})
-        if platform not in {"twitter", "rss", "scrape", "wechat", "wechat-rss", "douyin"}:
-            status = "unsupported"
-            detail = f"platform={platform} is not fetched automatically"
-        elif st.get("last_fetch") == day:
-            status = "ok"
-            if platform == "wechat-rss" or (platform == "wechat" and "rss_url " in src.get("notes", "")):
-                detail = f"RSS/JSON bridge checked; {st.get('entries', 0)} entries, {st.get('imported', 0)} imported"
-            elif platform == "wechat":
-                account = st.get("account", "")
-                detail = f"seed article fetched into library; account={account or 'unknown'}"
-            elif platform == "douyin":
-                count = st.get("profile_count")
-                detail = f"profile checked for new videos; {count} public videos visible" if count else "profile checked for new videos"
-            else:
-                detail = "fetch succeeded"
-        else:
-            status = "failed"
-            component = fetch_component(src)
-            needle = f"@{src.get('url', '').rstrip('/').split('/')[-1]}" if platform == "twitter" else name
-            detail = latest_error(component, needle) or "no successful fetch today"
+        st = state.get(source_key(src), {})
+        status, detail = classify_source(src, st, day)
         rows.append(
             {
-                "name": name,
-                "platform": platform,
+                "name": src.get("name", ""),
+                "platform": src.get("platform", ""),
                 "priority": src.get("priority", ""),
                 "status": status,
                 "detail": detail,

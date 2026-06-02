@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from lib import SENT_DIR, _load_secret, batch_artifact_paths, batch_label, today
+from lib import SENT_DIR, _load_secret, batch_artifact_paths, batch_label
 
 # Telegram credentials load from env or ~/park-io/secrets/<file> — never
 # hardcoded, so the (public) repo carries no bot token.
@@ -142,7 +142,35 @@ def move_sent_artifacts(panel: Path, html_panel: Path, image_panel: Path | None,
             print(f"  removed transient artifact {transient.name}")
 
 
+def health_banner() -> str:
+    """Compact channel-health alert prepended to the digest, so a dead/frozen channel
+    is visible the moment you read the newsletter — not silently missing. Empty when
+    all channels are healthy. Plain text (sendMessage uses no parse_mode)."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "channel_health", str(Path(__file__).parent / "channel-health.py")
+        )
+        ch = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ch)
+        rows = ch.channel_rows()
+    except Exception:
+        return ""
+    down = [r["name"] for r in rows if r["state"] == "DOWN"]
+    stale = [r["name"] for r in rows if r["state"] == "STALE"]
+    if not down and not stale:
+        return ""
+    lines = ["⚠️ 渠道健康告警（获取层）"]
+    if down:
+        lines.append(f"🔴 挂了 {len(down)}：" + "、".join(down[:8]))
+    if stale:
+        lines.append(f"🟠 上游冻结 {len(stale)}：" + "、".join(stale[:8]))
+    lines.append("· 这些渠道没有正常更新，详情见 status.html")
+    return "\n".join(lines) + "\n\n———\n\n"
+
+
 def deliver_artifacts(push_body: str, html_panel: Path, image_panel: Path | None, label: str) -> Path | None:
+    push_body = health_banner() + push_body
     for i, part in enumerate(chunk(push_body), 1):
         send(part)
         print(f"  sent chunk {i}")
