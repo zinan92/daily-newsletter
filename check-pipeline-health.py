@@ -5,15 +5,19 @@ Runs after the morning digest is expected to be sent (scheduled ~10:00, well
 after the slow v4-pro run finishes ~09:10). Alerts the owner via Telegram when:
   1. today's digest was NOT sent (and push-digest is not still running), or
   2. a source FAILED to fetch today, or
-  3. a source has not fetched successfully in 7 days (likely broken).
+  3. a source has not fetched successfully in 7 days (likely broken), or
+  4. the WeChat RSS bridge (wewe-rss / colima) is unreachable — public-account
+     sources go silent when it's down (gotcha #23).
 
 Silent success (fetched OK, no new items) is normal and does NOT alert.
 """
 import re
 import sys
+import urllib.error
+import urllib.request
 from datetime import datetime
 
-from lib import PARKIO, ROOT, send_telegram, today
+from lib import PARKIO, ROOT, load_sources, send_telegram, today
 
 PUSH_LOG = ROOT / "logs" / "push-digest.log"
 
@@ -72,6 +76,35 @@ def broken_sources() -> list[str]:
     return problems
 
 
+def wechat_bridge_down() -> str | None:
+    """If WeChat sources rely on a local RSS bridge (wewe-rss on colima), probe
+    it. When the bridge is down (e.g. colima not started after a reboot), all
+    public-account feeds go silent — alert instead of failing quietly."""
+    feed = None
+    try:
+        for row in load_sources():
+            m = re.search(r"rss_url\s+(\S+)", row.get("notes", ""))
+            if m:
+                feed = m.group(1)
+                break
+    except Exception:
+        return None
+    if not feed:
+        return None
+    # Probe the bridge HOST (its dashboard), not one feed — a single feed 404 is
+    # a per-account issue, not the bridge being down.
+    host = feed.split("/feeds")[0].rstrip("/")
+    req = urllib.request.Request(f"{host}/dash", headers={"User-Agent": "parkio-health/1"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read(1)
+        return None
+    except urllib.error.HTTPError:
+        return None  # host responded (even 401/404) → bridge is up
+    except Exception:
+        return f"微信 RSS bridge 不可达（{host}）— 公众号源已停摆，检查 colima / wewe-rss"
+
+
 def main() -> int:
     problems: list[str] = []
 
@@ -85,6 +118,10 @@ def main() -> int:
         problems.extend(broken_sources())
     except Exception as exc:  # never let source-health crash the check
         print(f"[health] source check skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+    bridge = wechat_bridge_down()
+    if bridge:
+        problems.append(bridge)
 
     if not problems:
         print(f"[health] OK {today()} — digest sent, no broken sources")
