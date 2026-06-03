@@ -141,6 +141,7 @@ PARKIO_BATCH_ID=$BATCH PARKIO_FORCE_PUSH=1 python3 send-artifacts.py
 | `wewe-rss`（Colima/Docker，`localhost:4000`） | 8 个公众号的 RSS | 微信读书登录会过期 → feed 冻结；需偶尔重新扫码。**冻结会在 digest/status 红字告警。** |
 | `content-toolkit`（`~/content-toolkit/capabilities/download`） | `fetch-douyin` / `fetch-media-transcripts` 的抖音抓取 | 该 repo 已 archive，但仍是运行时依赖 |
 | `twitter-auth.env` | 20 个 X 账号 | 登录态过期会导致全部 X 抓取失败 |
+| `~/park-io/secrets/youtube-cookies.txt`（Netscape 格式，权限 600，仓库外） | YouTube/播客视频的 yt-dlp 下载+转录 | cookie 过期会触发 "Sign in to confirm you're not a bot" → 视频下不下来。**换法**：浏览器装 cookies.txt 扩展导出 youtube.com cookie，覆盖该文件即可（可用 `PARKIO_YTDLP_COOKIES_FILE` 改路径）。失效会在 status/digest 告警。 |
 
 > 微信公众号没有官方开放 feed，任何方案都得借「微信读书登录」这类会过期的中介——所以策略是：**保留 wewe-rss 作主力 + 冻结即告警 + 最在乎的号用 `manual-links.md` 兜底**。
 
