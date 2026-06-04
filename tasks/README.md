@@ -25,6 +25,8 @@ python3 scripts/task_complete.py TG-001 --agent codex --commit <sha>
 ## Agent Claim Protocol
 
 Agents should follow `tasks/agent-claim-protocol.md` before claiming work.
+Completed execution threads should be checked against
+`tasks/review-checklist.md`.
 
 The short version:
 
