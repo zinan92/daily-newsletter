@@ -628,6 +628,218 @@
   "pinData": {},
   "meta": {
     "source": "workflow/diagram/daily-newsletter.graph.json",
-    "generatedBy": "scripts/n8n_export.py"
+    "generatedBy": "scripts/n8n_export.py",
+    "graphEdges": [
+      {
+        "from": "schedule_fetch",
+        "to": "manual_links",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "rss",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "x_timeline",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "x_saved",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "web_scrape",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "wechat_seed",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "wechat_rss",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "wechat_exporter",
+        "type": "main"
+      },
+      {
+        "from": "schedule_fetch",
+        "to": "douyin",
+        "type": "main"
+      },
+      {
+        "from": "rss",
+        "to": "media_enrichment",
+        "type": "main"
+      },
+      {
+        "from": "douyin",
+        "to": "media_enrichment",
+        "type": "main"
+      },
+      {
+        "from": "manual_links",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "rss",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "x_timeline",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "x_saved",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "web_scrape",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "wechat_seed",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "wechat_rss",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "wechat_exporter",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "douyin",
+        "to": "source_health_record",
+        "type": "main"
+      },
+      {
+        "from": "source_health_record",
+        "to": "status_after_fetch",
+        "type": "main"
+      },
+      {
+        "from": "schedule_digest",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "manual_links",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "rss",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "x_timeline",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "x_saved",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "web_scrape",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "wechat_seed",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "wechat_rss",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "wechat_exporter",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "douyin",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "media_enrichment",
+        "to": "open_batch",
+        "type": "main"
+      },
+      {
+        "from": "open_batch",
+        "to": "score",
+        "type": "main"
+      },
+      {
+        "from": "score",
+        "to": "build_digest",
+        "type": "main"
+      },
+      {
+        "from": "build_digest",
+        "to": "quality",
+        "type": "main"
+      },
+      {
+        "from": "quality",
+        "to": "archive",
+        "type": "success"
+      },
+      {
+        "from": "quality",
+        "to": "finalize_local",
+        "type": "success"
+      },
+      {
+        "from": "archive",
+        "to": "status_after_digest",
+        "type": "main"
+      },
+      {
+        "from": "finalize_local",
+        "to": "status_after_digest",
+        "type": "main"
+      },
+      {
+        "from": "quality",
+        "to": "health_alert",
+        "type": "failure"
+      },
+      {
+        "from": "source_health_record",
+        "to": "health_alert",
+        "type": "failure"
+      },
+      {
+        "from": "score",
+        "to": "health_alert",
+        "type": "failure"
+      }
+    ]
   }
 }

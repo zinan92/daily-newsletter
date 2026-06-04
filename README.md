@@ -242,6 +242,12 @@ python3 scripts/n8n_export.py --dry-run
 python3 scripts/n8n_export.py --output workflow/n8n/daily-newsletter.workflow.json
 ```
 
+可检查 n8n visual workflow 是否偏离 canonical graph：
+
+```bash
+python3 scripts/n8n_import_diff.py
+```
+
 ## For AI Agents
 
 这是一个 **CLI / cron 流水线**，不暴露 HTTP API。集成或修改前，请读 `AGENTS.md` 和 `GOTCHAS.md`。

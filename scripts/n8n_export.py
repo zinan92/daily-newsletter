@@ -97,6 +97,7 @@ def to_n8n_workflow(graph: dict[str, Any]) -> dict[str, Any]:
         "meta": {
             "source": "workflow/diagram/daily-newsletter.graph.json",
             "generatedBy": "scripts/n8n_export.py",
+            "graphEdges": edges(graph),
         },
     }
 
@@ -128,4 +129,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

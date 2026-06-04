@@ -23,6 +23,7 @@ The previous brownfield milestones turned the existing Park-IO daily digest into
 - [x] **Phase 11: Executable Task Graph Foundation** - Define the repo-local task graph, validator, ready planner, thread planner, and claim/complete commands.
 - [x] **Phase 12: Executable Workflow Diagram Foundation** - Define workflow diagram graph schema, Daily Inbox graph, validator, and dry-run runner.
 - [x] **Phase 13: n8n Export Adapter** - Export the canonical executable workflow graph into n8n workflow JSON.
+- [x] **Phase 14: n8n Import Diff Adapter** - Import the n8n-visible projection and report drift against the canonical graph.
 
 ## Phase Details
 
@@ -209,6 +210,20 @@ Plans:
 Plans:
 - [x] 13-01: Add n8n adapter contract, exporter, generated workflow JSON, and tests.
 
+### Phase 14: n8n Import Diff Adapter
+**Goal**: Close the visual workflow loop by diffing n8n workflow JSON against the canonical executable graph.
+**Depends on**: Phase 13
+**Requirements**: [N8N-03]
+**Success Criteria** (what must be TRUE):
+  1. `scripts/n8n_import_diff.py` imports the n8n-visible graph projection.
+  2. Generated n8n workflow JSON round-trips without diff.
+  3. Added or removed n8n visual connections are reported as drift.
+  4. Import/diff does not run production commands or overwrite the canonical graph.
+**Plans**: 1 plan
+
+Plans:
+- [x] 14-01: Add n8n import/diff command and drift tests.
+
 ## Progress
 
 **Execution Order:**
@@ -229,10 +244,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 11. Executable Task Graph Foundation | 1/1 | Complete | 2026-06-04 |
 | 12. Executable Workflow Diagram Foundation | 1/1 | Complete | 2026-06-04 |
 | 13. n8n Export Adapter | 1/1 | Complete | 2026-06-04 |
+| 14. n8n Import Diff Adapter | 1/1 | Complete | 2026-06-04 |
 
 ## Current Recommendation
 
-Next target is Phase 14: n8n import/diff adapter, GitHub Issues sync, or diagram command runner.
+Next target is Phase 15: agent claim protocol, GitHub Issues sync, or diagram command runner.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

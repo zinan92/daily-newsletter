@@ -127,8 +127,16 @@ python3 scripts/n8n_export.py --output workflow/n8n/daily-newsletter.workflow.js
 ```
 
 Generated artifact: `workflow/n8n/daily-newsletter.workflow.json`.
-Do not treat the generated n8n JSON as canonical until an import/diff layer is
-implemented and reviewed.
+
+The n8n-visible projection can now be checked against the canonical graph:
+
+```bash
+python3 scripts/n8n_import_diff.py
+```
+
+Do not treat the generated n8n JSON as canonical. It is an adapter artifact;
+the diff command is for drift detection and does not overwrite
+`workflow/diagram/daily-newsletter.graph.json`.
 
 ## What changed in the stabilization milestone
 1. **LLM failover + local finalize** (`lib.py`, `push-digest.sh`, `finalize-local.py`).

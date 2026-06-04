@@ -586,7 +586,7 @@
       "id": "N8N-003",
       "title": "Import n8n JSON back to graph",
       "type": "implementation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "N8N-002"
       ],
@@ -603,8 +603,26 @@
         "Review round-trip limits and document unsupported n8n node features."
       ],
       "linter_commands": [
-        "python3 -m py_compile scripts/n8n_import.py"
-      ]
+        "python3 -m py_compile scripts/n8n_import_diff.py"
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:41:43Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:41:43Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:43:54Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:43:54Z",
+      "commit": "pending"
     },
     {
       "id": "GI-001",
