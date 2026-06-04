@@ -64,7 +64,7 @@
 | DEC-02 | Phase 6 | Complete |
 | DEC-03 | Phase 8 | Pending |
 | DEC-04 | Phase 9 | Pending |
-| DEC-05 | Phase 7, Phase 8, Phase 9 | Pending |
+| DEC-05 | Phase 7, Phase 8, Phase 9 | In progress |
 | DEC-06 | Phase 10 | Pending |
 | DEC-07 | Phase 9 | Pending |
 | DEC-08 | Phase 10 | Pending |

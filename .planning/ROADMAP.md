@@ -16,7 +16,7 @@ The previous brownfield milestone turned the existing Park-IO daily digest into 
 - [x] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
 - [x] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
 - [x] **Phase 6: Source Ingestion Contracts And Skeleton** - Create standard contracts, folder skeleton, compatibility rules, and workflow map.
-- [ ] **Phase 7: Core Channel Folderization** - Move RSS, web scrape, release feed, and X ingestion behind channel folders with thin root wrappers.
+- [x] **Phase 7: Core Channel Folderization** - Move RSS, web scrape, release feed, and X ingestion behind channel folders with thin root wrappers.
 - [ ] **Phase 8: Media And WeChat Folderization** - Move YouTube/media, Douyin, WeChat RSS, manual links, and media enrichment behind channel/enrichment folders.
 - [ ] **Phase 9: Aggregation Boundary And Workflow Spec** - Move digest aggregation behind an aggregation folder and add n8n-ready workflow-as-code.
 - [ ] **Phase 10: Full Verification And Cross-AI Review** - Prove output compatibility, run full verification, run Claude Code review, fix findings, and close the milestone.
@@ -119,7 +119,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 07-01: Folderize RSS, scrape, release, and X ingestion.
+- [x] 07-01: Folderize RSS, scrape, release, and X ingestion.
 
 ### Phase 8: Media And WeChat Folderization
 **Goal**: Move media-heavy and WeChat/manual ingestion into proper channel/enrichment boundaries.
@@ -174,14 +174,14 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 4. Reader Quality Regression Lock | 1/1 | Complete | 2026-06-04 |
 | 5. End-To-End Daily Run Proof | 1/1 | Complete | 2026-06-04 |
 | 6. Source Ingestion Contracts And Skeleton | 1/1 | Complete | 2026-06-04 |
-| 7. Core Channel Folderization | 0/1 | Not started | - |
+| 7. Core Channel Folderization | 1/1 | Complete | 2026-06-04 |
 | 8. Media And WeChat Folderization | 0/1 | Not started | - |
 | 9. Aggregation Boundary And Workflow Spec | 0/1 | Not started | - |
 | 10. Full Verification And Cross-AI Review | 0/1 | Not started | - |
 
 ## Current Recommendation
 
-Next target is Phase 7: folderize RSS, web scrape, release feed, and X ingestion behind compatibility wrappers.
+Next target is Phase 8: folderize media, Douyin, WeChat RSS, and manual ingestion behind compatibility wrappers.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*
