@@ -264,7 +264,7 @@
       "id": "DG-001",
       "title": "Define executable workflow graph contract",
       "type": "contract",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "TG-003"
       ],
@@ -283,13 +283,31 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/workflow_graph_validate.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:50:59Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z",
+          "commit": "5b94f1b"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:50:59Z",
+      "commit": "5b94f1b"
     },
     {
       "id": "DG-002",
       "title": "Create Daily Inbox executable workflow graph",
       "type": "workflow",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "DG-001"
       ],
@@ -307,13 +325,31 @@
       ],
       "linter_commands": [
         "python3 -m json.tool workflow/diagram/daily-newsletter.graph.json >/dev/null"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:50:59Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z",
+          "commit": "5b94f1b"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:50:59Z",
+      "commit": "5b94f1b"
     },
     {
       "id": "DG-003",
       "title": "Implement workflow graph validator",
       "type": "implementation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "DG-002"
       ],
@@ -331,13 +367,31 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/workflow_graph_validate.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:50:59Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z",
+          "commit": "5b94f1b"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:50:59Z",
+      "commit": "5b94f1b"
     },
     {
       "id": "DG-004",
       "title": "Implement workflow graph dry-run runner",
       "type": "implementation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "DG-003"
       ],
@@ -355,7 +409,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/workflow_graph_dry_run.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:50:59Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z",
+          "commit": "5b94f1b"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:50:59Z",
+      "commit": "5b94f1b"
     },
     {
       "id": "DG-005",
@@ -386,7 +458,7 @@
       "id": "DG-006",
       "title": "Add workflow graph regression tests",
       "type": "verification",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "DG-004"
       ],
@@ -404,7 +476,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile tests/test_workflow_graph.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:50:59Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:50:59Z",
+          "commit": "5b94f1b"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:50:59Z",
+      "commit": "5b94f1b"
     },
     {
       "id": "N8N-001",
