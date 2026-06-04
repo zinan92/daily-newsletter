@@ -11,6 +11,7 @@ after the slow v4-pro run finishes ~09:10). Alerts the owner via Telegram when:
 
 Silent success (fetched OK, no new items) is normal and does NOT alert.
 """
+import json
 import re
 import sys
 import urllib.error
@@ -20,6 +21,46 @@ from datetime import datetime
 from lib import PARKIO, ROOT, load_sources, send_telegram, today
 
 PUSH_LOG = ROOT / "logs" / "push-digest.log"
+MEDIA_SUMMARIES = ROOT / "media-summaries.json"
+SCORING_HEALTH = ROOT / "scoring-health.json"
+
+
+def failed_transcriptions() -> list[str]:
+    """Curated videos whose transcription errored today (e.g. ReadTimeout).
+
+    The owner expects every curated video to be fetched AND transcribed; a
+    transcription error must surface, not vanish. status=='failed' is a transient
+    error worth flagging; 'no_transcript'/'skipped_*' are settled outcomes."""
+    if not MEDIA_SUMMARIES.exists():
+        return []
+    try:
+        cache = json.loads(MEDIA_SUMMARIES.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    out = []
+    for rec in cache.values() if isinstance(cache, dict) else []:
+        if not isinstance(rec, dict) or rec.get("status") != "failed":
+            continue
+        if str(rec.get("updated_at", ""))[:10] != today():
+            continue
+        title = rec.get("title") or rec.get("url", "")
+        out.append(f"{rec.get('source', '?')}：{title}（转录失败：{rec.get('error', '未知')[:60]}）")
+    return out
+
+
+def scoring_outage() -> str | None:
+    """LLM scoring outage surfaced by score-items.py (scoring-health.json)."""
+    if not SCORING_HEALTH.exists():
+        return None
+    try:
+        h = json.loads(SCORING_HEALTH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if h.get("date") != today():
+        return None  # stale file; today's scoring hasn't run / will be checked elsewhere
+    if h.get("status") != "ok" or int(h.get("failed_batches", 0) or 0) > 0:
+        return f"打分 LLM 异常（{h.get('failed_batches', '?')} 个批次失败，status={h.get('status')}）— 检查 DeepSeek/fallback"
+    return None
 
 
 def digest_sent_today() -> bool:
@@ -122,6 +163,15 @@ def main() -> int:
     bridge = wechat_bridge_down()
     if bridge:
         problems.append(bridge)
+
+    try:
+        problems.extend(failed_transcriptions())
+    except Exception as exc:
+        print(f"[health] transcription check skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+    scoring = scoring_outage()
+    if scoring:
+        problems.append(scoring)
 
     if not problems:
         print(f"[health] OK {today()} — digest sent, no broken sources")

@@ -16,6 +16,8 @@ from pathlib import Path
 from lib import (
     PARKIO,
     ROOT,
+    LLMNonRetryable,
+    LLMUnavailable,
     batch_artifact_paths,
     processed_batch_dir,
     is_youtube_short,
@@ -25,6 +27,7 @@ from lib import (
     log,
     parse_frontmatter,
     parse_md_items,
+    send_telegram,
     today,
 )
 from digest_config import (
@@ -56,6 +59,16 @@ CONTACT_PATH = PARKIO / "contact.md"
 SOURCE_HEALTH_PATH = ROOT / "source-health.json"
 PUSH_MARKER = "<!-- parkio-push-items:"
 PROCESSED_MARKER = "<!-- parkio-processed-items:"
+
+# Genuine LLM outages hit during this digest run (DeepSeek AND the Anthropic
+# fallback both unreachable, or a config error). The owner must be told the
+# digest ran degraded — never let an LLM outage pass silently.
+_LLM_FAILURES: list[str] = []
+
+
+def note_llm_failure(where: str, exc: Exception) -> None:
+    if isinstance(exc, (LLMUnavailable, LLMNonRetryable)):
+        _LLM_FAILURES.append(f"{where}: {type(exc).__name__}")
 
 
 def load_scores() -> dict:
@@ -236,6 +249,7 @@ def event_summary(event: dict) -> str:
             text = text[len(event_title(event)):].lstrip(" ：:-")
         text = text.lstrip("。；;，,：: ")
     except Exception as ex:
+        note_llm_failure("event_summary", ex)
         log("summarize", f"event summary failed: {type(ex).__name__}: {ex}")
         text = source_event_summary(event)
     if bad_llm_text(text) or not has_chinese(text):
@@ -567,6 +581,7 @@ def value_paragraph(item: dict) -> str:
     try:
         text = llm_call(prompt, max_tokens=700)
     except Exception as ex:
+        note_llm_failure("value_paragraph", ex)
         log("summarize", f"value paragraph failed: {type(ex).__name__}: {ex}")
         return source_item_paragraph(item)
     text = sanitize_product_text(text)
@@ -606,6 +621,7 @@ def saved_value_paragraph(item: dict) -> str:
     try:
         text = sanitize_product_text(llm_call(prompt, max_tokens=700))
     except Exception as ex:
+        note_llm_failure("saved_value_paragraph", ex)
         log("summarize", f"saved value paragraph failed: {type(ex).__name__}: {ex}")
         return source_item_paragraph(item)
     if bad_llm_text(text) or not has_chinese(text):
@@ -744,6 +760,7 @@ def item_headline(item: dict) -> str:
         if bad_llm_text(title) or any(marker in title for marker in ("我是 Claude Code", "我是Claude Code", "我不能处理", "Anthropic的官方CLI工具", "我注意到你", "我注意到您", "没有完整", "需要看到完整", "需要看到实际", "请提供", "才能写标题", "撰写标题", "内容似乎被截断")):
             title = source_headline(content)
     except Exception as ex:
+        note_llm_failure("headline", ex)
         log("summarize", f"headline failed: {type(ex).__name__}: {ex}")
         title = source_headline(content)
     item["headline"] = title or source_headline(content)
@@ -2063,6 +2080,15 @@ def main() -> None:
     u = get_usage()
     log("summarize", f"DONE — wrote {out_path} and {html_path} · LLM tokens: {u['total']} "
                      f"(prompt {u['prompt']} / completion {u['completion']} / reasoning {u['reasoning']}) over {u['calls']} calls")
+    if _LLM_FAILURES:
+        # The LLM (DeepSeek + Anthropic fallback) was unreachable for part of this
+        # run, so some summaries/titles fell back to raw text. Tell the owner now —
+        # never let an LLM outage surface only as a "why is the content off?" later.
+        msg = (f"⚠️ Park-IO {today_str}：今日简报生成时 LLM 调用失败 {len(_LLM_FAILURES)} 次"
+               f"（DeepSeek 与 Anthropic fallback 均不可用），部分摘要/标题已降级为原文。"
+               f"\n样例：{'; '.join(_LLM_FAILURES[:5])}")
+        sent = send_telegram(msg)
+        log("summarize", f"LLM degraded this run ({len(_LLM_FAILURES)} failures); telegram alert {'sent' if sent else 'FAILED'}")
     print(f"Panel: {out_path}")
     print(f"HTML: {html_path}")
 

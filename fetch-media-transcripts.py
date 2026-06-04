@@ -550,6 +550,33 @@ def media_failure_status(exc: Exception) -> str:
     return "failed"
 
 
+RETRY_FAILED_WITHIN_DAYS = int(os.environ.get("PARKIO_MEDIA_RETRY_DAYS", "3"))
+
+
+def retryable_failed_items(cache: dict, days: int = RETRY_FAILED_WITHIN_DAYS) -> list[dict]:
+    """Transient transcription failures to re-attempt beyond their publish day.
+
+    A ReadTimeout (Douyin CDN blip) maps to status=='failed' and is transient —
+    the same video transcribes fine on retry. But read_today_media_items only
+    yields TODAY's items, so a failure that outlives "today" used to stick as
+    failed forever and silently. We re-surface status=='failed' records from the
+    last `days` so they get retried; status=='no_transcript'/'skipped_*' are NOT
+    retried (those are settled outcomes, not transient errors).
+    """
+    cutoff = datetime.now() - timedelta(days=days)
+    out = []
+    for url, rec in cache.items():
+        if not isinstance(rec, dict) or rec.get("status") != "failed":
+            continue
+        try:
+            if datetime.fromisoformat(rec.get("updated_at", "")) < cutoff:
+                continue
+        except ValueError:
+            continue
+        out.append({"url": url, "title": rec.get("title", ""), "source": rec.get("source", "")})
+    return out
+
+
 def should_retry(record: dict) -> bool:
     if not record:
         return True
@@ -566,7 +593,9 @@ def should_retry(record: dict) -> bool:
 def main() -> None:
     cache = load_cache()
     queue = load_queue()
-    items = read_today_media_items()
+    # Today's items first (priority), then transient failures from the last few
+    # days so a one-off ReadTimeout is retried instead of silently sticking.
+    items = dedupe_items(read_today_media_items() + retryable_failed_items(cache))
     limit = DEFAULT_LIMIT
     processed = 0
     log("fetch-media-transcripts", f"START — {len(items)} media items")
