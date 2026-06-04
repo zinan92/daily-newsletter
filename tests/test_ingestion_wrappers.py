@@ -13,6 +13,12 @@ WRAPPERS = {
     "fetch-scrape.py": ["main", "claude_blog_sitemap_urls", "extract_claude_blog_article"],
     "fetch-twitter.py": ["main", "extract_handle", "fetch_tweets", "tweet_text"],
     "fetch-twitter-saved.py": ["main", "item_from_tweet", "content_for"],
+    "fetch-douyin.py": ["main", "item_from_aweme", "awemes_to_deliver"],
+    "fetch-wechat-rss.py": ["main", "parse_xml_feed", "parse_json_feed", "feed_url_for_source"],
+    "fetch-wechat-exporter.py": ["main", "item_from_json", "match_source"],
+    "fetch-manual-links.py": ["main", "load_fetch_wechat", "urls_from_pending"],
+    "fetch-wechat.py": ["main", "fetch_url", "parse_article", "save_article_to_library"],
+    "fetch-media-transcripts.py": ["main", "retryable_failed_items", "fetch_media_transcript"],
 }
 
 
@@ -37,8 +43,21 @@ def test_folderized_modules_exist():
         "ingestion/web_scrape/run.py",
         "ingestion/x/timeline.py",
         "ingestion/x/saved.py",
+        "ingestion/douyin/run.py",
+        "ingestion/wechat_rss/run.py",
+        "ingestion/wechat_rss/exporter.py",
+        "ingestion/manual_links/run.py",
+        "ingestion/manual_links/wechat_seed.py",
+        "enrichment/media/run.py",
     ]:
         assert (ROOT / rel).exists(), rel
+
+
+def test_manual_links_uses_folderized_wechat_parser():
+    module = load_module("fetch-manual-links.py")
+    wechat = module.load_fetch_wechat()
+    assert wechat.__name__ == "ingestion.manual_links.wechat_seed"
+    assert hasattr(wechat, "parse_article")
 
 
 if __name__ == "__main__":

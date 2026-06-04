@@ -7,6 +7,11 @@ Manual link ingestion owns owner-provided URLs.
 - `fetch-manual-links.py`
 - `fetch-wechat.py` for seeded/manual WeChat article handling
 
+## Implementation
+
+- `ingestion/manual_links/run.py`
+- `ingestion/manual_links/wechat_seed.py`
+
 ## Inputs
 
 - Manual link files under `~/park-io/`.

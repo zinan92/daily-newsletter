@@ -48,6 +48,7 @@ paths:
     folder: ingestion/wechat_rss
     current_entrypoints:
       - fetch-wechat-rss.py
+      - fetch-wechat-exporter.py
     emits: channel_artifact
   - id: manual_links
     folder: ingestion/manual_links

@@ -6,6 +6,10 @@ Douyin ingestion owns Douyin source discovery, delivery-state rules, and raw vid
 
 - `fetch-douyin.py`
 
+## Implementation
+
+- `ingestion/douyin/run.py`
+
 ## Inputs
 
 - Active `platform=douyin` source rows from `~/park-io/sources.md`.

@@ -17,7 +17,7 @@ The previous brownfield milestone turned the existing Park-IO daily digest into 
 - [x] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
 - [x] **Phase 6: Source Ingestion Contracts And Skeleton** - Create standard contracts, folder skeleton, compatibility rules, and workflow map.
 - [x] **Phase 7: Core Channel Folderization** - Move RSS, web scrape, release feed, and X ingestion behind channel folders with thin root wrappers.
-- [ ] **Phase 8: Media And WeChat Folderization** - Move YouTube/media, Douyin, WeChat RSS, manual links, and media enrichment behind channel/enrichment folders.
+- [x] **Phase 8: Media And WeChat Folderization** - Move YouTube/media, Douyin, WeChat RSS, manual links, and media enrichment behind channel/enrichment folders.
 - [ ] **Phase 9: Aggregation Boundary And Workflow Spec** - Move digest aggregation behind an aggregation folder and add n8n-ready workflow-as-code.
 - [ ] **Phase 10: Full Verification And Cross-AI Review** - Prove output compatibility, run full verification, run Claude Code review, fix findings, and close the milestone.
 
@@ -132,7 +132,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 08-01: Folderize media, Douyin, WeChat, and manual ingestion.
+- [x] 08-01: Folderize media, Douyin, WeChat, and manual ingestion.
 
 ### Phase 9: Aggregation Boundary And Workflow Spec
 **Goal**: Separate final digest aggregation from source ingestion and document the runtime workflow as code.
@@ -175,7 +175,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 5. End-To-End Daily Run Proof | 1/1 | Complete | 2026-06-04 |
 | 6. Source Ingestion Contracts And Skeleton | 1/1 | Complete | 2026-06-04 |
 | 7. Core Channel Folderization | 1/1 | Complete | 2026-06-04 |
-| 8. Media And WeChat Folderization | 0/1 | Not started | - |
+| 8. Media And WeChat Folderization | 1/1 | Complete | 2026-06-04 |
 | 9. Aggregation Boundary And Workflow Spec | 0/1 | Not started | - |
 | 10. Full Verification And Cross-AI Review | 0/1 | Not started | - |
 

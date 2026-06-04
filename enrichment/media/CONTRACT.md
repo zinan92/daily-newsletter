@@ -6,6 +6,10 @@ Media enrichment turns discovered video/audio items into reader-ready media summ
 
 - `fetch-media-transcripts.py`
 
+## Implementation
+
+- `enrichment/media/run.py`
+
 ## Inputs
 
 - Media candidate URL, title, source, and metadata from YouTube, podcast, or Douyin ingestion.

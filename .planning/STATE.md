@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 8 - Media And WeChat Folderization
+**Current focus:** Phase 9 - Aggregation Boundary And Workflow Spec
 
 ## Current Position
 
@@ -22,6 +22,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Root CLI/cron entrypoints must remain compatible until the refactor is fully proven.
 - Phase 6 completed: contract files, folder skeleton, workflow spec, and contract tests are in place.
 - Phase 7 completed: RSS, web scrape, X timeline, and X saved ingestion now live under channel folders with root compatibility wrappers.
+- Phase 8 completed: Douyin, WeChat RSS, WeChat exporter, manual links, seeded WeChat article parsing, and media transcript enrichment now live under channel/enrichment folders with root compatibility wrappers.
 
 ## Locked Decisions
 
@@ -57,10 +58,10 @@ python3 channel-health.py
 Next recommended command:
 
 ```text
-$gsd-plan-phase 8 --skip-research
+$gsd-plan-phase 9 --skip-research
 ```
 
-This should create the atomic plan for media, Douyin, WeChat RSS, and manual ingestion folderization.
+This should create the atomic plan for the digest aggregation boundary and workflow-as-code update.
 
 ---
-*State updated: 2026-06-04 after Phase 7 core channel folderization.*
+*State updated: 2026-06-04 after Phase 8 media and WeChat folderization.*
