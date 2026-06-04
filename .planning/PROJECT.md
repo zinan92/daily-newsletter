@@ -27,6 +27,13 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 - [x] Preserve the recent title/media/Douyin fixes through regression tests so future agents cannot reintroduce raw X truncation, promo videos, no-transcript media, or Douyin whitelist loss.
 - [x] Keep the daily run fast by default: `deepseek-v4-flash` with thinking disabled unless explicitly overridden.
 
+### Active Milestone
+
+- [ ] Decompose source ingestion into channel-owned folders while preserving the current daily Markdown/HTML/PNG output.
+- [ ] Define standard input/output/health contracts for every ingestion path.
+- [ ] Keep existing cron/CLI entrypoints as thin compatibility shims during the refactor.
+- [ ] Produce a workflow-as-code spec that can later become an n8n workflow without making n8n the source of truth in this milestone.
+
 ### Out of Scope
 
 - Full autonomous Telegram delivery - Telegram is currently disabled by owner choice; local sent artifacts are the product path.
@@ -62,6 +69,7 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 | DeepSeek v4-flash thinking disabled is the default | Reasoning mode made the digest take around 50 minutes | Good |
 | Curated media is valuable by default but must have transcript/summary | Media should not be lost to X-style score filters, but promo/no-transcript items should not reach readers | Good |
 | Brief channel health belongs in the digest | Owner should not need to open a second status page for basic channel health | Good |
+| Ingestion decomposes by runtime channel, not digest section | Each channel has different fetch/enrichment/failure behavior | Active |
 
 ---
-*Last updated: 2026-06-04 after Phase 5 end-to-end daily proof.*
+*Last updated: 2026-06-04 for source-ingestion decomposition milestone.*

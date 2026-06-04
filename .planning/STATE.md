@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Milestone complete - waiting for next owner-selected milestone
+**Current focus:** Phase 6 - Source Ingestion Contracts And Skeleton
 
 ## Current Position
 
@@ -17,7 +17,9 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Phase 4 - Reader Quality Regression Lock completed: X title truncation, media publishability, active Douyin source routing, metadata/transcript leaks, raw English prose, narrator leakage, and Markdown/HTML divergence are covered by deterministic tests or gates.
 - Phase 5 - End-To-End Daily Run Proof completed: the 2026-06-04 controlled batch regenerated, local sent Markdown/HTML/PNG were finalized, quality gate passed, and handover was refreshed.
 - Post-proof source fix completed: `克劳德猎手` WeWe RSS now uses `MP_WXS_3935644082`, fetches successfully, and is no longer a DOWN source.
-- No remaining code blockers in this milestone.
+- New milestone started: Daily Newsletter Source-Ingestion Decomposition.
+- Owner decision: decompose by runtime channel/source adapter, not by final digest section.
+- Root CLI/cron entrypoints must remain compatible until the refactor is fully proven.
 
 ## Locked Decisions
 
@@ -53,10 +55,10 @@ python3 channel-health.py
 Next recommended command:
 
 ```text
-Choose the next milestone, or resolve WeWe owner actions from HANDOVER.md.
+$gsd-plan-phase 6 --skip-research
 ```
 
-The current stabilization milestone is complete.
+This should create the atomic plan for source-ingestion contracts and folder skeleton.
 
 ---
-*State updated: 2026-06-04 after Phase 5 end-to-end daily proof.*
+*State updated: 2026-06-04 for source-ingestion decomposition milestone.*

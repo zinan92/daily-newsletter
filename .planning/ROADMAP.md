@@ -2,7 +2,7 @@
 
 ## Overview
 
-This brownfield milestone turns the existing Park-IO daily digest into a boring production routine: one local daily artifact family, visible channel health, locked reader-quality gates, and a full end-to-end proof. The project already has the core pipeline and codebase map; this roadmap focuses on bounded stabilization phases that can become one-shot atomic implementation units.
+The previous brownfield milestone turned the existing Park-IO daily digest into a boring production routine. The new milestone decomposes source ingestion by runtime channel while preserving the current daily output.
 
 ## Phases
 
@@ -15,6 +15,11 @@ This brownfield milestone turns the existing Park-IO daily digest into a boring 
 - [x] **Phase 3: Health Visibility Closure** - Keep compact digest health plus detailed status-page diagnosis.
 - [x] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
 - [x] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
+- [ ] **Phase 6: Source Ingestion Contracts And Skeleton** - Create standard contracts, folder skeleton, compatibility rules, and workflow map.
+- [ ] **Phase 7: Core Channel Folderization** - Move RSS, web scrape, release feed, and X ingestion behind channel folders with thin root wrappers.
+- [ ] **Phase 8: Media And WeChat Folderization** - Move YouTube/media, Douyin, WeChat RSS, manual links, and media enrichment behind channel/enrichment folders.
+- [ ] **Phase 9: Aggregation Boundary And Workflow Spec** - Move digest aggregation behind an aggregation folder and add n8n-ready workflow-as-code.
+- [ ] **Phase 10: Full Verification And Cross-AI Review** - Prove output compatibility, run full verification, run Claude Code review, fix findings, and close the milestone.
 
 ## Phase Details
 
@@ -89,6 +94,73 @@ Plans:
 Plans:
 - [x] 05-01: Run milestone verification and update handover.
 
+### Phase 6: Source Ingestion Contracts And Skeleton
+**Goal**: Establish the project boundaries and standard artifacts before moving production code.
+**Depends on**: Phase 5
+**Requirements**: [DEC-01, DEC-02]
+**Success Criteria** (what must be TRUE):
+  1. `ingestion/common/`, channel folders, `enrichment/media/`, `aggregation/digest/`, and `workflow/` exist.
+  2. Contracts define channel input, output, health, error, and artifact paths.
+  3. Root scripts remain the public CLI/cron surface for compatibility.
+  4. The phase plan makes later channel moves atomic.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 06-01: Add source-ingestion contracts and skeleton.
+
+### Phase 7: Core Channel Folderization
+**Goal**: Move deterministic text/feed ingestion code into channel-owned folders without changing outputs.
+**Depends on**: Phase 6
+**Requirements**: [DEC-01, DEC-05]
+**Success Criteria** (what must be TRUE):
+  1. RSS, web scrape, release feed, and X ingestion have channel folders.
+  2. Existing root entrypoints still work as wrappers.
+  3. Existing tests and focused ingestion smoke tests pass.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 07-01: Folderize RSS, scrape, release, and X ingestion.
+
+### Phase 8: Media And WeChat Folderization
+**Goal**: Move media-heavy and WeChat/manual ingestion into proper channel/enrichment boundaries.
+**Depends on**: Phase 7
+**Requirements**: [DEC-01, DEC-03, DEC-05]
+**Success Criteria** (what must be TRUE):
+  1. YouTube/media, Douyin, WeChat RSS, and manual links have channel folders.
+  2. Shared transcript/summary/publishability logic is documented under `enrichment/media/`.
+  3. Existing direct commands still work.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 08-01: Folderize media, Douyin, WeChat, and manual ingestion.
+
+### Phase 9: Aggregation Boundary And Workflow Spec
+**Goal**: Separate final digest aggregation from source ingestion and document the runtime workflow as code.
+**Depends on**: Phase 8
+**Requirements**: [DEC-04, DEC-07]
+**Success Criteria** (what must be TRUE):
+  1. Aggregation code has a clear folder boundary.
+  2. Workflow spec shows source paths, enrichment, aggregation, quality, and artifact outputs.
+  3. Spec is n8n-ready but the repo remains source-of-truth.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 09-01: Add aggregation boundary and workflow-as-code spec.
+
+### Phase 10: Full Verification And Cross-AI Review
+**Goal**: Prove the refactor preserved behavior and receive independent Claude Code review.
+**Depends on**: Phase 9
+**Requirements**: [DEC-06, DEC-08]
+**Success Criteria** (what must be TRUE):
+  1. Full test suite passes.
+  2. Controlled daily batch still builds, finalizes, and passes quality.
+  3. Claude Code CLI review is run and actionable findings are fixed or documented.
+  4. Handover explains the new project layout and next-thread boundaries.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 10-01: Verify, review, fix, and close source-ingestion decomposition.
+
 ## Progress
 
 **Execution Order:**
@@ -101,10 +173,15 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Health Visibility Closure | 1/1 | Complete | 2026-06-04 |
 | 4. Reader Quality Regression Lock | 1/1 | Complete | 2026-06-04 |
 | 5. End-To-End Daily Run Proof | 1/1 | Complete | 2026-06-04 |
+| 6. Source Ingestion Contracts And Skeleton | 0/1 | Not started | - |
+| 7. Core Channel Folderization | 0/1 | Not started | - |
+| 8. Media And WeChat Folderization | 0/1 | Not started | - |
+| 9. Aggregation Boundary And Workflow Spec | 0/1 | Not started | - |
+| 10. Full Verification And Cross-AI Review | 0/1 | Not started | - |
 
 ## Current Recommendation
 
-The stabilization milestone is complete. Next work should be a new owner-selected milestone. `克劳德猎手` WeWe RSS is resolved; `Ray在思考` remains visible as STALE but is owner-marked low priority.
+Next target is Phase 6: create the source-ingestion contracts and folder skeleton before moving channel code.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*
