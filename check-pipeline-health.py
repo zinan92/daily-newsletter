@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 
-from lib import PARKIO, ROOT, load_sources, send_telegram, today
+from lib import PARKIO, ROOT, load_sources, today, write_health_alert
 
 PUSH_LOG = ROOT / "logs" / "push-digest.log"
 MEDIA_SUMMARIES = ROOT / "media-summaries.json"
@@ -115,7 +115,7 @@ def broken_sources() -> list[str]:
         elif row.get("status") == "stale":
             # Bridge answers but the upstream feed is frozen (e.g. wewe-rss stopped
             # updating this account). It LOOKS green but silently stops delivering.
-            problems.append(f"{name}（上游 feed 冻结：{row.get('detail', '最新文章过旧')}）")
+            problems.append(f"{name}（{row.get('detail', '上游 feed 冻结')}）")
         elif row.get("success_total_7d", 0) >= 3 and row.get("success_ok_7d", 0) == 0:
             problems.append(f"{name}（7 天未成功抓取，可能已坏）")
     return problems
@@ -178,12 +178,13 @@ def main() -> int:
         problems.append(scoring)
 
     if not problems:
+        # Heartbeat so the owner can see the check actually ran and found nothing.
+        write_health_alert("✅ 一切正常（简报已生成，无异常渠道）")
         print(f"[health] OK {today()} — digest sent, no broken sources")
         return 0
 
-    alert = "⚠️ Park-IO 管道告警 " + today() + "\n\n" + "\n".join(f"• {p}" for p in problems)
-    sent = send_telegram(alert)
-    print(f"[health] {len(problems)} problem(s); telegram alert {'sent' if sent else 'FAILED to send'}")
+    wrote = write_health_alert(f"⚠️ {len(problems)} 个问题需处理", problems)
+    print(f"[health] {len(problems)} problem(s); local alert {'written' if wrote else 'FAILED to write'}")
     for p in problems:
         print(f"  - {p}")
     return 1

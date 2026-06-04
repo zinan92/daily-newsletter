@@ -78,6 +78,25 @@ def test_transient_failure_is_retryable():
     assert fmt.retryable_failed_items(cache2) == []
 
 
+def test_write_health_alert_local_file():
+    import lib
+    import pathlib
+    fd, path = tempfile.mkstemp(suffix=".md")
+    os.close(fd)
+    orig = lib.HEALTH_ALERTS_PATH
+    try:
+        lib.HEALTH_ALERTS_PATH = pathlib.Path(path)
+        assert lib.write_health_alert("⚠️ 1 个问题", ["Ray在思考（feed 冻结）"]) is True
+        assert lib.write_health_alert("✅ 一切正常") is True
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+        # newest entry is on top
+        assert text.index("✅ 一切正常") < text.index("Ray在思考"), text
+        assert "# Park-IO 健康告警" in text
+    finally:
+        lib.HEALTH_ALERTS_PATH = orig
+        os.unlink(path)
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):

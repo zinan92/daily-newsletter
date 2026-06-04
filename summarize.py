@@ -27,8 +27,8 @@ from lib import (
     log,
     parse_frontmatter,
     parse_md_items,
-    send_telegram,
     today,
+    write_health_alert,
 )
 from digest_config import (
     HIGH_VALUE_SCORE,
@@ -2084,11 +2084,10 @@ def main() -> None:
         # The LLM (DeepSeek + Anthropic fallback) was unreachable for part of this
         # run, so some summaries/titles fell back to raw text. Tell the owner now —
         # never let an LLM outage surface only as a "why is the content off?" later.
-        msg = (f"⚠️ Park-IO {today_str}：今日简报生成时 LLM 调用失败 {len(_LLM_FAILURES)} 次"
-               f"（DeepSeek 与 Anthropic fallback 均不可用），部分摘要/标题已降级为原文。"
-               f"\n样例：{'; '.join(_LLM_FAILURES[:5])}")
-        sent = send_telegram(msg)
-        log("summarize", f"LLM degraded this run ({len(_LLM_FAILURES)} failures); telegram alert {'sent' if sent else 'FAILED'}")
+        summary = (f"⚠️ 今日简报生成时 LLM 调用失败 {len(_LLM_FAILURES)} 次"
+                   f"（DeepSeek 与 Anthropic fallback 均不可用），部分摘要/标题已降级为原文")
+        wrote = write_health_alert(summary, _LLM_FAILURES[:5])
+        log("summarize", f"LLM degraded this run ({len(_LLM_FAILURES)} failures); local alert {'written' if wrote else 'FAILED'}")
     print(f"Panel: {out_path}")
     print(f"HTML: {html_path}")
 

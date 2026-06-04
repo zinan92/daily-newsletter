@@ -176,6 +176,41 @@ def send_telegram(text: str) -> bool:
         return False
 
 
+HEALTH_ALERTS_PATH = INBOX / "health-alerts.md"
+
+
+def write_health_alert(summary: str, details: list[str] | None = None) -> bool:
+    """Append a timestamped health entry to the local alerts file the owner reads.
+
+    The owner consumes everything locally (no Telegram), so failures are recorded
+    to ~/park-io/inbox/health-alerts.md — newest first, scan-on-glance, trimmed to
+    the most recent entries. Never raises (alerting must not break the pipeline).
+    """
+    from datetime import datetime
+
+    header = (
+        "# Park-IO 健康告警\n\n"
+        "> 自动写入。最新在最上面。看日报时顺手扫一眼即可。\n"
+    )
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    entry_lines = [f"## {ts} — {summary}"]
+    entry_lines += [f"- {d}" for d in (details or [])]
+    new_entry = "\n".join(entry_lines)
+    try:
+        INBOX.mkdir(parents=True, exist_ok=True)
+        old = ""
+        if HEALTH_ALERTS_PATH.exists():
+            txt = HEALTH_ALERTS_PATH.read_text(encoding="utf-8")
+            m = re.search(r"(?m)^## ", txt)
+            old = txt[m.start():] if m else ""
+        combined = (new_entry + "\n\n" + old).strip()
+        entries = [e.strip() for e in re.split(r"(?m)^(?=## )", combined) if e.strip()][:80]
+        HEALTH_ALERTS_PATH.write_text(header + "\n" + "\n\n".join(entries) + "\n", encoding="utf-8")
+        return True
+    except OSError:
+        return False
+
+
 def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
     """Return (url, headers, body_bytes, parser) for the active provider.
 
