@@ -591,12 +591,14 @@
         "N8N-002"
       ],
       "files": [
-        "scripts/n8n_import.py"
+        "scripts/n8n_import_diff.py",
+        "tests/test_n8n_import_diff.py"
       ],
       "success_criteria": [
         "Importer can reconstruct graph nodes and edges from n8n JSON for diff review."
       ],
       "test_commands": [
+        "python3 tests/test_n8n_import_diff.py",
         "python3 tests/test_n8n_export.py"
       ],
       "review_requirements": [
@@ -617,12 +619,12 @@
           "event": "completed",
           "agent": "codex",
           "at": "2026-06-04T14:43:54Z",
-          "commit": "pending"
+          "commit": "74bd1c6"
         }
       ],
       "completed_by": "codex",
       "completed_at": "2026-06-04T14:43:54Z",
-      "commit": "pending"
+      "commit": "74bd1c6"
     },
     {
       "id": "GI-001",
