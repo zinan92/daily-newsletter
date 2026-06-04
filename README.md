@@ -2,7 +2,7 @@
 
 # Daily Newsletter
 
-**把分散在官方渠道、X、播客和公众号里的 AI 信息，每天自动凝练成一份中文摘要，定时推送到 Telegram。**
+**把分散在官方渠道、X、播客和公众号里的 AI 信息，每天自动凝练成一份中文摘要，保存成本地 Markdown / HTML / 长图。**
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![Tests](https://img.shields.io/badge/tests-6%20suites-green.svg)](tests/)
@@ -101,13 +101,13 @@ PARKIO_BATCH_ID=$BATCH python3 score.py           # 打分
 PARKIO_BATCH_ID=$BATCH python3 build-digest.py    # 生成 md/html/png
 PARKIO_BATCH_ID=$BATCH python3 check-quality.py   # 质量门
 PARKIO_BATCH_ID=$BATCH python3 archive-items.py
-PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.md
-# Telegram 当前临时关闭：默认只生成 processed/ 并写本地 sent/。
+PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.{md,html,png}
+# Telegram 当前临时关闭：默认生成 processed/ 并写本地 sent/。
 # 恢复 Telegram 后再手动执行：
 # PARKIO_BATCH_ID=$BATCH PARKIO_FORCE_PUSH=1 python3 send-artifacts.py
 ```
 
-日常由 launchd 驱动：`fetch-all.sh` 每 4 小时抓取，`push-digest.sh` 每天 08:30 构建并保存到 `processed/`，同时写入本地定稿 `sent/YY-MM-DD.md`。Telegram token 修复前，`push-digest.sh` 默认跳过发送；恢复发送时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
+日常由 launchd 驱动：`fetch-all.sh` 每 4 小时抓取，`push-digest.sh` 每天 08:30 构建并保存到 `processed/`，同时写入本地定稿 `sent/YY-MM-DD.{md,html,png}`。Telegram token 修复前，`push-digest.sh` 默认跳过发送；恢复发送时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
 
 ## Pipeline 阶段
 
@@ -120,7 +120,7 @@ PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.md
 | 摘要 | `build-digest.py` → `summarize.py` | ai | 内容衍生中文标题 + 摘要 + 四 section 组装 + 长图 |
 | 质检 | `check-quality.py` → `quality-check.py` | script + ai | 确定性红线门（硬拦）+ AI 二审（非阻塞） |
 | 归档 | `archive-items.py` | script | 写 `library/profiles/<id>/items/`，长期留存 |
-| 本地定稿 | `finalize-local.py` | script | 不依赖 Telegram，始终写 `sent/YY-MM-DD.md` |
+| 本地定稿 | `finalize-local.py` | script | 不依赖 Telegram，写 `sent/YY-MM-DD.{md,html,png}` |
 | 推送 | `send-artifacts.py` → `push-telegram.py` | script | 当前默认跳过；恢复后发送 Telegram |
 | 状态 | `generate-status.py` | script | 维护者状态页 `status.html`（抓取/评分/健康） |
 | 渠道健康 | `channel-health.py` | script | 按 fetch 日志真值 + feed 新鲜度，分 DOWN/STALE/QUIET/NEW |
@@ -136,7 +136,7 @@ PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.md
   - **NEW**：有新内容入库
   - **FILTERED**（状态页「抓到但过滤」）：抓到了新内容，但 0 条进入当天正文（被评分/dedup/质检丢掉）
 - `status.html` 的逐源健康与依赖检查都走 `channel-health` 真值；依赖检查是**功能型**（cookie/登录态按真实抓取结果判定、wewe-rss 检查 feed 新鲜度而非仅可达）。
-- 每日 Telegram digest 顶部带**渠道告警条**：哪些渠道挂了 / 冻结一眼可见，不用去翻状态页。
+- 每日 digest 顶部带**渠道告警条**：哪些渠道挂了 / 冻结一眼可见，不用去翻状态页。
 
 ### 运行时依赖（外部，需留意）
 

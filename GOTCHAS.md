@@ -29,16 +29,16 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 10 | Cross-source merge only on URL/thread/semantic, not keyword alone | 🔵 | `digest_events._semantic_cluster` (v4-pro judgment) replaced the ~40 hardcoded keyword rules; `event_key` is now unique-by-default. Kill switch: `PARKIO_SEMANTIC_CLUSTER=0`; safe fallback (no merge) on LLM failure |
 | 11 | Section structure fixed; ordinary X not in official section | 🔵 | `summarize.py` `official_plus_raw` excludes app-layer |
 | 12 | Empty sections hidden on consumer page | 🔵 | `render_html_*_card()` return "" on empty |
-| 13 | HTML / Markdown / PNG share cleaning + content | 🔵 | shared `render_panel`/`render_html_panel`; PNG from HTML |
+| 13 | Markdown is the single content source for HTML / PNG | 🔵 | `summarize.render_panel()` writes Markdown; `render_html_from_markdown()` derives HTML; PNG from HTML |
 | 14 | PNG trims trailing whitespace | 🔵 | `html-to-long-image.trim_bottom_whitespace()` |
-| 15 | `sent/` keeps only `YY-MM-DD.md`; HTML/PNG transient | 🔵 | `push-telegram.move_sent_artifacts()` |
+| 15 | `sent/` keeps the local final artifact family `YY-MM-DD.{md,html,png}` | 🧪🔵 | `finalize-local.py` · `tests/test_finalize_local.py` |
 | 16 | Stable file naming `YY-MM-DD`, no 早/晚/hhmm | ⚪ | convention |
 | 17 | Manual links: single `manual-links.md` (Pending/Imported/Failed) | ⚪ | convention · `fetch-manual-links.py` |
 | 18 | Library: `library/profiles/<id>/items/`, no legacy layers | ⚪ | convention |
 | 19 | Workflow diagram is a closed system | 🔵 | `validate-workflow.py`. **Note:** v12 contract = 4 independent paths (see `inbox-workflow.yaml`); `AGENTS.md` updated to match |
 | 20 | Quality gate is deterministic first, AI second | 🟢 | `quality-check.py` (hard) → `ai-quality-check.py` (non-blocking) |
 | 21 | Scoring outage degrades but is NOT silent | 🟢🔵 | bypass keeps official/manual/media · `score-items` writes `scoring-health.json` + log · `generate-status` shows banner |
-| 22 | Source health on owner page, not newsletter body | 🔵 | `health` isolated from `render_panel` body |
+| 22 | Compact source health appears in the digest; detailed health stays in status | 🧪🔵 | `summarize.render_health_dashboard_md()` · `tests/test_health_dashboard.py` · `channel-health.py` |
 | 23 | WeChat auto-fetch is fragile; manual links reliable | 🟡 | manual path reliable. **TODO**: surface auto-feed success/failure in status |
 | 24 | Empty-content X items don't enter consumer body | 🧪 | `x_item_has_content()` skips link-only single-X events · `test_empty_x.py` |
 

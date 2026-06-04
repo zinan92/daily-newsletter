@@ -11,7 +11,7 @@ This brownfield milestone turns the existing Park-IO daily digest into a boring 
 - Decimal phases (2.1, 2.2): Urgent insertions if needed
 
 - [ ] **Phase 1: Planning Baseline And Contract Reconciliation** - Make the existing project state explicit and parser-readable for GSD.
-- [ ] **Phase 2: Local Artifact Parity** - Produce Markdown, HTML, and PNG from the normal local daily path.
+- [x] **Phase 2: Local Artifact Parity** - Produce Markdown, HTML, and PNG from the normal local daily path.
 - [ ] **Phase 3: Health Visibility Closure** - Keep compact digest health plus detailed status-page diagnosis.
 - [ ] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
 - [ ] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
@@ -44,7 +44,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 02-01: Add local daily PNG generation and artifact parity tests.
+- [x] 02-01: Add local daily PNG generation and artifact parity tests.
 
 ### Phase 3: Health Visibility Closure
 **Goal**: Channel health should be immediately visible in the daily digest while detailed diagnosis remains in the status page and alert file.
@@ -97,7 +97,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Planning Baseline And Contract Reconciliation | 0/1 | In progress | - |
-| 2. Local Artifact Parity | 0/1 | Not started | - |
+| 2. Local Artifact Parity | 1/1 | Complete | 2026-06-04 |
 | 3. Health Visibility Closure | 0/1 | Not started | - |
 | 4. Reader Quality Regression Lock | 0/1 | Not started | - |
 | 5. End-To-End Daily Run Proof | 0/1 | Not started | - |

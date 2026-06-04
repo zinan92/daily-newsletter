@@ -6,13 +6,14 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 1 - Planning Baseline And Contract Reconciliation
+**Current focus:** Phase 3 - Health Visibility Closure
 
 ## Current Position
 
 - Codebase map completed and committed.
 - Brownfield planning baseline created from repo-local docs.
-- Next implementation target should be Phase 2 - Local Artifact Parity.
+- Phase 2 - Local Artifact Parity completed: local sent artifacts now include Markdown, HTML, and PNG when processed artifacts exist.
+- Next implementation target should be Phase 3 - Health Visibility Closure.
 
 ## Locked Decisions
 
@@ -28,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 - `GOTCHAS.md` still contains older wording saying source health stays out of newsletter body, while the newer owner contract wants a compact digest health dashboard.
 - WeWe RSS owner actions remain unresolved: Ray在思考 frozen feed and 克劳德猎手 pending RSS subscription.
-- Daily PNG is not produced by the normal `PARKIO_SKIP_SEND=1` local path yet.
+- If processed PNG rendering fails upstream, local finalization warns and continues with Markdown/HTML.
 - External auth dependencies can expire: WeWe, YouTube cookies, Twitter auth, Douyin cookies.
 
 ## Verification Baseline
@@ -44,13 +45,13 @@ python3 channel-health.py
 
 ## Next Command
 
-After this baseline is committed, run:
+Next recommended planning command:
 
 ```text
-$gsd-plan-phase 2 --tdd
+$gsd-plan-phase 3 --tdd
 ```
 
-This should produce the first atomic implementation plan: local daily PNG artifact parity.
+This should produce the next atomic plan: health visibility closure and doc reconciliation.
 
 ---
 *State initialized: 2026-06-04 after GSD brownfield planning bootstrap.*

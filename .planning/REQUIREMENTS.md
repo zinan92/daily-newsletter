@@ -7,9 +7,9 @@
 
 ### Artifacts
 
-- [ ] **ART-01**: The normal daily local path produces `sent/<date>.md`, `sent/<date>.html`, and `sent/<date>.png`.
-- [ ] **ART-02**: HTML and PNG are generated from the final Markdown only, with no second LLM summarization path.
-- [ ] **ART-03**: Each date has one canonical processed digest and one canonical sent digest.
+- [x] **ART-01**: The normal daily local path produces `sent/<date>.md`, `sent/<date>.html`, and `sent/<date>.png`.
+- [x] **ART-02**: HTML and PNG are generated from the final Markdown only, with no second LLM summarization path.
+- [x] **ART-03**: Each date has one canonical processed digest and one canonical sent digest.
 
 ### Health
 
@@ -51,9 +51,9 @@
 |-------------|-------|--------|
 | OPS-02 | Phase 1 | Pending |
 | OPS-03 | Phase 1 | Pending |
-| ART-01 | Phase 2 | Pending |
-| ART-02 | Phase 2 | Pending |
-| ART-03 | Phase 2 | Pending |
+| ART-01 | Phase 2 | Complete |
+| ART-02 | Phase 2 | Complete |
+| ART-03 | Phase 2 | Complete |
 | HLTH-01 | Phase 3 | Pending |
 | HLTH-02 | Phase 3 | Pending |
 | HLTH-03 | Phase 3 | Pending |

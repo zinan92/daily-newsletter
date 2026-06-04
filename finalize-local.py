@@ -18,7 +18,7 @@ def _finalize(src, dst) -> None:
 
 def main() -> int:
     label = batch_label()
-    panel, html, _png = batch_artifact_paths()
+    panel, html, png = batch_artifact_paths()
     if not panel.exists():
         print(f"[finalize-local] missing processed markdown: {panel}", file=sys.stderr)
         return 1
@@ -33,6 +33,12 @@ def main() -> int:
         print(f"[finalize-local] wrote {html_dst}")
     else:
         print(f"[finalize-local] WARN missing processed html: {html}", file=sys.stderr)
+    if png.exists():
+        png_dst = SENT_DIR / f"{label}.png"
+        _finalize(png, png_dst)
+        print(f"[finalize-local] wrote {png_dst}")
+    else:
+        print(f"[finalize-local] WARN missing processed png: {png}", file=sys.stderr)
     return 0
 
 

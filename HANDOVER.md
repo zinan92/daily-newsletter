@@ -12,8 +12,8 @@ pushed to `github.com/zinan92/daily-newsletter`.
   DeepSeek → Anthropic/Sonnet (`PARKIO_LLM_FALLBACK_PROVIDER`). Do NOT add
   fallbacks elsewhere — if something breaks, surface it loudly, don't degrade
   silently.
-- **No Telegram.** Owner reads locally. Digest → `~/park-io/inbox/sent/<date>.md`
-  and `.html`. Failure alerts → `~/park-io/inbox/health-alerts.md` (newest first).
+- **No Telegram.** Owner reads locally. Digest → `~/park-io/inbox/sent/<date>.{md,html,png}`.
+  Failure alerts → `~/park-io/inbox/health-alerts.md` (newest first).
 - **Curated Douyin/podcast video sources are valuable by default** — they bypass
   the X-style score filter; they enter the body only if transcribed+summarized.
 
@@ -61,20 +61,19 @@ pushed to `github.com/zinan92/daily-newsletter`.
   Refresh/re-subscribe in wewe-rss (localhost:4000), or confirm account dormant.
 - **克劳德猎手**: `sources.md` `rss_url` is "pending WeWe subscription" — create the
   wewe-rss subscription for `gh_c4e5d8c9bdc6` and fill `rss_url`, else seed-only.
-- **PNG**: derives correctly (md→html→png via `html-to-long-image.py`) but is only
-  produced by the send stage (`push-telegram.render_long_image`). Daily run
-  (`PARKIO_SKIP_SEND=1`) writes md+html only. If a daily PNG is wanted, add a
-  png-render step to `push-digest.sh` / `finalize-local.py`.
+- **PNG**: derives correctly (md→html→png via `html-to-long-image.py`) in the
+  build stage, and `finalize-local.py` now copies it into `sent/<date>.png`
+  when the processed PNG exists. It does not re-render or call the LLM.
 
 ## How to run / verify
 ```bash
 python3 -m py_compile summarize.py digest_config.py lib.py quality-check.py fetch-douyin.py
 for t in chinese_fallback cleaning titles shorts source_health media health_dashboard \
-         douyin_delivery llm_fallback alerts; do python3 tests/test_$t.py; done
-# regenerate a batch (writes ~/park-io/inbox/processed/<date>/000-<date>.{md,html}):
-PARKIO_BATCH_ID=20260604 python3 summarize.py
-PARKIO_BATCH_ID=20260604 python3 finalize-local.py            # → sent/<date>.{md,html}
+         douyin_delivery llm_fallback alerts finalize_local; do python3 tests/test_$t.py; done
+# regenerate a batch (writes ~/park-io/inbox/processed/<date>/000-<date>.{md,html,png}):
+PARKIO_BATCH_ID=20260604 python3 build-digest.py              # → processed/<date>/000-<date>.{md,html,png}
+PARKIO_BATCH_ID=20260604 python3 finalize-local.py            # → sent/<date>.{md,html,png}
 PARKIO_BATCH_ID=20260604 PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py
 python3 channel-health.py                                     # truthful per-channel state
 ```
-All 10 test files pass; `check-quality` passes on the regenerated 06-04.
+All listed test files pass; `check-quality` passes on the regenerated 06-04.
