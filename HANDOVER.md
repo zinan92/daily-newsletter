@@ -93,14 +93,20 @@ The first repo-local task graph is now in place:
 - Docs: `tasks/README.md`
 - Validator: `python3 scripts/task_graph_validate.py`
 - Ready tasks: `python3 scripts/task_graph_ready.py`
+- Next task: `python3 scripts/task_next.py`
+- Agent loop preview: `python3 scripts/task_agent_loop.py --agent codex`
 - Execution waves/threads: `python3 scripts/task_graph_threads.py`
 - Claim: `python3 scripts/task_claim.py <TASK_ID> --agent <name>`
 - Complete: `python3 scripts/task_complete.py <TASK_ID> --agent <name> --commit <sha>`
+- GitHub issue dry-run export:
+  `python3 scripts/task_graph_github_export.py --task <TASK_ID> --json`
+- Protocol: `tasks/agent-claim-protocol.md`
+- Review checklist: `tasks/review-checklist.md`
 
 This is the foundation for the owner's Symphony-like operating model: atomic
 units first, execution threads derived from dependencies, then future GitHub
-Issues or n8n sync. Keep the local graph canonical until those sync layers are
-proven.
+Issues or n8n sync. Keep the local graph canonical unless a later milestone
+explicitly changes that contract.
 
 ## Executable workflow diagram
 
@@ -111,11 +117,15 @@ The first runtime workflow graph is now in place:
 - Docs: `workflow/diagram/README.md`
 - Validator: `python3 scripts/workflow_graph_validate.py`
 - Dry-run: `python3 scripts/workflow_graph_dry_run.py`
+- Safe runner: `python3 scripts/workflow_graph_run.py`
 
 The graph currently has 22 nodes covering channel fetch, media enrichment,
 source health, digest build, quality, archive, local finalize, status, and
 failure alert. Dry-run is normal-path only; failure-only alert nodes are kept in
 the graph but excluded from normal dry-run order.
+
+`workflow_graph_run.py` is dry-run by default. Real execution requires a node
+selection and explicit `--run --confirm-production`.
 
 ## n8n export
 

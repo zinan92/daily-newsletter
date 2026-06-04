@@ -930,7 +930,7 @@
       "id": "DOC-001",
       "title": "Document task graph operating model",
       "type": "docs",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "TG-006",
         "DG-004"
@@ -951,7 +951,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/task_graph_lib.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:52:08Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:52:08Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:52:36Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:52:36Z",
+      "commit": "pending"
     },
     {
       "id": "VERIFY-001",

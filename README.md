@@ -216,12 +216,17 @@ daily-newsletter/
 ```bash
 python3 scripts/task_graph_validate.py
 python3 scripts/task_graph_ready.py
+python3 scripts/task_next.py
+python3 scripts/task_agent_loop.py --agent codex
 python3 scripts/task_graph_threads.py
+python3 scripts/task_graph_github_export.py --task AG-002 --json
 python3 scripts/task_claim.py TG-001 --agent codex
 python3 scripts/task_complete.py TG-001 --agent codex --commit <sha>
 ```
 
 当前图在 `tasks/daily-inbox-task-graph.json`，schema 在 `tasks/schema.json`。GitHub Issues / n8n sync 是后续层；本地 task graph 先保持 source of truth。
+
+每个 execution thread 完成前，用 `tasks/review-checklist.md` 做验收；agent 认领规则在 `tasks/agent-claim-protocol.md`。
 
 ## Executable Workflow Diagram
 
