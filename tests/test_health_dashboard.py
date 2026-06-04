@@ -45,6 +45,36 @@ def test_dashboard_all_green():
     assert any("所有自动渠道今日抓取正常" in ln for ln in lines)
 
 
+def test_pending_wechat_rss_not_hidden_by_seed_article():
+    src = {
+        "name": "克劳德猎手",
+        "platform": "wechat",
+        "notes": "seed article; rss_url pending WeWe subscription",
+    }
+    sources_today = [
+        {
+            "file": type("P", (), {"name": "x.md", "stem": "x"})(),
+            "fm": {"source_name": "克劳德猎手"},
+            "items": [{"source": "克劳德猎手", "url": "https://mp.weixin.qq.com/s/demo"}],
+            "kept": [{"source": "克劳德猎手", "url": "https://mp.weixin.qq.com/s/demo"}],
+            "filtered": [],
+        }
+    ]
+    original_load_sources = summarize.load_sources
+    try:
+        summarize.load_sources = lambda: [src]
+        rows = summarize.source_health(sources_today, "2026-06-04")
+    finally:
+        summarize.load_sources = original_load_sources
+
+    assert rows[0]["status"] == "failed"
+    assert "WeWe RSS 未配置" in rows[0]["detail"]
+    dashboard = "\n".join(summarize.render_health_dashboard_md(rows))
+    assert "需关注 **1**" in dashboard
+    assert "抓取失败/上游冻结/待配置" in dashboard
+    assert "克劳德猎手" in dashboard
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):

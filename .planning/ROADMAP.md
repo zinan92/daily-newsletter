@@ -12,7 +12,7 @@ This brownfield milestone turns the existing Park-IO daily digest into a boring 
 
 - [ ] **Phase 1: Planning Baseline And Contract Reconciliation** - Make the existing project state explicit and parser-readable for GSD.
 - [x] **Phase 2: Local Artifact Parity** - Produce Markdown, HTML, and PNG from the normal local daily path.
-- [ ] **Phase 3: Health Visibility Closure** - Keep compact digest health plus detailed status-page diagnosis.
+- [x] **Phase 3: Health Visibility Closure** - Keep compact digest health plus detailed status-page diagnosis.
 - [ ] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
 - [ ] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
 
@@ -58,7 +58,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 03-01: Reconcile digest health, status health, and health documentation.
+- [x] 03-01: Reconcile digest health, status health, and health documentation.
 
 ### Phase 4: Reader Quality Regression Lock
 **Goal**: Recent reader-facing fixes stay fixed through deterministic tests and quality gates.
@@ -98,13 +98,13 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Planning Baseline And Contract Reconciliation | 0/1 | In progress | - |
 | 2. Local Artifact Parity | 1/1 | Complete | 2026-06-04 |
-| 3. Health Visibility Closure | 0/1 | Not started | - |
+| 3. Health Visibility Closure | 1/1 | Complete | 2026-06-04 |
 | 4. Reader Quality Regression Lock | 0/1 | Not started | - |
 | 5. End-To-End Daily Run Proof | 0/1 | Not started | - |
 
 ## Current Recommendation
 
-Start implementation with Phase 2 after Phase 1 is committed. Phase 2 is the best first implementation milestone because it is concrete, bounded, and directly addresses a known handover gap: daily local runs currently write Markdown and HTML, while PNG is only produced in the send stage.
+Next implementation target is Phase 4: Reader Quality Regression Lock. The health contract is now closed enough for the next agent to focus on title/media/Douyin/content quality gates.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

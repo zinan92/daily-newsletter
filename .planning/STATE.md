@@ -6,14 +6,15 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 3 - Health Visibility Closure
+**Current focus:** Phase 4 - Reader Quality Regression Lock
 
 ## Current Position
 
 - Codebase map completed and committed.
 - Brownfield planning baseline created from repo-local docs.
 - Phase 2 - Local Artifact Parity completed: local sent artifacts now include Markdown, HTML, and PNG when processed artifacts exist.
-- Next implementation target should be Phase 3 - Health Visibility Closure.
+- Phase 3 - Health Visibility Closure completed: `Ray在思考` surfaces as stale, and `克劳德猎手` pending WeWe RSS setup surfaces as action-needed instead of being hidden by seed content.
+- Next implementation target should be Phase 4 - Reader Quality Regression Lock.
 
 ## Locked Decisions
 
@@ -27,7 +28,6 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 ## Known Risks
 
-- `GOTCHAS.md` still contains older wording saying source health stays out of newsletter body, while the newer owner contract wants a compact digest health dashboard.
 - WeWe RSS owner actions remain unresolved: Ray在思考 frozen feed and 克劳德猎手 pending RSS subscription.
 - If processed PNG rendering fails upstream, local finalization warns and continues with Markdown/HTML.
 - External auth dependencies can expire: WeWe, YouTube cookies, Twitter auth, Douyin cookies.
@@ -48,10 +48,10 @@ python3 channel-health.py
 Next recommended planning command:
 
 ```text
-$gsd-plan-phase 3 --tdd
+$gsd-plan-phase 4 --tdd
 ```
 
-This should produce the next atomic plan: health visibility closure and doc reconciliation.
+This should produce the next atomic plan: reader quality regression lock.
 
 ---
 *State initialized: 2026-06-04 after GSD brownfield planning bootstrap.*

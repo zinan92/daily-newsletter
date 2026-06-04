@@ -13,9 +13,9 @@
 
 ### Health
 
-- [ ] **HLTH-01**: The digest contains a compact 4-5 line channel health dashboard near the top.
-- [ ] **HLTH-02**: The detailed status page remains the source for per-channel debugging.
-- [ ] **HLTH-03**: Frozen WeWe feeds, pending WeChat RSS setup, transcription retry failures, and scoring outages are surfaced as local alerts or health states.
+- [x] **HLTH-01**: The digest contains a compact 4-5 line channel health dashboard near the top.
+- [x] **HLTH-02**: The detailed status page remains the source for per-channel debugging.
+- [x] **HLTH-03**: Frozen WeWe feeds, pending WeChat RSS setup, transcription retry failures, and scoring outages are surfaced as local alerts or health states.
 
 ### Content Quality
 
@@ -54,9 +54,9 @@
 | ART-01 | Phase 2 | Complete |
 | ART-02 | Phase 2 | Complete |
 | ART-03 | Phase 2 | Complete |
-| HLTH-01 | Phase 3 | Pending |
-| HLTH-02 | Phase 3 | Pending |
-| HLTH-03 | Phase 3 | Pending |
+| HLTH-01 | Phase 3 | Complete |
+| HLTH-02 | Phase 3 | Complete |
+| HLTH-03 | Phase 3 | Complete |
 | QUAL-01 | Phase 4 | Pending |
 | QUAL-02 | Phase 4 | Pending |
 | QUAL-03 | Phase 4 | Pending |
@@ -70,4 +70,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after GSD brownfield planning bootstrap.*
+*Last updated: 2026-06-04 after Phase 3 health visibility closure.*

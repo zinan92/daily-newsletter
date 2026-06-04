@@ -443,6 +443,17 @@ def _health_from_channel(ch: dict | None) -> tuple[str, str]:
     return "ok_no_new", "fetch 成功，无新增"
 
 
+def pending_wechat_setup_detail(src: dict) -> str | None:
+    """A seed/manual WeChat article does not mean the automated RSS feed works."""
+    if src.get("platform") != "wechat":
+        return None
+    notes = src.get("notes", "") or ""
+    m = re.search(r"rss_url\s+pending\b[^|]*", notes, flags=re.I)
+    if not m:
+        return None
+    return f"WeWe RSS 未配置：{m.group(0).strip()}"
+
+
 def source_health(sources_today: list, today_str: str) -> list:
     sla = load_source_sla()
     ch_states = _channel_health_states()
@@ -467,7 +478,11 @@ def source_health(sources_today: list, today_str: str) -> list:
         name = src["name"]
         platform = src["platform"]
         today_src = by_name.get(name)
-        if today_src:
+        pending_setup = pending_wechat_setup_detail(src)
+        if pending_setup:
+            status = "failed"
+            detail = pending_setup
+        elif today_src:
             total = len(today_src["items"])
             kept = len(today_src["kept"])
             filtered = len(today_src["filtered"])
@@ -1742,7 +1757,7 @@ def render_health_dashboard_md(health: list) -> list[str]:
     if down:
         names = "、".join(r.get("name", "") for r in down[:6])
         more = f" 等 {len(down)} 个" if len(down) > 6 else ""
-        lines.append(f"- ⚠ 需处理（抓取失败/上游冻结）：{names}{more}")
+        lines.append(f"- ⚠ 需处理（抓取失败/上游冻结/待配置）：{names}{more}")
     else:
         lines.append("- ✅ 所有自动渠道今日抓取正常")
     return lines

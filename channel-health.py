@@ -99,6 +99,24 @@ def classify(parsed: dict | None, feed_age_days: int | None) -> str:
     return "QUIET"
 
 
+def pending_setup_error(src: dict) -> str | None:
+    """Return an actionable setup error for active WeChat rows with no RSS feed yet."""
+    if src.get("platform") != "wechat":
+        return None
+    notes = src.get("notes", "") or ""
+    m = re.search(r"rss_url\s+pending\b[^|]*", notes, flags=re.I)
+    if not m:
+        return None
+    return f"WeWe RSS 未配置：{m.group(0).strip()}"
+
+
+def classify_source(src: dict, parsed: dict | None, feed_age_days: int | None) -> dict:
+    pending = pending_setup_error(src)
+    if pending:
+        return {"state": "DOWN", "error": pending}
+    return {"state": classify(parsed, feed_age_days), "error": (parsed or {}).get("error")}
+
+
 def feed_age_days(src: dict) -> int | None:
     """For wechat-rss channels: age (days) of the newest item in the bridge feed.
     Detects a frozen bridge that still answers 200. None if not probeable."""
@@ -132,7 +150,8 @@ def channel_rows() -> list[dict]:
         line = last_channel_line(log_path, channel_needle(src))
         parsed = parse_line(line) if line else None
         age = feed_age_days(src)
-        state = classify(parsed, age)
+        classified = classify_source(src, parsed, age)
+        state = classified["state"]
         rows.append({
             "name": src.get("name", ""),
             "platform": platform,
@@ -140,7 +159,7 @@ def channel_rows() -> list[dict]:
             "new": (parsed or {}).get("new"),
             "seen": (parsed or {}).get("seen"),
             "feed_age_days": age,
-            "error": (parsed or {}).get("error"),
+            "error": classified.get("error"),
             "evidence": (line or "未在最近一轮 fetch 出现").strip(),
         })
     return rows

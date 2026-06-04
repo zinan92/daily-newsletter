@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Park-IO Daily AI Digest is a local, file-first pipeline that gathers AI signals from official channels, X, podcasts, YouTube, Douyin, WeChat, and manual links, then ships one Chinese reader-facing daily intelligence report. The owner reads local Markdown and HTML artifacts under `~/park-io/inbox/`, with health alerts written locally instead of Telegram.
+Park-IO Daily AI Digest is a local, file-first pipeline that gathers AI signals from official channels, X, podcasts, YouTube, Douyin, WeChat, and manual links, then ships one Chinese reader-facing daily intelligence report. The owner reads local Markdown, HTML, and PNG artifacts under `~/park-io/inbox/`, with health alerts written locally instead of Telegram.
 
 This is a brownfield project. The current codebase already has a deterministic four-path workflow, a Markdown-first rendering contract, source health tooling, LLM failover, and regression tests.
 
@@ -18,15 +18,12 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 - [x] LLM service fallback is limited to DeepSeek -> CLIProxy/Sonnet; all other failures should surface loudly instead of silently degrading.
 - [x] Official, manual, WeChat, and curated media sources bypass ordinary score filtering where appropriate.
 - [x] Local delivery is the default: daily artifacts are saved to `~/park-io/inbox/sent/<date>.md` and `.html`; Telegram is not the owner path.
-- [x] Source health exists as a truth source and distinguishes DOWN, STALE, QUIET, NEW, and FILTERED.
+- [x] Source health exists as a truth source and distinguishes DOWN, STALE, QUIET, NEW, FILTERED, and pending setup.
 - [x] The workflow diagram contract is four independent deterministic paths: official/code, X application, media, and saved/manual/WeChat.
 - [x] Regression tests and `check-quality.py` enforce core reader-facing quality gates.
 
 ### Active
 
-- [ ] Make the local daily artifact set complete: Markdown, HTML, and PNG must all derive from the same Markdown and be produced by the normal local daily path.
-- [ ] Reconcile documentation drift around source health: the current contract should be "brief channel health appears in the digest, detailed health remains in status page."
-- [ ] Convert remaining owner/infra blockers into visible operational states: frozen WeWe subscriptions, pending WeChat RSS, and transcription retries must be obvious in the daily/health outputs.
 - [ ] Preserve the recent title/media/Douyin fixes through regression tests so future agents cannot reintroduce raw X truncation, promo videos, no-transcript media, or Douyin whitelist loss.
 - [ ] Keep the daily run fast by default: `deepseek-v4-flash` with thinking disabled unless explicitly overridden.
 
@@ -64,7 +61,7 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 | Telegram is disabled by default | Owner reads locally and wants health alerts in files | Good |
 | DeepSeek v4-flash thinking disabled is the default | Reasoning mode made the digest take around 50 minutes | Good |
 | Curated media is valuable by default but must have transcript/summary | Media should not be lost to X-style score filters, but promo/no-transcript items should not reach readers | Good |
-| Brief channel health belongs in the digest | Owner should not need to open a second status page for basic channel health | Pending |
+| Brief channel health belongs in the digest | Owner should not need to open a second status page for basic channel health | Good |
 
 ---
-*Last updated: 2026-06-04 after GSD codebase mapping and brownfield planning bootstrap.*
+*Last updated: 2026-06-04 after Phase 3 health visibility closure.*

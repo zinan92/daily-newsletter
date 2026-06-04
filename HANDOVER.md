@@ -61,6 +61,8 @@ pushed to `github.com/zinan92/daily-newsletter`.
   Refresh/re-subscribe in wewe-rss (localhost:4000), or confirm account dormant.
 - **克劳德猎手**: `sources.md` `rss_url` is "pending WeWe subscription" — create the
   wewe-rss subscription for `gh_c4e5d8c9bdc6` and fill `rss_url`, else seed-only.
+  The health layer now surfaces this as `WeWe RSS 未配置` instead of marking the
+  seed article as a healthy automated feed.
 - **PNG**: derives correctly (md→html→png via `html-to-long-image.py`) in the
   build stage, and `finalize-local.py` now copies it into `sent/<date>.png`
   when the processed PNG exists. It does not re-render or call the LLM.

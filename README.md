@@ -130,7 +130,7 @@ PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.{md,html,p
 53 个 source 分布在 5 个平台（scrape / rss / twitter / wechat / douyin）。**核心原则：渠道「挂了」绝不能显示成「没更新」。**
 
 - `channel-health.py` 是健康真值源：读 **fetch 日志**（不是会撒谎的 `state.json`）+ 探测 feed 新鲜度，把每个渠道判成五态之一——
-  - **DOWN**：抓取报错（超时 / 拒连 / cookie 过期）
+  - **DOWN**：抓取报错或自动渠道未配置（超时 / 拒连 / cookie 过期 / WeWe RSS pending）
   - **STALE**：抓取成功但上游 feed 冻结（如 wewe-rss 的微信读书登录过期，feed 多日不更新）
   - **QUIET**：抓取成功、feed 新鲜、确实没有新内容
   - **NEW**：有新内容入库
