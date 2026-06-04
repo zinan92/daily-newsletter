@@ -37,6 +37,40 @@ def test_chinese_tweet_title_kept_verbatim():
     assert summarize.display_title(zh) == "我做了一个 AI 工具测评"
 
 
+def test_x_truncated_titles_detected():
+    # Real chopped X titles observed in the 26-06-04 batch (gotcha #2). Each is
+    # the body's opening cut mid-thought; the guard must flag all three.
+    cases = [
+        ("果然做过的人的分享就是不一样，Late",
+         "果然做过的人的分享就是不一样，Laten Space 访谈了 Ethan He，罗列一些观点"),
+        ("长文《想做高级咨询风视觉",
+         "长文《想做高级咨询风视觉？这套麦肯锡风格提示词可以直接复制》最近"),
+        ("Codex 昨晚上线的这个 Site 插件非",
+         "Codex 昨晚上线的这个 Site 插件非常厉害。它本质上感觉类似于 Claude Design"),
+    ]
+    for title, body in cases:
+        assert summarize.x_title_looks_truncated(title, body), f"missed truncation: {title!r}"
+
+
+def test_x_legit_titles_kept():
+    # A complete author-led heading (terminal punctuation, balanced brackets)
+    # must NOT be flagged, even when the body opens with it (龙德宸-style).
+    assert not summarize.x_title_looks_truncated(
+        "我做了一个 AI 工具测评", "x"
+    )  # body does not repeat the title
+    assert not summarize.x_title_looks_truncated(
+        "今天发布了新版本。", "今天发布了新版本。详情如下：支持多模态"
+    )  # complete sentence title-led post
+    assert not summarize.x_title_looks_truncated(
+        "《麦肯锡风格提示词》上线", "《麦肯锡风格提示词》上线，欢迎体验"
+    )  # balanced brackets, title is its own complete clause
+    # A stray bracket in a title the body does NOT begin with is the author's own
+    # heading — must not be flagged just for the bracket (codex review fix).
+    assert not summarize.x_title_looks_truncated(
+        "我用 Cursor (实验) 做了个工具", "完全不同的正文开头，讲别的事情"
+    )
+
+
 def test_no_stale_template_map():
     # event_title must NOT intercept event_keys with hardcoded titles. With a
     # Chinese-titled primary (no LLM call), event_title must equal display_title

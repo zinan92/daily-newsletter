@@ -100,6 +100,17 @@ BAD_PATTERNS = (
     "Anthropic Codex",
     "Anthropic 发布的 Codex",
     "Anthropic 发布 Codex",
+    # Third-person narration of a curated author (gotcha #2 hand-fix, codified).
+    "一位名为",
+    "一位美股实操者",
+    "有博主",
+    "一位博主",
+    "该用户",
+    # Media transcript/status leaking into the consumer body (gotcha #3).
+    "no_transcript",
+    "audio transcript",
+    "transcript too short",
+    "转录失败",
     "...",
 )
 METADATA_PATTERNS = (
@@ -149,6 +160,47 @@ def event_headings(text: str) -> list[str]:
         if match:
             headings.append(match.group(1).strip())
     return headings
+
+
+HEADING_RE = re.compile(r"^#{1,6}\s+(.+)$")
+
+
+def markdown_headings(text: str) -> list[str]:
+    """Bare heading text from the visible markdown (links/emphasis stripped)."""
+    out = []
+    for line in text.splitlines():
+        match = HEADING_RE.match(line.strip())
+        if not match:
+            continue
+        heading = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", match.group(1))
+        # Mirror render_html_from_markdown's inline handling: strip only PAIRED
+        # emphasis/code markers. A word-internal underscore (deepseek_v4-pro) is
+        # NOT emphasis and survives into the HTML, so it must survive here too —
+        # otherwise the divergence check false-fails on it.
+        heading = re.sub(r"\*\*([^*]+)\*\*", r"\1", heading)
+        heading = re.sub(r"\*([^*]+)\*", r"\1", heading)
+        heading = re.sub(r"`([^`]+)`", r"\1", heading)
+        heading = re.sub(r"_([^_]+)_", r"\1", heading)
+        heading = heading.strip()
+        if heading:
+            out.append(heading)
+    return out
+
+
+def heading_divergence(visible_md: str, visible_html: str) -> list[str]:
+    """Markdown headings absent from the HTML — HTML/PNG must mirror the Markdown.
+
+    HTML is rendered FROM the final Markdown (single content source); every
+    Markdown heading must therefore survive into the HTML. A missing one means
+    the two artifacts diverged (the exact failure the single-source rewrite was
+    meant to end). Whitespace-insensitive so inline tags don't cause false hits.
+    """
+    squashed_html = re.sub(r"\s+", "", visible_html)
+    missing = []
+    for heading in markdown_headings(visible_md):
+        if re.sub(r"\s+", "", heading) not in squashed_html:
+            missing.append(heading)
+    return missing
 
 
 def visible_markdown(text: str) -> str:
@@ -250,6 +302,10 @@ def main() -> int:
     english_lines = raw_english_body_lines(visible_md)
     if english_lines:
         fail(f"raw English in consumer body (not rewritten to Chinese): {english_lines[:2]}", failures)
+
+    diverged = heading_divergence(visible_md, visible_html)
+    if diverged:
+        fail(f"Markdown headings missing from HTML (md/HTML divergence): {diverged[:3]}", failures)
 
     required_sections = ("## 今日精选",)
     for section in required_sections:
