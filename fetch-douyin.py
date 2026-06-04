@@ -10,7 +10,7 @@ import json
 import re
 import sys
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from lib import PROFILE_LIBRARY_DIR, load_sources, load_state, log, profile_id_for_source, safe_filename, save_state, today, write_source_output
@@ -148,6 +148,36 @@ async def fetch_awemes(sec_uid: str, cookies: dict[str, str], limit: int) -> lis
     return items
 
 
+def awemes_to_deliver(awemes: list[dict], delivered_ids: set[str], today_str: str, recency_days: int = 2) -> list[dict]:
+    """Which fetched videos should be written into the inbox for the digest.
+
+    Pure → unit-testable. Delivery is gated on ``delivered_ids`` (videos already
+    written to a digest), NOT on library archival. The previous logic keyed
+    delivery off ``published == today`` while deduping against the library — so a
+    video first seen the day after it was posted was archived (→ permanently
+    "processed") yet never delivered: the silent swallow the owner hit. Here a
+    video is delivered when it has never been delivered AND was published within
+    the recency window (so a late first-sight still ships, without backfilling the
+    whole profile).
+    """
+    try:
+        cutoff = datetime.strptime(today_str, "%Y-%m-%d").date() - timedelta(days=recency_days)
+    except ValueError:
+        cutoff = datetime.now().date() - timedelta(days=recency_days)
+    out: list[dict] = []
+    for aweme in awemes:
+        aid = str(aweme.get("aweme_id") or "")
+        if not aid or aid in delivered_ids:
+            continue
+        try:
+            published = datetime.strptime(published_date(aweme.get("create_time")), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if published >= cutoff:
+            out.append(aweme)
+    return out
+
+
 def library_aweme_ids(source: dict) -> set[str]:
     library_dir = PROFILE_LIBRARY_DIR / profile_id_for_source(source) / "items"
     if not library_dir.exists():
@@ -178,21 +208,25 @@ def main() -> None:
             awemes.sort(key=aweme_sort_key, reverse=True)
             prior = state.get(key, {})
             processed_ids = set(prior.get("processed_ids", [])) | library_aweme_ids(src)
+            # delivered_ids tracks what已经写进 digest，与 library 归档解耦（修复吞没 bug）。
+            # 首次迁移：用 processed_ids 播种，避免一次性回灌整个历史 profile。
+            if "delivered_ids" in prior:
+                delivered_ids = set(prior.get("delivered_ids", []))
+            else:
+                delivered_ids = set(processed_ids)
             for aweme in awemes:
                 save_aweme_to_library(src, aweme)
             fetched_ids = {str(a.get("aweme_id") or "") for a in awemes if a.get("aweme_id")}
-            new_awemes = [
-                a for a in awemes
-                if str(a.get("aweme_id") or "") not in processed_ids
-                and published_date(a.get("create_time")) == today()
-            ]
+            new_awemes = awemes_to_deliver(awemes, delivered_ids, today())
             if new_awemes:
                 write_source_output(src, [item_from_aweme(a) for a in new_awemes])
             new_ids = {str(a.get("aweme_id") or "") for a in new_awemes if a.get("aweme_id")}
+            delivered_ids |= new_ids
             state[key] = {
                 "last_fetch": today(),
                 "profile_count": len(fetched_ids),
                 "processed_ids": sorted(processed_ids | new_ids),
+                "delivered_ids": sorted(delivered_ids),
                 "seen_ids": sorted(processed_ids | new_ids),
                 "latest_ids": [str(a.get("aweme_id") or "") for a in awemes[:20] if a.get("aweme_id")],
             }

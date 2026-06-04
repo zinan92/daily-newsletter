@@ -44,6 +44,7 @@ SOURCE_ROLES = {
     "wadezone": "application_practice",
     "lijigang": "application_practice",
     "rwayne": "application_practice",
+    "Thariq": "application_practice",
     "dontbesilent": "creator_growth",
     "longdechen12": "creator_growth",
     "ai_xiaomu": "creator_growth",
@@ -66,6 +67,7 @@ SOURCE_ROLES = {
     "嘉妍Kea": "wechat_article",
     "峥嵘岁月AI": "wechat_article",
     "深思SenseAI": "wechat_article",
+    "克劳德猎手": "wechat_article",
 }
 
 SOURCE_AUTHORITY = {
@@ -91,6 +93,7 @@ SOURCE_AUTHORITY = {
     "lijigang": 76,
     "ai_xiaomu": 72,
     "rwayne": 74,
+    "Thariq": 74,
     "我的 X 收藏": 88,
 }
 
@@ -171,6 +174,39 @@ BAD_LLM_MARKERS = (
 )
 
 
+_ACTIVE_DOUYIN_CACHE: set[str] | None = None
+
+
+def active_douyin_source_names() -> set[str]:
+    """Names of every active Douyin source declared in sources.md.
+
+    Douyin sources are curated video channels the owner wants by default; the
+    media section must follow sources.md rather than a hand-maintained whitelist,
+    so a newly-added channel (e.g. 柱子哥TzFilm) is never silently dropped. Lazy
+    import keeps digest_config import-cycle-free (lib does not import this module);
+    the result is cached because this is read on a per-item hot path.
+    """
+    global _ACTIVE_DOUYIN_CACHE
+    if _ACTIVE_DOUYIN_CACHE is not None:
+        return _ACTIVE_DOUYIN_CACHE
+    names: set[str] = set()
+    try:
+        from lib import load_sources
+
+        for src in load_sources():
+            if src.get("platform") != "douyin":
+                continue
+            if src.get("active") not in (None, "true", True):
+                continue
+            name = (src.get("name") or "").strip()
+            if name:
+                names.add(name)
+    except Exception:
+        names = set()
+    _ACTIVE_DOUYIN_CACHE = names
+    return names
+
+
 def source_names_for_group(group: str) -> set[str]:
     groups = {
         "twitter": {
@@ -182,6 +218,7 @@ def source_names_for_group(group: str) -> set[str]:
             "lijigang",
             "ai_xiaomu",
             "rwayne",
+            "Thariq",
         },
         "code": {"openai-codex-releases", "claude-code-releases"},
         "official": {
@@ -221,9 +258,10 @@ def source_names_for_group(group: str) -> set[str]:
             "YouTube",
             "Podcast",
         },
-        "douyin": {"慢学AI", "抖音"},
+        "douyin": {"慢学AI", "抖音"} | active_douyin_source_names(),
         "saved": {"我的 X 收藏"},
         "wechat": {
+            "手动公众号文章",
             "数字生命卡兹克",
             "AGI Hunt",
             "Ray在思考",
@@ -231,6 +269,8 @@ def source_names_for_group(group: str) -> set[str]:
             "海外独角兽",
             "嘉妍Kea",
             "峥嵘岁月AI",
+            "深思SenseAI",
+            "克劳德猎手",
         },
     }
     return groups[group]
