@@ -3,7 +3,10 @@
 Run: python3 tests/test_workflow_graph.py
 """
 import copy
+import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -110,6 +113,74 @@ def test_changing_edge_changes_execution_order():
     changed["edges"].append({"from": "c", "to": "b", "type": "main"})
     assert execution_waves(base) == [["a", "b"], ["c"]]
     assert execution_waves(changed) == [["a"], ["c"], ["b"]]
+
+
+def test_workflow_runner_dry_run_does_not_execute_commands():
+    with tempfile.TemporaryDirectory() as tmp:
+        marker = Path(tmp) / "marker.txt"
+        graph_path = Path(tmp) / "graph.json"
+        g = graph(
+            [node("start", command=""), node("write", command=f"{sys.executable} -c \"open('{marker}', 'w').write('ran')\"")],
+            [{"from": "start", "to": "write", "type": "main"}],
+        )
+        graph_path.write_text(json.dumps(g), encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "workflow_graph_run.py"), "--graph", str(graph_path)],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        assert "DRY-RUN wave" in result.stdout
+        assert not marker.exists()
+
+
+def test_workflow_runner_requires_confirmation_for_run_mode():
+    with tempfile.TemporaryDirectory() as tmp:
+        graph_path = Path(tmp) / "graph.json"
+        graph_path.write_text(json.dumps(graph([node("write")], [])), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "workflow_graph_run.py"),
+                "--graph",
+                str(graph_path),
+                "--node",
+                "write",
+                "--run",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+        assert result.returncode == 1
+        assert "--confirm-production" in result.stderr
+
+
+def test_workflow_runner_executes_selected_node_with_confirmation():
+    with tempfile.TemporaryDirectory() as tmp:
+        marker = Path(tmp) / "marker.txt"
+        graph_path = Path(tmp) / "graph.json"
+        command = f"{sys.executable} -c \"open('{marker}', 'w').write('ran')\""
+        g = graph([node("write", command=command)], [])
+        graph_path.write_text(json.dumps(g), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "workflow_graph_run.py"),
+                "--graph",
+                str(graph_path),
+                "--node",
+                "write",
+                "--run",
+                "--confirm-production",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        assert marker.read_text() == "ran"
 
 
 if __name__ == "__main__":

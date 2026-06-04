@@ -231,9 +231,16 @@ Daily Inbox runtime diagram 的最小可执行版本在 `workflow/diagram/`：
 python3 scripts/workflow_graph_validate.py
 python3 scripts/workflow_graph_dry_run.py
 python3 scripts/workflow_graph_dry_run.py --json
+python3 scripts/workflow_graph_run.py
 ```
 
 `workflow/diagram/daily-newsletter.graph.json` 里的 `edges` 决定 dry-run 顺序。改 edge 后，dry-run 输出会变；这就是 diagram-as-source-of-truth 的第一层。
+
+`workflow_graph_run.py` 默认也只 dry-run。真实执行必须限定节点并显式确认：
+
+```bash
+python3 scripts/workflow_graph_run.py --node status_after_fetch --run --confirm-production
+```
 
 可生成 n8n JSON：
 
