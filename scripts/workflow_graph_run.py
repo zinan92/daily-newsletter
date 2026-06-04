@@ -8,12 +8,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from workflow_graph_lib import DEFAULT_GRAPH, WorkflowGraphError, dry_run_plan, load_graph, nodes_by_id
+from workflow_graph_lib import DEFAULT_GRAPH, WorkflowGraphError, dry_run_plan, load_graph, nodes_by_id, validate_graph
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def selected_steps(graph: dict[str, Any], selected_ids: list[str]) -> list[dict[str, Any]]:
+    validate_graph(graph)
     all_steps = dry_run_plan(graph)
     if not selected_ids:
         return all_steps
@@ -21,8 +22,25 @@ def selected_steps(graph: dict[str, Any], selected_ids: list[str]) -> list[dict[
     missing = [node_id for node_id in selected_ids if node_id not in nodes]
     if missing:
         raise WorkflowGraphError(f"unknown node id(s): {', '.join(missing)}")
-    selected = set(selected_ids)
-    return [step for step in all_steps if step["id"] in selected]
+    normal_steps = {step["id"]: step for step in all_steps}
+    selected = []
+    for node_id in selected_ids:
+        if node_id in normal_steps:
+            selected.append(normal_steps[node_id])
+            continue
+        node = nodes[node_id]
+        selected.append(
+            {
+                "wave": 0,
+                "id": node_id,
+                "name": node["name"],
+                "type": node["type"],
+                "command": node.get("command", ""),
+                "inputs": node.get("inputs", []),
+                "outputs": node.get("outputs", []),
+            }
+        )
+    return selected
 
 
 def run_steps(steps: list[dict[str, Any]]) -> int:

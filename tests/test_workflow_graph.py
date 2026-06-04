@@ -157,6 +157,23 @@ def test_workflow_runner_requires_confirmation_for_run_mode():
         assert "--confirm-production" in result.stderr
 
 
+def test_workflow_runner_can_select_failure_only_node():
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "workflow_graph_run.py"),
+            "--node",
+            "health_alert",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "health_alert" in result.stdout
+    assert "check-pipeline-health.py" in result.stdout
+
+
 def test_workflow_runner_executes_selected_node_with_confirmation():
     with tempfile.TemporaryDirectory() as tmp:
         marker = Path(tmp) / "marker.txt"

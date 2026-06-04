@@ -902,29 +902,52 @@
       "id": "PR-002",
       "title": "Run cross-AI review on task graph system",
       "type": "review",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "TG-006",
         "DG-004",
         "PR-001"
       ],
       "files": [
+        "tasks/cross-ai-review.md",
         "tasks/README.md",
-        "tasks/daily-inbox-task-graph.json"
+        "tasks/daily-inbox-task-graph.json",
+        "scripts/workflow_graph_run.py",
+        "tests/test_workflow_graph.py"
       ],
       "success_criteria": [
         "Claude Code review or equivalent returns no blocking findings for graph validator, ready planner, thread planner, and claim protocol."
       ],
       "test_commands": [
         "python3 scripts/task_graph_validate.py",
-        "python3 scripts/task_graph_threads.py"
+        "python3 scripts/task_graph_threads.py",
+        "python3 tests/test_workflow_graph.py"
       ],
       "review_requirements": [
-        "Independent review required before agent auto-claim is treated as production-ready."
+        "Independent review required before agent auto-claim is treated as production-ready.",
+        "Review findings and fixes must be recorded in tasks/cross-ai-review.md."
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/task_graph_*.py scripts/task_claim.py scripts/task_complete.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T15:00:24Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T15:00:24Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T15:00:59Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T15:00:59Z",
+      "commit": "pending"
     },
     {
       "id": "DOC-001",
