@@ -14,7 +14,7 @@
 - [x] **DEC-05**: Existing CLI/cron entrypoints remain working through compatibility wrappers, so `fetch-all.sh`, `push-digest.sh`, and direct `python3 fetch-*.py` commands do not break.
 - [x] **DEC-06**: The refactor preserves current Markdown/HTML/PNG outputs and current tests/quality gates.
 - [x] **DEC-07**: The repo contains a workflow-as-code spec describing source paths, enrichment paths, aggregation, quality, and artifact output in n8n-ready terms.
-- [ ] **DEC-08**: The milestone receives an independent Claude Code CLI review and fixes actionable findings before completion.
+- [x] **DEC-08**: The milestone receives an independent Claude Code CLI review and fixes actionable findings before completion.
 
 ### Artifacts
 
@@ -67,7 +67,7 @@
 | DEC-05 | Phase 7, Phase 8, Phase 9 | Complete |
 | DEC-06 | Phase 10 | Complete |
 | DEC-07 | Phase 9 | Complete |
-| DEC-08 | Phase 10 | Pending |
+| DEC-08 | Phase 10 | Complete |
 | OPS-02 | Phase 1, Phase 5 | Complete |
 | OPS-03 | Phase 1, Phase 5 | Complete |
 | ART-01 | Phase 2 | Complete |
@@ -89,4 +89,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 10 local verification.*
+*Last updated: 2026-06-04 after Phase 10 Claude Code review.*

@@ -2,7 +2,7 @@
 
 **Completed:** 2026-06-04
 **Plan:** `.planning/phases/parkio-10-full-verification-cross-ai-review/10-01-PLAN.md`
-**Status:** Partial - local verification complete; Claude Code review pending
+**Status:** Complete
 
 ## What Changed
 
@@ -10,7 +10,7 @@
 - Updated README with the new root-wrapper plus folderized implementation layout.
 - Updated HANDOVER with Phase 6-9 decomposition status, latest proof run, and current residual risk.
 - Marked DEC-06 complete after output verification.
-- Left DEC-08 pending because Claude Code CLI review did not return output.
+- Marked DEC-08 complete after Claude Code CLI review returned no blocking findings.
 
 ## Verification
 
@@ -29,23 +29,26 @@ Results:
 - Controlled build completed and wrote `~/park-io/inbox/processed/26-06-04/000-26-06-04.{md,html,png}`.
 - Build used 33,227 LLM tokens over 65 calls, reasoning tokens 0.
 - Finalize wrote `~/park-io/inbox/sent/26-06-04.{md,html,png}`.
-- Quality check passed with 19 events and 10 push URLs. It warned about one duplicate visible X URL but did not fail.
+- Quality check passed with 19 events and 10 push URLs. It reported one non-blocking duplicate visible X URL warning.
 - Channel health showed no DOWN sources. `Ray在思考` remains STALE and intentionally low priority.
 
 ## Claude Code Review
 
-Attempted twice with `/Users/wendy/.local/bin/claude --print --permission-mode acceptEdits --output-format text`:
+Claude Code CLI review returned successfully with a local 180-second timeout and a narrow wrapper/path-sensitive prompt:
 
-1. Full refactor review prompt: no output after several minutes; process killed.
-2. Narrow wrapper/path review prompt: no output after several minutes; process killed.
+- No blocking findings.
+- Subprocess paths resolve through repo-root wrappers.
+- Root wrapper import/monkeypatch compatibility is preserved.
+- `push-digest.sh` and `fetch.py` command surfaces remain valid.
+- Workflow/contract mapping matches the moved implementation paths.
 
-No files were edited by Claude. DEC-08 remains pending until Claude Code returns a review.
+Claude edited no files.
 
 ## Acceptance
 
 - DEC-06 satisfied.
-- DEC-08 not satisfied yet.
-- Refactor is locally verified and safe to push with the review caveat documented.
+- DEC-08 satisfied.
+- Refactor is locally verified and independently reviewed.
 
 ---
 *Summary created: 2026-06-04*
