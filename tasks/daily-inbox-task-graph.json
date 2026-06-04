@@ -630,7 +630,7 @@
       "id": "GI-001",
       "title": "Define GitHub Issues sync contract",
       "type": "contract",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "TG-006"
       ],
@@ -648,7 +648,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/task_graph_lib.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:48:48Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:48:48Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:49:07Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:49:07Z",
+      "commit": "pending"
     },
     {
       "id": "GI-002",
