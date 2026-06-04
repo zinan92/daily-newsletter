@@ -50,13 +50,18 @@ LLM_FALLBACK_PROVIDER = os.environ.get(
 ).lower()
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
-# DeepSeek (OpenAI-compatible). Default is deepseek-chat (V3, non-reasoning):
-# for newsletter summarization/scoring it matches the V4-Pro reasoning model's
-# output quality while generating ZERO reasoning tokens, which is what made the
-# full digest take ~50 min. Set PARKIO_DEEPSEEK_MODEL=deepseek-v4-pro (or
-# deepseek-reasoner) to opt back into a reasoning model.
+# DeepSeek. Default is deepseek-v4-flash with thinking DISABLED — the fast,
+# non-reasoning path. The legacy deepseek-chat (== v4-flash non-thinking) is
+# deprecated 2026-07-24, so we target v4-flash directly and turn thinking off via
+# the `thinking` request field (default on the API is "enabled" → reasoning
+# tokens → the ~50-min digest). Non-thinking matches summarization quality at
+# ~13x the speed. Opt into reasoning with PARKIO_DEEPSEEK_THINKING=enabled (and
+# optionally PARKIO_DEEPSEEK_MODEL=deepseek-v4-pro for the larger model).
 DEEPSEEK_ENDPOINT = os.environ.get("PARKIO_DEEPSEEK_ENDPOINT", "https://api.deepseek.com/v1/chat/completions")
-DEEPSEEK_MODEL = os.environ.get("PARKIO_DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_MODEL = os.environ.get("PARKIO_DEEPSEEK_MODEL", "deepseek-v4-flash")
+# "disabled" → fast non-thinking; "enabled" → reasoning mode (slower). Applied
+# only to DeepSeek V4 models (deepseek-chat/-reasoner ignore it, they are fixed).
+DEEPSEEK_THINKING = os.environ.get("PARKIO_DEEPSEEK_THINKING", "disabled").lower()
 # Reasoning models spend tokens thinking (reasoning_content) BEFORE the answer
 # (content), and max_tokens caps the TOTAL. Too small a cap → all tokens go to
 # reasoning and content comes back empty. max_tokens is a ceiling billed by
@@ -69,9 +74,25 @@ CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost
 CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
 
 
-def _is_reasoning_model(model: str) -> bool:
+def _deepseek_is_v4(model: str) -> bool:
+    """DeepSeek V4 models accept the `thinking` request field; legacy aliases don't."""
+    return "v4" in (model or "").lower()
+
+
+def _deepseek_thinking_on(model: str) -> bool:
+    """Whether the request actually runs in thinking/reasoning mode (slow path).
+
+    deepseek-reasoner/r1 are fixed thinking; deepseek-chat is fixed non-thinking;
+    V4 models follow PARKIO_DEEPSEEK_THINKING (we default it to disabled = fast).
+    """
     m = (model or "").lower()
-    return "v4" in m or "reasoner" in m or "r1" in m
+    if "reasoner" in m or "r1" in m:
+        return True
+    if "chat" in m:
+        return False
+    if _deepseek_is_v4(m):
+        return DEEPSEEK_THINKING == "enabled"
+    return False
 
 
 YOUTUBE_MIN_SECONDS = int(os.environ.get("PARKIO_YOUTUBE_MIN_SECONDS", "90"))
@@ -193,18 +214,23 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
 def _llm_call_provider(provider: str, prompt: str, max_tokens: int, *, retries: int, timeout: int) -> str:
     """Call one provider. Raises LLMUnavailable only for transient failures."""
     url, model, headers, parse = _llm_endpoint_config(max_tokens, provider)
-    # Reasoning models need headroom for thinking + answer, and run slower.
-    effective_max = max_tokens
-    if provider == "deepseek" and _is_reasoning_model(model):
-        effective_max = max(max_tokens, DEEPSEEK_MAX_OUTPUT)
-        timeout = max(timeout, 300)
-    body = json.dumps(
-        {
-            "model": model,
-            "max_tokens": effective_max,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode("utf-8")
+    payload: dict = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if provider == "deepseek":
+        # V4 models default to thinking ON via the API; set it explicitly so our
+        # fast (non-thinking) default is deterministic and survives the
+        # deepseek-chat deprecation.
+        if _deepseek_is_v4(model):
+            payload["thinking"] = {"type": DEEPSEEK_THINKING}
+        # Thinking spends tokens reasoning BEFORE the answer and runs slower —
+        # give it output headroom + a longer timeout only when it is actually on.
+        if _deepseek_thinking_on(model):
+            payload["max_tokens"] = max(max_tokens, DEEPSEEK_MAX_OUTPUT)
+            timeout = max(timeout, 300)
+    body = json.dumps(payload).encode("utf-8")
     last_exc: Exception | None = None
     for attempt in range(1, retries + 1):
         req = urllib.request.Request(url, data=body, headers=headers)

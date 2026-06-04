@@ -65,6 +65,36 @@ def test_non_retryable_primary_error_does_not_fallback():
     assert calls == [lib.DEEPSEEK_ENDPOINT]
 
 
+def test_deepseek_thinking_flag_logic():
+    # Fast non-thinking by default; reasoner is fixed-thinking; chat is fixed-fast.
+    with patch.object(lib, "DEEPSEEK_THINKING", "disabled"):
+        assert lib._deepseek_thinking_on("deepseek-v4-flash") is False
+        assert lib._deepseek_thinking_on("deepseek-v4-pro") is False
+    with patch.object(lib, "DEEPSEEK_THINKING", "enabled"):
+        assert lib._deepseek_thinking_on("deepseek-v4-flash") is True
+    assert lib._deepseek_thinking_on("deepseek-reasoner") is True
+    assert lib._deepseek_thinking_on("deepseek-chat") is False
+
+
+def test_v4_request_sends_thinking_disabled():
+    captured = {}
+
+    def fake_urlopen(req, timeout):
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse({"choices": [{"message": {"content": "ok"}}]})
+
+    with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
+            patch.object(lib, "DEEPSEEK_MODEL", "deepseek-v4-flash"), \
+            patch.object(lib, "DEEPSEEK_THINKING", "disabled"), \
+            patch("urllib.request.urlopen", fake_urlopen):
+        lib.llm_call("hi", max_tokens=100, retries=1, timeout=60)
+
+    assert captured["body"].get("thinking") == {"type": "disabled"}, captured["body"]
+    # Non-thinking must NOT get the 300s reasoning timeout bump.
+    assert captured["timeout"] == 60, captured["timeout"]
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):
