@@ -752,12 +752,12 @@
           "event": "completed",
           "agent": "codex",
           "at": "2026-06-04T14:46:50Z",
-          "commit": "pending"
+          "commit": "d9af9da"
         }
       ],
       "completed_by": "codex",
       "completed_at": "2026-06-04T14:46:50Z",
-      "commit": "pending"
+      "commit": "d9af9da"
     },
     {
       "id": "AG-003",
