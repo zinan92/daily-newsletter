@@ -126,6 +126,49 @@ def ready_tasks(graph: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted((task for task in tasks.values() if is_ready(task, tasks)), key=lambda t: t["id"])
 
 
+TYPE_PRIORITY = {
+    "contract": 0,
+    "review": 1,
+    "docs": 2,
+    "implementation": 3,
+    "verification": 4,
+}
+
+
+def downstream_counts(tasks: dict[str, dict[str, Any]]) -> dict[str, int]:
+    direct: dict[str, set[str]] = {task_id: set() for task_id in tasks}
+    for task_id, task in tasks.items():
+        for dep in task.get("dependencies", []):
+            direct.setdefault(dep, set()).add(task_id)
+
+    def visit(task_id: str, seen: set[str]) -> set[str]:
+        for child in direct.get(task_id, set()):
+            if child in seen:
+                continue
+            seen.add(child)
+            visit(child, seen)
+        return seen
+
+    return {task_id: len(visit(task_id, set())) for task_id in tasks}
+
+
+def next_ready_task(graph: dict[str, Any]) -> dict[str, Any] | None:
+    tasks = validate_graph(graph)
+    ready = [task for task in tasks.values() if is_ready(task, tasks)]
+    if not ready:
+        return None
+    downstream = downstream_counts(tasks)
+
+    def priority(task: dict[str, Any]) -> tuple[int, int, str]:
+        return (
+            -downstream[task["id"]],
+            TYPE_PRIORITY.get(task.get("type", ""), 9),
+            task["id"],
+        )
+
+    return sorted(ready, key=priority)[0]
+
+
 def blocked_by(task: dict[str, Any], tasks: dict[str, dict[str, Any]]) -> list[str]:
     return [dep for dep in task.get("dependencies", []) if tasks[dep]["status"] != DONE]
 
@@ -215,4 +258,3 @@ def add_graph_arg(parser: argparse.ArgumentParser) -> None:
 
 def print_json(value: Any) -> None:
     print(json.dumps(value, indent=2, ensure_ascii=False))
-

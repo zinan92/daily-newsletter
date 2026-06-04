@@ -13,9 +13,11 @@ from task_graph_lib import (  # noqa: E402
     TaskGraphError,
     claim_task,
     complete_task,
+    downstream_counts,
     execution_threads,
     execution_waves,
     load_graph,
+    next_ready_task,
     ready_tasks,
     validate_graph,
 )
@@ -113,6 +115,25 @@ def test_execution_threads_are_serial_lanes():
     assert ["TG-002", "TG-004"] in threads
 
 
+def test_next_ready_task_prefers_largest_downstream_unlock():
+    g = graph([
+        minimal_task("A-001"),
+        minimal_task("B-001"),
+        minimal_task("A-002", deps=["A-001"]),
+        minimal_task("A-003", deps=["A-002"]),
+    ])
+    assert downstream_counts(validate_graph(g))["A-001"] == 2
+    assert next_ready_task(g)["id"] == "A-001"
+
+
+def test_next_ready_task_uses_type_then_id_tiebreak():
+    g = graph([
+        {**minimal_task("B-001"), "type": "implementation"},
+        {**minimal_task("A-001"), "type": "contract"},
+    ])
+    assert next_ready_task(g)["id"] == "A-001"
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):
@@ -125,4 +146,3 @@ if __name__ == "__main__":
                 print(f"FAIL {name}: {exc}")
     print(f"\n{'ALL PASS' if not failed else f'{failed} FAILED'}")
     raise SystemExit(1 if failed else 0)
-
