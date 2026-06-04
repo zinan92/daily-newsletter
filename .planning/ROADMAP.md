@@ -15,7 +15,7 @@ The previous brownfield milestone turned the existing Park-IO daily digest into 
 - [x] **Phase 3: Health Visibility Closure** - Keep compact digest health plus detailed status-page diagnosis.
 - [x] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
 - [x] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
-- [ ] **Phase 6: Source Ingestion Contracts And Skeleton** - Create standard contracts, folder skeleton, compatibility rules, and workflow map.
+- [x] **Phase 6: Source Ingestion Contracts And Skeleton** - Create standard contracts, folder skeleton, compatibility rules, and workflow map.
 - [ ] **Phase 7: Core Channel Folderization** - Move RSS, web scrape, release feed, and X ingestion behind channel folders with thin root wrappers.
 - [ ] **Phase 8: Media And WeChat Folderization** - Move YouTube/media, Douyin, WeChat RSS, manual links, and media enrichment behind channel/enrichment folders.
 - [ ] **Phase 9: Aggregation Boundary And Workflow Spec** - Move digest aggregation behind an aggregation folder and add n8n-ready workflow-as-code.
@@ -106,7 +106,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 06-01: Add source-ingestion contracts and skeleton.
+- [x] 06-01: Add source-ingestion contracts and skeleton.
 
 ### Phase 7: Core Channel Folderization
 **Goal**: Move deterministic text/feed ingestion code into channel-owned folders without changing outputs.
@@ -173,7 +173,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Health Visibility Closure | 1/1 | Complete | 2026-06-04 |
 | 4. Reader Quality Regression Lock | 1/1 | Complete | 2026-06-04 |
 | 5. End-To-End Daily Run Proof | 1/1 | Complete | 2026-06-04 |
-| 6. Source Ingestion Contracts And Skeleton | 0/1 | Not started | - |
+| 6. Source Ingestion Contracts And Skeleton | 1/1 | Complete | 2026-06-04 |
 | 7. Core Channel Folderization | 0/1 | Not started | - |
 | 8. Media And WeChat Folderization | 0/1 | Not started | - |
 | 9. Aggregation Boundary And Workflow Spec | 0/1 | Not started | - |
@@ -181,7 +181,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 ## Current Recommendation
 
-Next target is Phase 6: create the source-ingestion contracts and folder skeleton before moving channel code.
+Next target is Phase 7: folderize RSS, web scrape, release feed, and X ingestion behind compatibility wrappers.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

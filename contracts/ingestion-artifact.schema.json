@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://park-io.local/contracts/ingestion-artifact.schema.json",
+  "title": "Park-IO Source Ingestion Artifact",
+  "type": "object",
+  "required": ["schema_version", "channel", "source", "run", "items", "health", "errors"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["rss", "web_scrape", "release_feed", "x", "youtube", "douyin", "wechat_rss", "manual_links"]
+    },
+    "source": {
+      "type": "object",
+      "required": ["profile_id", "source_name", "platform", "url"],
+      "additionalProperties": true,
+      "properties": {
+        "profile_id": {"type": "string"},
+        "source_name": {"type": "string"},
+        "platform": {"type": "string"},
+        "url": {"type": "string"},
+        "authority": {"type": ["integer", "null"]},
+        "metadata": {"type": "object"}
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": ["batch_id", "generated_at", "entrypoint"],
+      "additionalProperties": true,
+      "properties": {
+        "batch_id": {"type": "string"},
+        "generated_at": {"type": "string"},
+        "entrypoint": {"type": "string"}
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "url", "published", "content", "content_kind", "metadata"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"},
+          "url": {"type": "string"},
+          "published": {"type": "string"},
+          "content": {"type": "string"},
+          "content_kind": {
+            "type": "string",
+            "enum": ["article", "post", "release", "video", "audio", "manual_link"]
+          },
+          "metadata": {"type": "object"}
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "required": ["state", "new_count", "seen_count", "detail"],
+      "additionalProperties": true,
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["DOWN", "STALE", "QUIET", "NEW", "UNKNOWN", "FILTERED"]
+        },
+        "new_count": {"type": ["integer", "null"]},
+        "seen_count": {"type": ["integer", "null"]},
+        "detail": {"type": "string"}
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "message"],
+        "additionalProperties": true,
+        "properties": {
+          "kind": {"type": "string"},
+          "message": {"type": "string"},
+          "retryable": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

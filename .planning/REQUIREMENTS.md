@@ -7,8 +7,8 @@
 
 ### Source-Ingestion Decomposition
 
-- [ ] **DEC-01**: Each runtime channel has a separate folder boundary: `rss`, `web_scrape`, `release_feed`, `x`, `youtube`, `douyin`, `wechat_rss`, and `manual_links`.
-- [ ] **DEC-02**: Shared ingestion primitives live under `ingestion/common/` and are used for contracts, artifact writing, health payloads, source loading, URL normalization, and test helpers.
+- [x] **DEC-01**: Each runtime channel has a separate folder boundary: `rss`, `web_scrape`, `release_feed`, `x`, `youtube`, `douyin`, `wechat_rss`, and `manual_links`.
+- [x] **DEC-02**: Shared ingestion primitives live under `ingestion/common/` and are used for contracts, artifact writing, health payloads, source loading, URL normalization, and test helpers.
 - [ ] **DEC-03**: Media post-processing is separated from ingestion under `enrichment/media/`, because YouTube, podcast, and Douyin all share transcript/summary/publishability behavior.
 - [ ] **DEC-04**: Aggregation remains separate from ingestion under `aggregation/digest/`; it consumes standardized channel artifacts and preserves the current reader-facing digest.
 - [ ] **DEC-05**: Existing CLI/cron entrypoints remain working through compatibility wrappers, so `fetch-all.sh`, `push-digest.sh`, and direct `python3 fetch-*.py` commands do not break.
@@ -60,8 +60,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEC-01 | Phase 6, Phase 7, Phase 8 | Pending |
-| DEC-02 | Phase 6 | Pending |
+| DEC-01 | Phase 6, Phase 7, Phase 8 | In progress |
+| DEC-02 | Phase 6 | Complete |
 | DEC-03 | Phase 8 | Pending |
 | DEC-04 | Phase 9 | Pending |
 | DEC-05 | Phase 7, Phase 8, Phase 9 | Pending |
@@ -89,4 +89,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 for source-ingestion decomposition milestone.*
+*Last updated: 2026-06-04 after Phase 6 contracts and skeleton.*

@@ -1,0 +1,96 @@
+version: 1
+name: daily-newsletter-source-ingestion-decomposition
+source_of_truth: repo
+runtime_target: n8n-ready
+
+contracts:
+  ingestion_artifact: contracts/ingestion-artifact.schema.json
+
+paths:
+  - id: rss
+    folder: ingestion/rss
+    current_entrypoints:
+      - fetch-rss.py
+    emits: channel_artifact
+  - id: web_scrape
+    folder: ingestion/web_scrape
+    current_entrypoints:
+      - fetch-scrape.py
+    emits: channel_artifact
+  - id: release_feed
+    folder: ingestion/release_feed
+    current_entrypoints:
+      - fetch-rss.py
+    emits: channel_artifact
+  - id: x
+    folder: ingestion/x
+    current_entrypoints:
+      - fetch-twitter.py
+      - fetch-twitter-saved.py
+    emits: channel_artifact
+    optional_enrichment:
+      - quoted_article
+  - id: youtube
+    folder: ingestion/youtube
+    current_entrypoints:
+      - fetch-rss.py
+    emits: media_candidate_artifact
+    next:
+      - media_enrichment
+  - id: douyin
+    folder: ingestion/douyin
+    current_entrypoints:
+      - fetch-douyin.py
+    emits: media_candidate_artifact
+    next:
+      - media_enrichment
+  - id: wechat_rss
+    folder: ingestion/wechat_rss
+    current_entrypoints:
+      - fetch-wechat-rss.py
+    emits: channel_artifact
+  - id: manual_links
+    folder: ingestion/manual_links
+    current_entrypoints:
+      - fetch-manual-links.py
+      - fetch-wechat.py
+    emits: channel_artifact
+
+enrichment:
+  - id: media_enrichment
+    folder: enrichment/media
+    current_entrypoints:
+      - fetch-media-transcripts.py
+    emits:
+      - transcript
+      - deep_summary
+      - publishable_flag
+  - id: quoted_article
+    folder: enrichment/quoted_article
+    current_entrypoints: []
+    status: future-boundary
+
+aggregation:
+  id: digest
+  folder: aggregation/digest
+  current_entrypoints:
+    - score.py
+    - build-digest.py
+    - quality-check.py
+    - archive-items.py
+    - finalize-local.py
+  inputs:
+    - channel_artifact
+    - media_candidate_artifact
+    - transcript
+    - deep_summary
+    - publishable_flag
+  outputs:
+    - markdown
+    - html
+    - png
+
+compatibility:
+  root_entrypoints_remain_public: true
+  wrappers_allowed: true
+  daily_output_must_remain_unchanged: true

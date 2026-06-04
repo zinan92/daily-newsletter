@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 6 - Source Ingestion Contracts And Skeleton
+**Current focus:** Phase 7 - Core Channel Folderization
 
 ## Current Position
 
@@ -20,6 +20,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - New milestone started: Daily Newsletter Source-Ingestion Decomposition.
 - Owner decision: decompose by runtime channel/source adapter, not by final digest section.
 - Root CLI/cron entrypoints must remain compatible until the refactor is fully proven.
+- Phase 6 completed: contract files, folder skeleton, workflow spec, and contract tests are in place.
 
 ## Locked Decisions
 
@@ -55,10 +56,10 @@ python3 channel-health.py
 Next recommended command:
 
 ```text
-$gsd-plan-phase 6 --skip-research
+$gsd-plan-phase 7 --skip-research
 ```
 
-This should create the atomic plan for source-ingestion contracts and folder skeleton.
+This should create the atomic plan for core channel folderization.
 
 ---
-*State updated: 2026-06-04 for source-ingestion decomposition milestone.*
+*State updated: 2026-06-04 after Phase 6 contracts and skeleton.*
