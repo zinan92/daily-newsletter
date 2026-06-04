@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 10 - Full Verification And Cross-AI Review
+**Current focus:** Phase 10 - Claude Code Review Retry
 
 ## Current Position
 
@@ -24,6 +24,8 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Phase 7 completed: RSS, web scrape, X timeline, and X saved ingestion now live under channel folders with root compatibility wrappers.
 - Phase 8 completed: Douyin, WeChat RSS, WeChat exporter, manual links, seeded WeChat article parsing, and media transcript enrichment now live under channel/enrichment folders with root compatibility wrappers.
 - Phase 9 completed: scoring, digest building, summarize, quality gates, AI quality, archiving, local finalization, and HTML-to-image rendering now live under `aggregation/digest/` with root compatibility wrappers.
+- Phase 10 local verification completed: py_compile, full tests, controlled build/finalize/quality, and channel health passed after folderization.
+- Claude Code CLI review was attempted twice and killed after returning no output; DEC-08 remains pending.
 
 ## Locked Decisions
 
@@ -59,10 +61,10 @@ python3 channel-health.py
 Next recommended command:
 
 ```text
-$gsd-plan-phase 10 --skip-research
+$cc review the source-ingestion decomposition refactor
 ```
 
-This should create the atomic plan for full output verification, Claude Code review, fixes, and milestone close.
+This should retry the independent Claude Code review once the CLI returns normally.
 
 ---
-*State updated: 2026-06-04 after Phase 9 aggregation boundary folderization.*
+*State updated: 2026-06-04 after Phase 10 local verification.*

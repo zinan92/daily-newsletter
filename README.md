@@ -182,17 +182,26 @@ LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 SSL/429/5xx 
 
 ```
 daily-newsletter/
-├── fetch*.py / fetch-all.sh   # 抓取层（RSS/X/微信/抖音/手动）
-├── score-items.py             # AI 打分（官方/手动/媒体 bypass）
-├── summarize.py               # 摘要 + 标题 + 四 section 组装（核心）
+├── fetch*.py / fetch-all.sh   # public 抓取入口（兼容 wrapper）
+├── score*.py                  # public 打分入口（兼容 wrapper）
+├── build-digest.py            # public 构建入口（兼容 wrapper）
+├── summarize.py               # public summarize import/CLI（兼容 wrapper）
+├── ingestion/                 # channel-owned ingestion implementations
+│   ├── rss/                   # RSS / YouTube feed fallback
+│   ├── web_scrape/            # official site scrape
+│   ├── x/                     # X timeline + saved items
+│   ├── douyin/                # Douyin profile monitoring
+│   ├── wechat_rss/            # WeWe RSS + exporter bridge
+│   └── manual_links/          # manual links + seeded WeChat parser
+├── enrichment/media/          # transcript + media summary enrichment
+├── aggregation/digest/        # score/build/summarize/quality/archive/finalize
+├── contracts/                 # standard ingestion artifact schema
+├── workflow/                  # n8n-ready workflow-as-code map
 ├── digest_events.py           # 事件聚类 + thread 合并
 ├── digest_text.py             # 文本清洗（strip_source_meta 等）
-├── quality-check.py           # 确定性质量门
-├── ai-quality-check.py        # AI 二审
 ├── push-telegram.py           # Telegram 投递
 ├── generate-status.py         # 维护者状态页
 ├── lib.py                     # 共享：路径、解析、llm_call(带重试)
-├── inbox-workflow.yaml        # 工作流图真源 (v12 四路径)
 ├── GOTCHAS.md                 # 回归不变量清单
 ├── tests/                     # 回归测试套件
 └── AGENTS.md                  # 给 AI agent 的编辑规则

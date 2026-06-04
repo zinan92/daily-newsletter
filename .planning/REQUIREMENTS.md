@@ -12,7 +12,7 @@
 - [x] **DEC-03**: Media post-processing is separated from ingestion under `enrichment/media/`, because YouTube, podcast, and Douyin all share transcript/summary/publishability behavior.
 - [x] **DEC-04**: Aggregation remains separate from ingestion under `aggregation/digest/`; it consumes standardized channel artifacts and preserves the current reader-facing digest.
 - [x] **DEC-05**: Existing CLI/cron entrypoints remain working through compatibility wrappers, so `fetch-all.sh`, `push-digest.sh`, and direct `python3 fetch-*.py` commands do not break.
-- [ ] **DEC-06**: The refactor preserves current Markdown/HTML/PNG outputs and current tests/quality gates.
+- [x] **DEC-06**: The refactor preserves current Markdown/HTML/PNG outputs and current tests/quality gates.
 - [x] **DEC-07**: The repo contains a workflow-as-code spec describing source paths, enrichment paths, aggregation, quality, and artifact output in n8n-ready terms.
 - [ ] **DEC-08**: The milestone receives an independent Claude Code CLI review and fixes actionable findings before completion.
 
@@ -65,7 +65,7 @@
 | DEC-03 | Phase 8 | Complete |
 | DEC-04 | Phase 9 | Complete |
 | DEC-05 | Phase 7, Phase 8, Phase 9 | Complete |
-| DEC-06 | Phase 10 | Pending |
+| DEC-06 | Phase 10 | Complete |
 | DEC-07 | Phase 9 | Complete |
 | DEC-08 | Phase 10 | Pending |
 | OPS-02 | Phase 1, Phase 5 | Complete |
@@ -89,4 +89,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 9 aggregation boundary folderization.*
+*Last updated: 2026-06-04 after Phase 10 local verification.*

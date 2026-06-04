@@ -1,4 +1,4 @@
-# Handover - Park-IO digest stabilization (2026-06-04)
+# Handover - Park-IO digest stabilization and decomposition (2026-06-04)
 
 Context for the next engineer/agent (Codex) taking over `input-to-park` (the
 Park-IO daily AI digest pipeline). Everything below is committed to `main` and
@@ -42,6 +42,19 @@ pushed to `github.com/zinan92/daily-newsletter`.
 - **Post-proof source fix:** `克劳德猎手` WeWe RSS is now configured as
   `http://localhost:4000/feeds/MP_WXS_3935644082.json` in `~/park-io/sources.md`
   and fetches successfully.
+- **Phase 6 - Source ingestion contracts and skeleton:** complete. Standard
+  contracts, folder skeleton, JSON schema, and workflow map are committed.
+- **Phase 7 - Core channel folderization:** complete. RSS, web scrape, X
+  timeline, and X saved items now live under channel folders with root wrappers.
+- **Phase 8 - Media and WeChat folderization:** complete. Douyin, WeChat RSS,
+  WeChat exporter, manual links, seeded WeChat parser, and media enrichment now
+  live under channel/enrichment folders with root wrappers.
+- **Phase 9 - Aggregation boundary:** complete. Score/build/summarize/quality,
+  AI quality, archive, finalize, and HTML-to-PNG implementations now live under
+  `aggregation/digest/` with root wrappers.
+- **Phase 10 - Verification:** local verification complete. Claude Code CLI
+  review was attempted twice but produced no output and had to be killed; do not
+  mark DEC-08 complete until a future Claude review returns.
 
 Recent GSD commits:
 - `a3a9863` - codebase map
@@ -50,6 +63,25 @@ Recent GSD commits:
 - `a4b347f` - pending WeWe RSS health visibility
 - `1180f22` - reader quality contract test
 - `b9fb41d` - Phase 5 proof plan
+- `628825d` - Phase 6 source ingestion decomposition plan
+- `17d1774` - source ingestion contracts
+- `3d37449` - core ingestion folderization
+- `d7baad3` - media and WeChat folderization
+- `0577323` - digest aggregation folderization
+
+## Current folder boundaries
+
+- `ingestion/rss/`: RSS feeds and YouTube feed fallback.
+- `ingestion/web_scrape/`: official web scraping.
+- `ingestion/x/`: X timeline and saved items.
+- `ingestion/douyin/`: Douyin profile monitoring and late-first-seen delivery.
+- `ingestion/wechat_rss/`: WeWe RSS plus exporter bridge imports.
+- `ingestion/manual_links/`: owner-provided links and seeded WeChat article parser.
+- `enrichment/media/`: YouTube/Douyin/podcast transcript and media summary work.
+- `aggregation/digest/`: scoring, digest assembly, quality gates, archive,
+  local finalize, and PNG rendering.
+- Root scripts remain the public command/import surface for cron, tests, and
+  operator commands.
 
 ## What changed in the stabilization milestone
 1. **LLM failover + local finalize** (`lib.py`, `push-digest.sh`, `finalize-local.py`).
@@ -84,14 +116,16 @@ Recent GSD commits:
 
 ## Latest proof run
 
-Controlled proof on **2026-06-04 18:31-18:34 Asia/Shanghai**:
+Controlled proof on **2026-06-04 19:32-19:36 Asia/Shanghai** after
+folderization:
 - `PARKIO_BATCH_ID=20260604 python3 build-digest.py` completed.
 - Output: `~/park-io/inbox/processed/26-06-04/000-26-06-04.{md,html,png}`.
-- LLM usage: 33,566 tokens over 67 calls, reasoning tokens 0.
+- LLM usage: 33,227 tokens over 65 calls, reasoning tokens 0.
 - `PARKIO_BATCH_ID=20260604 python3 finalize-local.py` wrote
   `~/park-io/inbox/sent/26-06-04.{md,html,png}`.
 - `PARKIO_BATCH_ID=20260604 PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py`
-  passed: 19 events, 10 push URLs.
+  passed: 19 events, 10 push URLs. It warned about one duplicate visible URL
+  (`https://x.com/ClaudeDevs/status/2062274312363770064`) but did not fail.
 - After the post-proof WeWe source fix, `python3 fetch-wechat-rss.py` showed
   `克劳德猎手: 1 NEW / 11 entries`, and `python3 channel-health.py` showed no DOWN
   sources. `Ray在思考` remains STALE, intentionally low priority.
