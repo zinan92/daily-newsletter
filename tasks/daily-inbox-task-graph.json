@@ -709,12 +709,12 @@
           "event": "completed",
           "agent": "codex",
           "at": "2026-06-04T14:45:59Z",
-          "commit": "pending"
+          "commit": "3c1b4cd"
         }
       ],
       "completed_by": "codex",
       "completed_at": "2026-06-04T14:45:59Z",
-      "commit": "pending"
+      "commit": "3c1b4cd"
     },
     {
       "id": "AG-002",
