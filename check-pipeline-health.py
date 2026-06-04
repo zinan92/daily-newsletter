@@ -112,6 +112,10 @@ def broken_sources() -> list[str]:
         name = row.get("name", "?")
         if row.get("status") == "failed":
             problems.append(f"{name}（今日抓取失败）")
+        elif row.get("status") == "stale":
+            # Bridge answers but the upstream feed is frozen (e.g. wewe-rss stopped
+            # updating this account). It LOOKS green but silently stops delivering.
+            problems.append(f"{name}（上游 feed 冻结：{row.get('detail', '最新文章过旧')}）")
         elif row.get("success_total_7d", 0) >= 3 and row.get("success_ok_7d", 0) == 0:
             problems.append(f"{name}（7 天未成功抓取，可能已坏）")
     return problems
