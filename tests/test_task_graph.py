@@ -3,7 +3,10 @@
 Run: python3 tests/test_task_graph.py
 """
 import copy
+import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -132,6 +135,55 @@ def test_next_ready_task_uses_type_then_id_tiebreak():
         {**minimal_task("A-001"), "type": "contract"},
     ])
     assert next_ready_task(g)["id"] == "A-001"
+
+
+def test_agent_loop_dry_run_does_not_mutate_graph_file():
+    with tempfile.TemporaryDirectory() as tmp:
+        graph_path = Path(tmp) / "graph.json"
+        original = graph([minimal_task("A-001"), minimal_task("B-001")])
+        graph_path.write_text(json.dumps(original, indent=2), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "task_agent_loop.py"),
+                "--graph",
+                str(graph_path),
+                "--agent",
+                "codex",
+                "--iterations",
+                "2",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        assert "DRY-RUN codex -> A-001" in result.stdout
+        assert json.loads(graph_path.read_text(encoding="utf-8")) == original
+
+
+def test_agent_loop_claim_mode_mutates_graph_file():
+    with tempfile.TemporaryDirectory() as tmp:
+        graph_path = Path(tmp) / "graph.json"
+        graph_path.write_text(json.dumps(graph([minimal_task("A-001")]), indent=2), encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "task_agent_loop.py"),
+                "--graph",
+                str(graph_path),
+                "--agent",
+                "codex",
+                "--claim",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        updated = json.loads(graph_path.read_text(encoding="utf-8"))
+        assert updated["tasks"][0]["status"] == "claimed"
+        assert updated["tasks"][0]["claimed_by"] == "codex"
 
 
 if __name__ == "__main__":

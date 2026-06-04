@@ -15,6 +15,7 @@ The graph answers four questions:
 python3 scripts/task_graph_validate.py
 python3 scripts/task_graph_ready.py
 python3 scripts/task_next.py
+python3 scripts/task_agent_loop.py --agent codex
 python3 scripts/task_graph_threads.py
 python3 scripts/task_claim.py TG-001 --agent codex
 python3 scripts/task_complete.py TG-001 --agent codex --commit <sha>
@@ -29,9 +30,10 @@ The short version:
 1. Validate the graph.
 2. List ready tasks.
 3. Use `task_next.py` when one agent needs a deterministic recommendation.
-4. Claim exactly one ready task.
-5. Complete its success criteria, tests, lint, and review requirements.
-6. Record completion with a real commit sha.
+4. Use `task_agent_loop.py --agent <name>` to preview an idle-agent claim loop.
+5. Add `--claim` only when you want the loop to persist a claim.
+6. Complete its success criteria, tests, lint, and review requirements.
+7. Record completion with a real commit sha.
 
 ## Status Contract
 

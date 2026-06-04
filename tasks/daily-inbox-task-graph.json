@@ -763,7 +763,7 @@
       "id": "AG-003",
       "title": "Implement auto-claim loop dry run",
       "type": "implementation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "AG-002"
       ],
@@ -781,7 +781,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/task_agent_loop.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:47:11Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:47:11Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:48:22Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:48:22Z",
+      "commit": "pending"
     },
     {
       "id": "PR-001",
