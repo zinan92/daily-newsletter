@@ -108,6 +108,10 @@ units first, execution threads derived from dependencies, then future GitHub
 Issues or n8n sync. Keep the local graph canonical unless a later milestone
 explicitly changes that contract.
 
+Current task graph milestone status: **24/24 tasks complete**. Final review and
+verification are recorded in `tasks/cross-ai-review.md` and
+`.planning/phases/parkio-15-task-graph-operating-system/15-01-SUMMARY.md`.
+
 ## Executable workflow diagram
 
 The first runtime workflow graph is now in place:

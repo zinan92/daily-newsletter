@@ -12,8 +12,16 @@
 - [x] **TG-03**: A validator rejects missing fields, invalid statuses, unknown dependencies, and dependency cycles.
 - [x] **TG-04**: Ready-task and execution-thread commands derive claimable tasks, parallel waves, and serial execution threads from the graph.
 - [x] **TG-05**: Claim and complete commands update the local graph with agent and history metadata.
-- [ ] **TG-06**: A future GitHub Issues sync layer can export local tasks without making GitHub the source of truth.
+- [x] **TG-06**: A future GitHub Issues sync layer can export local tasks without making GitHub the source of truth.
 - [x] **TG-07**: A future n8n/executable diagram layer can map workflow graph nodes into visual runtime nodes.
+- [x] **AG-01**: The repo documents an agent claim protocol covering idle behavior, conflicts, completion proof, and review proof.
+- [x] **AG-02**: The repo can return a deterministic next ready task for an idle agent.
+- [x] **AG-03**: The repo can dry-run an idle-agent claim loop without mutating the graph unless explicit claim mode is requested.
+- [x] **GI-01**: The repo documents a GitHub Issues sync contract that keeps the local graph canonical.
+- [x] **GI-02**: The repo can render GitHub Issue dry-run payloads without calling GitHub.
+- [x] **PR-01**: The repo documents an execution-thread review checklist.
+- [x] **PR-02**: The repo records review evidence and fixes blocking findings before final verification.
+- [x] **VERIFY-01**: All 24 task graph units are complete and verified.
 
 ### Executable Workflow Diagram
 
@@ -22,6 +30,7 @@
 - [x] **DG-03**: A validator rejects invalid node references, missing command payloads, cycles, and invalid edge types.
 - [x] **DG-04**: A dry-run runner derives execution order from graph edges without running production commands.
 - [x] **DG-05**: Tests prove changing graph edges changes execution order.
+- [x] **DG-06**: A safe workflow graph runner previews graph commands by default and requires explicit selected-node confirmation for execution.
 
 ### n8n Adapter
 
@@ -89,13 +98,22 @@
 | TG-03 | Phase 11 | Complete |
 | TG-04 | Phase 11 | Complete |
 | TG-05 | Phase 11 | Complete |
-| TG-06 | Future | Pending |
+| TG-06 | Phase 15 | Complete |
 | TG-07 | Phase 12 | Complete |
+| AG-01 | Phase 15 | Complete |
+| AG-02 | Phase 15 | Complete |
+| AG-03 | Phase 15 | Complete |
+| GI-01 | Phase 15 | Complete |
+| GI-02 | Phase 15 | Complete |
+| PR-01 | Phase 15 | Complete |
+| PR-02 | Phase 15 | Complete |
+| VERIFY-01 | Phase 15 | Complete |
 | DG-01 | Phase 12 | Complete |
 | DG-02 | Phase 12 | Complete |
 | DG-03 | Phase 12 | Complete |
 | DG-04 | Phase 12 | Complete |
 | DG-05 | Phase 12 | Complete |
+| DG-06 | Phase 15 | Complete |
 | N8N-01 | Phase 13 | Complete |
 | N8N-02 | Phase 13 | Complete |
 | N8N-03 | Phase 14 | Complete |
@@ -128,4 +146,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 14 n8n import/diff adapter.*
+*Last updated: 2026-06-04 after Phase 15 task graph operating system verification.*

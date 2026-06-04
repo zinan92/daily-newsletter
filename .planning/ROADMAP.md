@@ -24,6 +24,7 @@ The previous brownfield milestones turned the existing Park-IO daily digest into
 - [x] **Phase 12: Executable Workflow Diagram Foundation** - Define workflow diagram graph schema, Daily Inbox graph, validator, and dry-run runner.
 - [x] **Phase 13: n8n Export Adapter** - Export the canonical executable workflow graph into n8n workflow JSON.
 - [x] **Phase 14: n8n Import Diff Adapter** - Import the n8n-visible projection and report drift against the canonical graph.
+- [x] **Phase 15: Task Graph Operating System** - Finish all 24 agent-claimable tasks, review, and final verification.
 
 ## Phase Details
 
@@ -224,6 +225,21 @@ Plans:
 Plans:
 - [x] 14-01: Add n8n import/diff command and drift tests.
 
+### Phase 15: Task Graph Operating System
+**Goal**: Finish the agent-claimable operating layer so future work can be claimed, reviewed, mirrored, and verified from durable repo files.
+**Depends on**: Phase 14
+**Requirements**: [AG-01, AG-02, AG-03, GI-01, GI-02, DG-06, PR-01, PR-02, VERIFY-01]
+**Success Criteria** (what must be TRUE):
+  1. Agent claim protocol, next-task command, and dry-run claim loop exist.
+  2. GitHub issue dry-run export exists and does not call GitHub.
+  3. Workflow graph runner is dry-run by default and gated for real execution.
+  4. Review checklist and review artifact exist.
+  5. All 24 task graph units are done and final verification passes.
+**Plans**: 1 plan
+
+Plans:
+- [x] 15-01: Complete task graph operating system and final verification.
+
 ## Progress
 
 **Execution Order:**
@@ -245,10 +261,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 12. Executable Workflow Diagram Foundation | 1/1 | Complete | 2026-06-04 |
 | 13. n8n Export Adapter | 1/1 | Complete | 2026-06-04 |
 | 14. n8n Import Diff Adapter | 1/1 | Complete | 2026-06-04 |
+| 15. Task Graph Operating System | 1/1 | Complete | 2026-06-04 |
 
 ## Current Recommendation
 
-Next target is Phase 15: agent claim protocol, GitHub Issues sync, or diagram command runner.
+Next target is a new milestone that uses this operating system on a real Daily Inbox product change.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

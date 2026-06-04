@@ -998,7 +998,7 @@
       "id": "VERIFY-001",
       "title": "Verify end-to-end task graph milestone",
       "type": "verification",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "PR-002",
         "DOC-001",
@@ -1024,7 +1024,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile $(find scripts tests -name '*.py' -print)"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T15:01:18Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T15:01:18Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T15:04:20Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T15:04:20Z",
+      "commit": "pending"
     }
   ]
 }
