@@ -500,7 +500,7 @@
       "id": "N8N-001",
       "title": "Define n8n workflow JSON adapter contract",
       "type": "contract",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "DG-002"
       ],
@@ -518,13 +518,31 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/n8n_export.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:12:00Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:12:00Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:12:50Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:12:50Z",
+      "commit": "pending"
     },
     {
       "id": "N8N-002",
       "title": "Export executable graph to n8n JSON",
       "type": "implementation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "N8N-001",
         "DG-004"
@@ -544,7 +562,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/n8n_export.py tests/test_n8n_export.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:12:50Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:12:50Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:12:50Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:12:50Z",
+      "commit": "pending"
     },
     {
       "id": "N8N-003",

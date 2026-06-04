@@ -117,6 +117,19 @@ source health, digest build, quality, archive, local finalize, status, and
 failure alert. Dry-run is normal-path only; failure-only alert nodes are kept in
 the graph but excluded from normal dry-run order.
 
+## n8n export
+
+The canonical workflow graph can now export to n8n JSON:
+
+```bash
+python3 scripts/n8n_export.py --dry-run
+python3 scripts/n8n_export.py --output workflow/n8n/daily-newsletter.workflow.json
+```
+
+Generated artifact: `workflow/n8n/daily-newsletter.workflow.json`.
+Do not treat the generated n8n JSON as canonical until an import/diff layer is
+implemented and reviewed.
+
 ## What changed in the stabilization milestone
 1. **LLM failover + local finalize** (`lib.py`, `push-digest.sh`, `finalize-local.py`).
 2. **Douyin delivery and routing** — `digest_config.active_douyin_source_names()`

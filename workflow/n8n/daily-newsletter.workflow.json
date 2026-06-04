@@ -1,0 +1,633 @@
+{
+  "name": "daily-newsletter-executable-diagram",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a7849a7c-9411-ab46-99ed-202480d1a3cd",
+      "name": "Schedule Fetch Window",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        180
+      ],
+      "notes": "{\"graph_id\": \"schedule_fetch\", \"graph_type\": \"trigger\", \"inputs\": [], \"outputs\": [\"fetch_window\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-manual-links.py"
+      },
+      "id": "d46f12cf-e6a1-ec77-4fd9-aefc51d19e48",
+      "name": "Fetch Manual Links",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        260,
+        360
+      ],
+      "notes": "{\"graph_id\": \"manual_links\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/inbox/manual-links.md\"], \"outputs\": [\"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-rss.py"
+      },
+      "id": "8bb85602-7f75-8e85-ddf2-085c98ae2908",
+      "name": "Fetch RSS And YouTube Feeds",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        260,
+        540
+      ],
+      "notes": "{\"graph_id\": \"rss\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\", \"media_candidate_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-twitter.py"
+      },
+      "id": "51277b46-2373-f62f-bb52-bfc941395b5a",
+      "name": "Fetch X Timeline",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        260,
+        720
+      ],
+      "notes": "{\"graph_id\": \"x_timeline\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-twitter-saved.py"
+      },
+      "id": "d99fb71d-176b-6b5f-38b4-648d52bcdfa0",
+      "name": "Fetch X Saved Items",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        260,
+        900
+      ],
+      "notes": "{\"graph_id\": \"x_saved\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"twitter-auth.env\"], \"outputs\": [\"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-scrape.py"
+      },
+      "id": "1f048ed3-f06b-e133-7007-80debc734ee2",
+      "name": "Fetch Official Web Scrape",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        540,
+        180
+      ],
+      "notes": "{\"graph_id\": \"web_scrape\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-wechat.py"
+      },
+      "id": "87763928-8589-eeb6-d47d-275d671902f0",
+      "name": "Fetch Seeded WeChat Articles",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        540,
+        360
+      ],
+      "notes": "{\"graph_id\": \"wechat_seed\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-wechat-rss.py"
+      },
+      "id": "2224f94e-9750-49c2-a0b3-59d713fab163",
+      "name": "Fetch WeChat RSS",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        540,
+        540
+      ],
+      "notes": "{\"graph_id\": \"wechat_rss\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\", \"wewe-rss\"], \"outputs\": [\"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-wechat-exporter.py"
+      },
+      "id": "8a2609f8-b16f-8c26-8b4a-ccb384e5b6bf",
+      "name": "Import WeChat Exporter Files",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        540,
+        720
+      ],
+      "notes": "{\"graph_id\": \"wechat_exporter\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"PARKIO_WECHAT_EXPORT_DIR\"], \"outputs\": [\"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-douyin.py"
+      },
+      "id": "87a38998-227c-bbc2-3dca-d51cd7f76ab2",
+      "name": "Fetch Douyin Profiles",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        540,
+        900
+      ],
+      "notes": "{\"graph_id\": \"douyin\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\", \"douyin cookies\"], \"outputs\": [\"media_candidate_artifact\", \"channel_artifact\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 fetch-media-transcripts.py",
+        "notes": "Graph node has 2 incoming edges; upstream merge is represented by graph metadata."
+      },
+      "id": "033a1e1f-2f28-6a63-5f06-f397775da5a6",
+      "name": "Enrich Media Transcripts",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        820,
+        180
+      ],
+      "notes": "{\"graph_id\": \"media_enrichment\", \"graph_type\": \"command\", \"inputs\": [\"media_candidate_artifact\", \"yt-dlp\", \"mlx_whisper\", \"content-toolkit\"], \"outputs\": [\"transcript\", \"deep_summary\", \"publishable_flag\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 source-health.py --record",
+        "notes": "Graph node has 9 incoming edges; upstream merge is represented by graph metadata."
+      },
+      "id": "425161cd-49a2-9b49-4e65-dbea9b24e2a6",
+      "name": "Record Source Health",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        820,
+        360
+      ],
+      "notes": "{\"graph_id\": \"source_health_record\", \"graph_type\": \"status\", \"inputs\": [\"channel_artifact\", \"fetch_logs\"], \"outputs\": [\"source-health.json\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 generate-status.py"
+      },
+      "id": "a78491c3-5a51-b57f-669f-b5fd08af3897",
+      "name": "Generate Status After Fetch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        820,
+        540
+      ],
+      "notes": "{\"graph_id\": \"status_after_fetch\", \"graph_type\": \"status\", \"inputs\": [\"source-health.json\", \"fetch_logs\"], \"outputs\": [\"~/park-io/inbox/status.html\"]}"
+    },
+    {
+      "parameters": {},
+      "id": "f8b77ee2-1735-d2df-c450-67233cb7b2d1",
+      "name": "Schedule Digest Build",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        820,
+        720
+      ],
+      "notes": "{\"graph_id\": \"schedule_digest\", \"graph_type\": \"trigger\", \"inputs\": [], \"outputs\": [\"digest_window\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 open-batch.py",
+        "notes": "Graph node has 11 incoming edges; upstream merge is represented by graph metadata."
+      },
+      "id": "9cba3a7b-caf5-5d06-cb53-10d25e0a4272",
+      "name": "Open Batch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        820,
+        900
+      ],
+      "notes": "{\"graph_id\": \"open_batch\", \"graph_type\": \"command\", \"inputs\": [\"digest_window\", \"channel_artifact\", \"deep_summary\", \"publishable_flag\"], \"outputs\": [\"PARKIO_BATCH_ID\", \"processed_batch\"]}"
+    },
+    {
+      "parameters": {
+        "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 score.py"
+      },
+      "id": "ca1cd3c3-0559-91bf-2049-9ee86739f7e2",
+      "name": "Score Items",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        180
+      ],
+      "notes": "{\"graph_id\": \"score\", \"graph_type\": \"command\", \"inputs\": [\"processed_batch\", \"scores.json\"], \"outputs\": [\"scores.json\", \"scoring-health.json\"]}"
+    },
+    {
+      "parameters": {
+        "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 build-digest.py"
+      },
+      "id": "48015483-7219-98db-d437-96b6c0432897",
+      "name": "Build Digest",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        360
+      ],
+      "notes": "{\"graph_id\": \"build_digest\", \"graph_type\": \"command\", \"inputs\": [\"processed_batch\", \"scores.json\", \"media-summaries.json\"], \"outputs\": [\"markdown\", \"html\", \"png\"]}"
+    },
+    {
+      "parameters": {
+        "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 check-quality.py"
+      },
+      "id": "d66636b2-53cb-346d-bb62-40e30def3618",
+      "name": "Quality Gate",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        540
+      ],
+      "notes": "{\"graph_id\": \"quality\", \"graph_type\": \"gate\", \"inputs\": [\"markdown\", \"html\"], \"outputs\": [\"quality_pass\"]}"
+    },
+    {
+      "parameters": {
+        "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 archive-items.py"
+      },
+      "id": "888d0ee3-61af-3603-736f-32131e7b20a2",
+      "name": "Archive Items",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        720
+      ],
+      "notes": "{\"graph_id\": \"archive\", \"graph_type\": \"command\", \"inputs\": [\"quality_pass\", \"processed_batch\"], \"outputs\": [\"profile_library\"]}"
+    },
+    {
+      "parameters": {
+        "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 finalize-local.py"
+      },
+      "id": "ac61982a-a7a2-5b84-9b28-a021b21862b4",
+      "name": "Finalize Local Artifacts",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        900
+      ],
+      "notes": "{\"graph_id\": \"finalize_local\", \"graph_type\": \"artifact\", \"inputs\": [\"quality_pass\", \"markdown\", \"html\", \"png\"], \"outputs\": [\"~/park-io/inbox/sent/<date>.md\", \"~/park-io/inbox/sent/<date>.html\", \"~/park-io/inbox/sent/<date>.png\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 generate-status.py",
+        "notes": "Graph node has 2 incoming edges; upstream merge is represented by graph metadata."
+      },
+      "id": "36cf693c-abaa-2498-8ac2-5e52dcf7b050",
+      "name": "Generate Status After Digest",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        180
+      ],
+      "notes": "{\"graph_id\": \"status_after_digest\", \"graph_type\": \"status\", \"inputs\": [\"quality_pass\", \"source-health.json\", \"scoring-health.json\"], \"outputs\": [\"~/park-io/inbox/status.html\"]}"
+    },
+    {
+      "parameters": {
+        "command": "python3 check-pipeline-health.py"
+      },
+      "id": "eb1987e4-b3a8-51b3-a834-dabb62781b3a",
+      "name": "Write Health Alert On Failure",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        360
+      ],
+      "notes": "{\"graph_id\": \"health_alert\", \"graph_type\": \"notification\", \"inputs\": [\"failure_event\", \"source-health.json\", \"scoring-health.json\"], \"outputs\": [\"~/park-io/inbox/health-alerts.md\"]}"
+    }
+  ],
+  "connections": {
+    "Schedule Fetch Window": {
+      "main": [
+        [
+          {
+            "node": "Fetch Manual Links",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch RSS And YouTube Feeds",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch X Timeline",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch X Saved Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Official Web Scrape",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Seeded WeChat Articles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch WeChat RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Import WeChat Exporter Files",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Douyin Profiles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS And YouTube Feeds": {
+      "main": [
+        [
+          {
+            "node": "Enrich Media Transcripts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Douyin Profiles": {
+      "main": [
+        [
+          {
+            "node": "Enrich Media Transcripts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Manual Links": {
+      "main": [
+        [
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch X Timeline": {
+      "main": [
+        [
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch X Saved Items": {
+      "main": [
+        [
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Official Web Scrape": {
+      "main": [
+        [
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Seeded WeChat Articles": {
+      "main": [
+        [
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch WeChat RSS": {
+      "main": [
+        [
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Import WeChat Exporter Files": {
+      "main": [
+        [
+          {
+            "node": "Record Source Health",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Source Health": {
+      "main": [
+        [
+          {
+            "node": "Generate Status After Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Digest Build": {
+      "main": [
+        [
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Media Transcripts": {
+      "main": [
+        [
+          {
+            "node": "Open Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open Batch": {
+      "main": [
+        [
+          {
+            "node": "Score Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Items": {
+      "main": [
+        [
+          {
+            "node": "Build Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digest": {
+      "main": [
+        [
+          {
+            "node": "Quality Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Gate": {
+      "main": [
+        [
+          {
+            "node": "Archive Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Finalize Local Artifacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archive Items": {
+      "main": [
+        [
+          {
+            "node": "Generate Status After Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Local Artifacts": {
+      "main": [
+        [
+          {
+            "node": "Generate Status After Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "source": "workflow/diagram/daily-newsletter.graph.json",
+    "generatedBy": "scripts/n8n_export.py"
+  }
+}

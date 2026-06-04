@@ -22,6 +22,7 @@ The previous brownfield milestones turned the existing Park-IO daily digest into
 - [x] **Phase 10: Full Verification And Cross-AI Review** - Prove output compatibility, run full verification, run Claude Code review, fix findings, and close the milestone.
 - [x] **Phase 11: Executable Task Graph Foundation** - Define the repo-local task graph, validator, ready planner, thread planner, and claim/complete commands.
 - [x] **Phase 12: Executable Workflow Diagram Foundation** - Define workflow diagram graph schema, Daily Inbox graph, validator, and dry-run runner.
+- [x] **Phase 13: n8n Export Adapter** - Export the canonical executable workflow graph into n8n workflow JSON.
 
 ## Phase Details
 
@@ -194,6 +195,20 @@ Plans:
 Plans:
 - [x] 12-01: Create executable workflow graph contract, validator, dry-run runner, and tests.
 
+### Phase 13: n8n Export Adapter
+**Goal**: Bridge the canonical workflow graph into an n8n visual workflow artifact without making n8n the source of truth.
+**Depends on**: Phase 12
+**Requirements**: [N8N-01, N8N-02]
+**Success Criteria** (what must be TRUE):
+  1. `workflow/n8n/README.md` documents the adapter contract.
+  2. `scripts/n8n_export.py --dry-run` summarizes generated n8n output.
+  3. `workflow/n8n/daily-newsletter.workflow.json` is generated from the executable graph.
+  4. Tests prove nodes and non-alert connections match the canonical graph.
+**Plans**: 1 plan
+
+Plans:
+- [x] 13-01: Add n8n adapter contract, exporter, generated workflow JSON, and tests.
+
 ## Progress
 
 **Execution Order:**
@@ -213,10 +228,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 10. Full Verification And Cross-AI Review | 1/1 | Complete | 2026-06-04 |
 | 11. Executable Task Graph Foundation | 1/1 | Complete | 2026-06-04 |
 | 12. Executable Workflow Diagram Foundation | 1/1 | Complete | 2026-06-04 |
+| 13. n8n Export Adapter | 1/1 | Complete | 2026-06-04 |
 
 ## Current Recommendation
 
-Next target is Phase 13: n8n JSON export adapter or GitHub Issues sync, depending on whether the owner wants visual runtime first or agent issue claiming first.
+Next target is Phase 14: n8n import/diff adapter, GitHub Issues sync, or diagram command runner.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

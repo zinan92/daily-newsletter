@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Executable Workflow Diagram foundation complete
+**Current focus:** n8n export adapter complete
 
 ## Current Position
 
@@ -27,6 +27,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Phase 10 completed: py_compile, full tests, controlled build/finalize/quality, channel health, and Claude Code CLI review passed after folderization.
 - Phase 11 completed: repo-local task graph schema, Daily Inbox DAG, validator, ready-task planner, execution-thread planner, claim/complete commands, and regression tests are in place.
 - Phase 12 completed: workflow diagram schema, Daily Inbox executable graph, validator, dry-run runner, and edge-order tests are in place.
+- Phase 13 completed: canonical executable graph exports to `workflow/n8n/daily-newsletter.workflow.json` with tests proving node and connection parity.
 
 ## Locked Decisions
 
@@ -65,7 +66,7 @@ Next recommended command:
 $gsd-new-milestone Runtime Workflow / n8n Operating Model
 ```
 
-Now the next implementation target is either n8n JSON export for the visual editor/runtime layer, or GitHub Issues sync for agent-claimable issue queues.
+Now the next implementation target is n8n import/diff, GitHub Issues sync, or diagram command runner.
 
 ---
-*State updated: 2026-06-04 after Phase 12 executable workflow diagram.*
+*State updated: 2026-06-04 after Phase 13 n8n export adapter.*

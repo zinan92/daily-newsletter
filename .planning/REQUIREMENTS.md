@@ -23,6 +23,12 @@
 - [x] **DG-04**: A dry-run runner derives execution order from graph edges without running production commands.
 - [x] **DG-05**: Tests prove changing graph edges changes execution order.
 
+### n8n Adapter
+
+- [x] **N8N-01**: The repo documents an adapter contract that keeps `workflow/diagram/daily-newsletter.graph.json` canonical while exporting n8n JSON.
+- [x] **N8N-02**: The repo can export the executable graph into parseable n8n workflow JSON.
+- [ ] **N8N-03**: The repo can import or diff n8n workflow JSON back against the canonical graph.
+
 ### Source-Ingestion Decomposition
 
 - [x] **DEC-01**: Each runtime channel has a separate folder boundary: `rss`, `web_scrape`, `release_feed`, `x`, `youtube`, `douyin`, `wechat_rss`, and `manual_links`.
@@ -90,6 +96,9 @@
 | DG-03 | Phase 12 | Complete |
 | DG-04 | Phase 12 | Complete |
 | DG-05 | Phase 12 | Complete |
+| N8N-01 | Phase 13 | Complete |
+| N8N-02 | Phase 13 | Complete |
+| N8N-03 | Future | Pending |
 | DEC-01 | Phase 6, Phase 7, Phase 8 | In progress |
 | DEC-02 | Phase 6 | Complete |
 | DEC-03 | Phase 8 | Complete |
@@ -119,4 +128,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 12 executable workflow diagram.*
+*Last updated: 2026-06-04 after Phase 13 n8n export adapter.*
