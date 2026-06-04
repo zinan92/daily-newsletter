@@ -13,7 +13,7 @@ This brownfield milestone turns the existing Park-IO daily digest into a boring 
 - [ ] **Phase 1: Planning Baseline And Contract Reconciliation** - Make the existing project state explicit and parser-readable for GSD.
 - [x] **Phase 2: Local Artifact Parity** - Produce Markdown, HTML, and PNG from the normal local daily path.
 - [x] **Phase 3: Health Visibility Closure** - Keep compact digest health plus detailed status-page diagnosis.
-- [ ] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
+- [x] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
 - [ ] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
 
 ## Phase Details
@@ -72,7 +72,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 04-01: Tighten reader-quality regression tests and gates.
+- [x] 04-01: Tighten reader-quality regression tests and gates.
 
 ### Phase 5: End-To-End Daily Run Proof
 **Goal**: Prove the current milestone ships as a production routine, not just individual fixes.
@@ -99,12 +99,12 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Planning Baseline And Contract Reconciliation | 0/1 | In progress | - |
 | 2. Local Artifact Parity | 1/1 | Complete | 2026-06-04 |
 | 3. Health Visibility Closure | 1/1 | Complete | 2026-06-04 |
-| 4. Reader Quality Regression Lock | 0/1 | Not started | - |
+| 4. Reader Quality Regression Lock | 1/1 | Complete | 2026-06-04 |
 | 5. End-To-End Daily Run Proof | 0/1 | Not started | - |
 
 ## Current Recommendation
 
-Next implementation target is Phase 4: Reader Quality Regression Lock. The health contract is now closed enough for the next agent to focus on title/media/Douyin/content quality gates.
+Next implementation target is Phase 5: End-To-End Daily Run Proof. The reader quality contract is locked, so the next agent should prove the full daily routine end to end.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

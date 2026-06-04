@@ -19,10 +19,10 @@
 
 ### Content Quality
 
-- [ ] **QUAL-01**: X application titles cannot be raw content prefixes, obvious truncations, or duplicated first sentences.
-- [ ] **QUAL-02**: Media section excludes promo videos, no-transcript videos, too-short transcripts, and summary-free videos from the reader body.
-- [ ] **QUAL-03**: Active Douyin sources are included by source configuration, not a hardcoded whitelist.
-- [ ] **QUAL-04**: Reader-facing digest body contains Chinese summaries, not raw English, ingestion metadata, transcript errors, or third-person narrator leakage.
+- [x] **QUAL-01**: X application titles cannot be raw content prefixes, obvious truncations, or duplicated first sentences.
+- [x] **QUAL-02**: Media section excludes promo videos, no-transcript videos, too-short transcripts, and summary-free videos from the reader body.
+- [x] **QUAL-03**: Active Douyin sources are included by source configuration, not a hardcoded whitelist.
+- [x] **QUAL-04**: Reader-facing digest body contains Chinese summaries, not raw English, ingestion metadata, transcript errors, or third-person narrator leakage.
 
 ### Operations
 
@@ -57,10 +57,10 @@
 | HLTH-01 | Phase 3 | Complete |
 | HLTH-02 | Phase 3 | Complete |
 | HLTH-03 | Phase 3 | Complete |
-| QUAL-01 | Phase 4 | Pending |
-| QUAL-02 | Phase 4 | Pending |
-| QUAL-03 | Phase 4 | Pending |
-| QUAL-04 | Phase 4 | Pending |
+| QUAL-01 | Phase 4 | Complete |
+| QUAL-02 | Phase 4 | Complete |
+| QUAL-03 | Phase 4 | Complete |
+| QUAL-04 | Phase 4 | Complete |
 | OPS-01 | Phase 5 | Pending |
 
 **Coverage:**
@@ -70,4 +70,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 3 health visibility closure.*
+*Last updated: 2026-06-04 after Phase 4 reader quality regression lock.*

@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 4 - Reader Quality Regression Lock
+**Current focus:** Phase 5 - End-To-End Daily Run Proof
 
 ## Current Position
 
@@ -14,7 +14,8 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Brownfield planning baseline created from repo-local docs.
 - Phase 2 - Local Artifact Parity completed: local sent artifacts now include Markdown, HTML, and PNG when processed artifacts exist.
 - Phase 3 - Health Visibility Closure completed: `Ray在思考` surfaces as stale, and `克劳德猎手` pending WeWe RSS setup surfaces as action-needed instead of being hidden by seed content.
-- Next implementation target should be Phase 4 - Reader Quality Regression Lock.
+- Phase 4 - Reader Quality Regression Lock completed: X title truncation, media publishability, active Douyin source routing, metadata/transcript leaks, raw English prose, narrator leakage, and Markdown/HTML divergence are covered by deterministic tests or gates.
+- Next implementation target should be Phase 5 - End-To-End Daily Run Proof.
 
 ## Locked Decisions
 
@@ -48,10 +49,10 @@ python3 channel-health.py
 Next recommended planning command:
 
 ```text
-$gsd-plan-phase 4 --tdd
+$gsd-plan-phase 5 --tdd
 ```
 
-This should produce the next atomic plan: reader quality regression lock.
+This should produce the next atomic plan: full milestone verification and handover.
 
 ---
-*State initialized: 2026-06-04 after GSD brownfield planning bootstrap.*
+*State updated: 2026-06-04 after Phase 4 reader quality regression lock.*
