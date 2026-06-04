@@ -465,12 +465,12 @@
           "event": "completed",
           "agent": "codex",
           "at": "2026-06-04T14:51:15Z",
-          "commit": "pending"
+          "commit": "44623b8"
         }
       ],
       "completed_by": "codex",
       "completed_at": "2026-06-04T14:51:15Z",
-      "commit": "pending"
+      "commit": "44623b8"
     },
     {
       "id": "DG-006",
