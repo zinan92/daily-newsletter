@@ -1037,12 +1037,12 @@
           "event": "completed",
           "agent": "codex",
           "at": "2026-06-04T15:04:20Z",
-          "commit": "pending"
+          "commit": "f753843"
         }
       ],
       "completed_by": "codex",
       "completed_at": "2026-06-04T15:04:20Z",
-      "commit": "pending"
+      "commit": "f753843"
     }
   ]
 }
