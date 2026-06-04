@@ -30,16 +30,24 @@ INDEPENDENT_LINKS_DIR = LIBRARY_DIR / "独立链接"
 # -----------------------------------------------------------------------------
 # Shared LLM client. Single definition — every script imports this instead of
 # copy-pasting its own llm_call. Adds retry/backoff so a transient failure no
-# longer cascades into "no scores + English summaries" (gotcha #21), and raises
-# LLMUnavailable so callers can surface the outage instead of degrading silently.
+# longer cascades into "no scores + English summaries" (gotcha #21). If the
+# primary provider has a transient outage, it can fail over to a second live LLM
+# provider; this is service-level failover, not content/template fallback.
 #
 # Provider is switchable via PARKIO_LLM_PROVIDER:
 #   "deepseek"  (default) — OpenAI-compatible: /chat/completions, Bearer auth
 #   "anthropic"           — CLIProxyAPI: /v1/messages, x-api-key
+# Fallback is switchable via PARKIO_LLM_FALLBACK_PROVIDER:
+#   "anthropic" (default when primary is deepseek) — CLIProxyAPI / Sonnet
+#   "" / "none"                                — disabled
 # Keys are read from env or a local untracked secret file — never hardcoded, so
 # the repo carries no credential.
 # -----------------------------------------------------------------------------
 LLM_PROVIDER = os.environ.get("PARKIO_LLM_PROVIDER", "deepseek").lower()
+LLM_FALLBACK_PROVIDER = os.environ.get(
+    "PARKIO_LLM_FALLBACK_PROVIDER",
+    "anthropic" if LLM_PROVIDER == "deepseek" else "",
+).lower()
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 # DeepSeek (OpenAI-compatible). Default is the V4 Pro reasoning model.
@@ -123,6 +131,10 @@ class LLMUnavailable(RuntimeError):
     """Raised when the LLM endpoint cannot be reached after retries."""
 
 
+class LLMNonRetryable(RuntimeError):
+    """Raised when a provider returns a configuration/request error."""
+
+
 def send_telegram(text: str) -> bool:
     """Send a plain-text Telegram message (owner alerts). Token/chat from env or
     ~/park-io/secrets/telegram-*. Returns True on success, never raises."""
@@ -139,13 +151,14 @@ def send_telegram(text: str) -> bool:
         return False
 
 
-def _llm_endpoint_config(max_tokens: int):
+def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
     """Return (url, headers, body_bytes, parser) for the active provider.
 
     Request body shape ({model, max_tokens, messages}) is identical for both
     providers; only the URL, auth headers, and response shape differ.
     """
-    if LLM_PROVIDER == "anthropic":
+    provider = (provider or LLM_PROVIDER or "deepseek").lower()
+    if provider == "anthropic":
         key = _load_secret("PARKIO_CLIPROXY_KEY", "cliproxy-key")
         headers = {
             "Content-Type": "application/json",
@@ -157,6 +170,8 @@ def _llm_endpoint_config(max_tokens: int):
                 c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
             ).strip()
         return CLIPROXY_ENDPOINT, CLIPROXY_MODEL, headers, parse
+    if provider != "deepseek":
+        raise LLMNonRetryable(f"unknown LLM provider: {provider}")
     # default: deepseek (OpenAI-compatible)
     key = _load_secret("PARKIO_DEEPSEEK_KEY", "deepseek-key")
     headers = {
@@ -171,17 +186,12 @@ def _llm_endpoint_config(max_tokens: int):
     return DEEPSEEK_ENDPOINT, DEEPSEEK_MODEL, headers, parse
 
 
-def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: int = 120) -> str:
-    """POST a single user message to the active LLM provider, return its text.
-
-    Retries transient failures (connection errors and retryable HTTP statuses)
-    with exponential backoff. Raises LLMUnavailable if all attempts fail; a
-    non-retryable HTTP error (e.g. 400/401) fails fast.
-    """
-    url, model, headers, parse = _llm_endpoint_config(max_tokens)
+def _llm_call_provider(provider: str, prompt: str, max_tokens: int, *, retries: int, timeout: int) -> str:
+    """Call one provider. Raises LLMUnavailable only for transient failures."""
+    url, model, headers, parse = _llm_endpoint_config(max_tokens, provider)
     # Reasoning models need headroom for thinking + answer, and run slower.
     effective_max = max_tokens
-    if LLM_PROVIDER == "deepseek" and _is_reasoning_model(model):
+    if provider == "deepseek" and _is_reasoning_model(model):
         effective_max = max(max_tokens, DEEPSEEK_MAX_OUTPUT)
         timeout = max(timeout, 300)
     body = json.dumps(
@@ -202,12 +212,34 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
         except urllib.error.HTTPError as exc:
             last_exc = exc
             if exc.code not in _RETRYABLE_STATUS:
-                break
+                raise LLMNonRetryable(f"{provider} LLM non-retryable HTTP {exc.code}: {exc}") from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             last_exc = exc
         if attempt < retries:
             time.sleep(min(2 ** attempt, 8))
-    raise LLMUnavailable(f"{LLM_PROVIDER} LLM unavailable after {retries} attempts: {last_exc}") from last_exc
+    raise LLMUnavailable(f"{provider} LLM unavailable after {retries} attempts: {last_exc}") from last_exc
+
+
+def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: int = 120) -> str:
+    """POST a single user message to the active LLM provider, return its text.
+
+    Retries transient failures (connection errors and retryable HTTP statuses).
+    If the primary provider still fails transiently and
+    PARKIO_LLM_FALLBACK_PROVIDER is set, retries once through that provider.
+    Non-retryable errors (e.g. bad key / bad request) fail fast so config
+    problems are visible instead of silently masked.
+    """
+    primary = LLM_PROVIDER or "deepseek"
+    try:
+        return _llm_call_provider(primary, prompt, max_tokens, retries=retries, timeout=timeout)
+    except LLMNonRetryable:
+        raise
+    except LLMUnavailable as primary_exc:
+        fallback = (LLM_FALLBACK_PROVIDER or "").strip().lower()
+        if not fallback or fallback in {"none", "off", "false"} or fallback == primary:
+            raise
+        print(f"[llm] primary {primary} unavailable; fail over to {fallback}: {primary_exc}", file=sys.stderr)
+        return _llm_call_provider(fallback, prompt, max_tokens, retries=1, timeout=max(timeout, 180))
 
 PROFILE_ID_BY_SOURCE_NAME = {
     "Anthropic News": "anthropic",
@@ -240,6 +272,7 @@ PROFILE_ID_BY_SOURCE_NAME = {
     "lijigang": "lijigang",
     "ai_xiaomu": "huang-xiaomu",
     "rwayne": "roland-w",
+    "Thariq": "thariq",
     "Dwarkesh Podcast": "dwarkesh",
     "Latent Space": "latent-space",
     "No Priors Podcast": "no-priors",
@@ -257,6 +290,7 @@ PROFILE_ID_BY_SOURCE_NAME = {
     "嘉妍Kea": "kea",
     "峥嵘岁月AI": "zhengrong-suiyue-ai",
     "深思SenseAI": "shensi-senseai",
+    "克劳德猎手": "claude-hunter",
     "我的 X 收藏": "x-saved",
 }
 

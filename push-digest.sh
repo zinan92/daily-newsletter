@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # push-digest.sh — Run the daily digest stages.
-# Intended for a fixed daily launchd run after the 20:00 fetch window.
+# Intended for the fixed daily launchd run after the morning fetch window.
 
 set -uo pipefail
 
@@ -20,7 +20,7 @@ ts() { date '+%F %T'; }
   echo "=========================================="
 } >> "$LOG"
 
-for i in {1..10}; do
+for i in {1..60}; do
   if [ ! -e "$FETCH_LOCK" ]; then
     break
   fi
@@ -29,12 +29,12 @@ for i in {1..10}; do
     rm -f "$FETCH_LOCK"
     break
   fi
-  echo "[$(ts)] fetch still running pid=$FETCH_PID; wait $i/10" >> "$LOG"
+  echo "[$(ts)] fetch still running pid=$FETCH_PID; wait $i/60" >> "$LOG"
   sleep 60
 done
 
 if [ -e "$FETCH_LOCK" ]; then
-  echo "[$(ts)] fetch still running after 10 minutes; skip this digest" >> "$LOG"
+  echo "[$(ts)] fetch still running after 60 minutes; skip this digest" >> "$LOG"
   exit 0
 fi
 
@@ -48,7 +48,15 @@ fi
 export PARKIO_BATCH_ID="$BATCH_ID"
 echo "[$(ts)] batch=$PARKIO_BATCH_ID" >> "$LOG"
 
-for stage in score.py build-digest.py check-quality.py archive-items.py send-artifacts.py; do
+PARKIO_SKIP_SEND="${PARKIO_SKIP_SEND:-1}"
+STAGES=(score.py build-digest.py check-quality.py archive-items.py finalize-local.py)
+if [ "$PARKIO_SKIP_SEND" = "1" ]; then
+  echo "[$(ts)] PARKIO_SKIP_SEND=1; skip Telegram send-artifacts.py; local sent already finalized" >> "$LOG"
+else
+  STAGES+=(send-artifacts.py)
+fi
+
+for stage in "${STAGES[@]}"; do
   echo "[$(ts)] >>> $stage" >> "$LOG"
   python3 "$SCRIPT_DIR/$stage" >> "$LOG" 2>&1
   EXIT=$?
