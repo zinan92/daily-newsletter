@@ -43,7 +43,8 @@ Results:
 - LLM usage was 33,566 tokens across 67 calls, with 0 reasoning tokens.
 - Local finalize wrote sent Markdown, HTML, and PNG.
 - `check-quality.py` passed for the regenerated 2026-06-04 batch: 19 events, 10 push URLs.
-- Channel health showed 1 DOWN source (`克劳德猎手` pending WeWe RSS) and 1 STALE source (`Ray在思考` feed 73d old).
+- Initial channel health showed 1 DOWN source (`克劳德猎手` pending WeWe RSS) and 1 STALE source (`Ray在思考` feed 73d old).
+- After the post-proof source fix, `克劳德猎手` uses WeWe feed `MP_WXS_3935644082`, `fetch-wechat-rss.py` imported 1 new entry, and `channel-health.py` showed no DOWN sources.
 
 ## Acceptance
 
@@ -54,8 +55,7 @@ Results:
 
 ## Residual Risk
 
-- `克劳德猎手` still needs owner setup in WeWe RSS.
-- `Ray在思考` still needs owner refresh or re-subscription in WeWe RSS.
+- `Ray在思考` remains STALE, but owner has marked it low priority.
 - External auth can still expire for WeWe, YouTube cookies, Twitter auth, and Douyin cookies; this milestone surfaces those states rather than replacing the dependencies.
 
 ---

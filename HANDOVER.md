@@ -39,6 +39,9 @@ pushed to `github.com/zinan92/daily-newsletter`.
   consolidates title, media, Douyin, metadata, raw-English, and MD/HTML gates.
 - **Phase 5 - End-to-end daily proof:** complete after the 2026-06-04 controlled
   batch regeneration and local finalize proof.
+- **Post-proof source fix:** `克劳德猎手` WeWe RSS is now configured as
+  `http://localhost:4000/feeds/MP_WXS_3935644082.json` in `~/park-io/sources.md`
+  and fetches successfully.
 
 Recent GSD commits:
 - `a3a9863` - codebase map
@@ -70,12 +73,11 @@ Recent GSD commits:
 - The ~50-min digest = `deepseek-v4-pro` reasoning tokens (94k across 48 calls).
 
 ## Outstanding (owner/infra action — NOT code)
-- **Ray在思考**: wewe-rss subscription `MP_WXS_3226075849` frozen since 2026-03-23.
-  Refresh/re-subscribe in wewe-rss (localhost:4000), or confirm account dormant.
-- **克劳德猎手**: `sources.md` `rss_url` is "pending WeWe subscription" — create the
-  wewe-rss subscription for `gh_c4e5d8c9bdc6` and fill `rss_url`, else seed-only.
-  The health layer now surfaces this as `WeWe RSS 未配置` instead of marking the
-  seed article as a healthy automated feed.
+- **Ray在思考**: wewe-rss subscription `MP_WXS_3226075849` is frozen since 2026-03-23.
+  Owner has marked this source as low priority; leave it visible as STALE unless
+  the owner later wants to refresh or disable it.
+- **克劳德猎手**: resolved. WeWe RSS feed is `MP_WXS_3935644082`; a manual health
+  verification on 2026-06-04 showed `克劳德猎手: 1 NEW / 11 entries`.
 - **PNG**: derives correctly (md→html→png via `html-to-long-image.py`) in the
   build stage, and `finalize-local.py` now copies it into `sent/<date>.png`
   when the processed PNG exists. It does not re-render or call the LLM.
@@ -90,9 +92,9 @@ Controlled proof on **2026-06-04 18:31-18:34 Asia/Shanghai**:
   `~/park-io/inbox/sent/26-06-04.{md,html,png}`.
 - `PARKIO_BATCH_ID=20260604 PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py`
   passed: 19 events, 10 push URLs.
-- `python3 channel-health.py` showed 1 DOWN (`克劳德猎手` pending WeWe RSS) and
-  1 STALE (`Ray在思考` feed 73d old). These are owner/infra actions, not code
-  blockers.
+- After the post-proof WeWe source fix, `python3 fetch-wechat-rss.py` showed
+  `克劳德猎手: 1 NEW / 11 entries`, and `python3 channel-health.py` showed no DOWN
+  sources. `Ray在思考` remains STALE, intentionally low priority.
 
 ## How to run / verify
 ```bash

@@ -13,9 +13,10 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Codebase map completed and committed.
 - Brownfield planning baseline created from repo-local docs.
 - Phase 2 - Local Artifact Parity completed: local sent artifacts now include Markdown, HTML, and PNG when processed artifacts exist.
-- Phase 3 - Health Visibility Closure completed: `Ray在思考` surfaces as stale, and `克劳德猎手` pending WeWe RSS setup surfaces as action-needed instead of being hidden by seed content.
+- Phase 3 - Health Visibility Closure completed: `Ray在思考` surfaces as stale, and pending WeWe RSS setup is action-needed instead of being hidden by seed content.
 - Phase 4 - Reader Quality Regression Lock completed: X title truncation, media publishability, active Douyin source routing, metadata/transcript leaks, raw English prose, narrator leakage, and Markdown/HTML divergence are covered by deterministic tests or gates.
 - Phase 5 - End-To-End Daily Run Proof completed: the 2026-06-04 controlled batch regenerated, local sent Markdown/HTML/PNG were finalized, quality gate passed, and handover was refreshed.
+- Post-proof source fix completed: `克劳德猎手` WeWe RSS now uses `MP_WXS_3935644082`, fetches successfully, and is no longer a DOWN source.
 - No remaining code blockers in this milestone.
 
 ## Locked Decisions
@@ -30,9 +31,9 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 ## Known Risks
 
-- WeWe RSS owner actions remain unresolved: Ray在思考 frozen feed and 克劳德猎手 pending RSS subscription.
-- If processed PNG rendering fails upstream, local finalization warns and continues with Markdown/HTML.
+- `Ray在思考` remains STALE, but owner has marked it low priority.
 - External auth dependencies can expire: WeWe, YouTube cookies, Twitter auth, Douyin cookies.
+- If processed PNG rendering fails upstream, local finalization warns and continues with Markdown/HTML.
 
 ## Verification Baseline
 

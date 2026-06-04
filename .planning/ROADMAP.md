@@ -104,7 +104,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 ## Current Recommendation
 
-The stabilization milestone is complete. Next work should be a new owner-selected milestone, or the two remaining infra actions in `HANDOVER.md` for WeWe RSS.
+The stabilization milestone is complete. Next work should be a new owner-selected milestone. `克劳德猎手` WeWe RSS is resolved; `Ray在思考` remains visible as STALE but is owner-marked low priority.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*
