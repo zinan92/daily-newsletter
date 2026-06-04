@@ -794,12 +794,12 @@
           "event": "completed",
           "agent": "codex",
           "at": "2026-06-04T14:48:22Z",
-          "commit": "pending"
+          "commit": "c243658"
         }
       ],
       "completed_by": "codex",
       "completed_at": "2026-06-04T14:48:22Z",
-      "commit": "pending"
+      "commit": "c243658"
     },
     {
       "id": "PR-001",
