@@ -678,7 +678,7 @@
       "id": "AG-001",
       "title": "Define agent claim protocol",
       "type": "contract",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "TG-006"
       ],
@@ -696,7 +696,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/task_claim.py scripts/task_complete.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:45:34Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:45:34Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:45:59Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:45:59Z",
+      "commit": "pending"
     },
     {
       "id": "AG-002",

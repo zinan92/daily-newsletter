@@ -19,6 +19,18 @@ python3 scripts/task_claim.py TG-001 --agent codex
 python3 scripts/task_complete.py TG-001 --agent codex --commit <sha>
 ```
 
+## Agent Claim Protocol
+
+Agents should follow `tasks/agent-claim-protocol.md` before claiming work.
+
+The short version:
+
+1. Validate the graph.
+2. List ready tasks.
+3. Claim exactly one ready task.
+4. Complete its success criteria, tests, lint, and review requirements.
+5. Record completion with a real commit sha.
+
 ## Status Contract
 
 - `todo`: not claimed yet.
@@ -32,4 +44,3 @@ python3 scripts/task_complete.py TG-001 --agent codex --commit <sha>
 A task is ready when all dependencies are `done`, and its own status is `todo`.
 
 GitHub Issues sync and n8n visual workflow integration are intentionally future layers. The local graph stays canonical until those layers are proven.
-
