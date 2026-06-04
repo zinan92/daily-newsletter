@@ -50,9 +50,13 @@ LLM_FALLBACK_PROVIDER = os.environ.get(
 ).lower()
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
-# DeepSeek (OpenAI-compatible). Default is the V4 Pro reasoning model.
+# DeepSeek (OpenAI-compatible). Default is deepseek-chat (V3, non-reasoning):
+# for newsletter summarization/scoring it matches the V4-Pro reasoning model's
+# output quality while generating ZERO reasoning tokens, which is what made the
+# full digest take ~50 min. Set PARKIO_DEEPSEEK_MODEL=deepseek-v4-pro (or
+# deepseek-reasoner) to opt back into a reasoning model.
 DEEPSEEK_ENDPOINT = os.environ.get("PARKIO_DEEPSEEK_ENDPOINT", "https://api.deepseek.com/v1/chat/completions")
-DEEPSEEK_MODEL = os.environ.get("PARKIO_DEEPSEEK_MODEL", "deepseek-v4-pro")
+DEEPSEEK_MODEL = os.environ.get("PARKIO_DEEPSEEK_MODEL", "deepseek-chat")
 # Reasoning models spend tokens thinking (reasoning_content) BEFORE the answer
 # (content), and max_tokens caps the TOTAL. Too small a cap → all tokens go to
 # reasoning and content comes back empty. max_tokens is a ceiling billed by
