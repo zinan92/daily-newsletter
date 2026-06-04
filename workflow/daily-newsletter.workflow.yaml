@@ -76,10 +76,26 @@ aggregation:
   folder: aggregation/digest
   current_entrypoints:
     - score.py
+    - score-items.py
     - build-digest.py
+    - summarize.py
+    - check-quality.py
     - quality-check.py
+    - ai-quality-check.py
     - archive-items.py
     - finalize-local.py
+    - html-to-long-image.py
+  implementation:
+    score_stage: aggregation/digest/score_stage.py
+    score_items: aggregation/digest/score_items.py
+    build: aggregation/digest/build.py
+    summarize: aggregation/digest/summarize.py
+    check_stage: aggregation/digest/check_stage.py
+    quality: aggregation/digest/quality.py
+    ai_quality: aggregation/digest/ai_quality.py
+    archive: aggregation/digest/archive.py
+    finalize_local: aggregation/digest/finalize_local.py
+    html_to_long_image: aggregation/digest/html_to_long_image.py
   inputs:
     - channel_artifact
     - media_candidate_artifact

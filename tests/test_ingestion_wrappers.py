@@ -19,6 +19,16 @@ WRAPPERS = {
     "fetch-manual-links.py": ["main", "load_fetch_wechat", "urls_from_pending"],
     "fetch-wechat.py": ["main", "fetch_url", "parse_article", "save_article_to_library"],
     "fetch-media-transcripts.py": ["main", "retryable_failed_items", "fetch_media_transcript"],
+    "score.py": ["main"],
+    "score-items.py": ["main", "score_batch", "write_scoring_health"],
+    "build-digest.py": ["main"],
+    "summarize.py": ["main", "load_scores", "source_health"],
+    "check-quality.py": ["main"],
+    "quality-check.py": ["main", "raw_english_body_lines", "heading_divergence"],
+    "ai-quality-check.py": ["main", "valid_blocking_issue"],
+    "archive-items.py": ["main", "archive_item"],
+    "finalize-local.py": ["main", "batch_artifact_paths", "batch_label"],
+    "html-to-long-image.py": ["main", "trim_bottom_whitespace"],
 }
 
 
@@ -49,6 +59,16 @@ def test_folderized_modules_exist():
         "ingestion/manual_links/run.py",
         "ingestion/manual_links/wechat_seed.py",
         "enrichment/media/run.py",
+        "aggregation/digest/score_stage.py",
+        "aggregation/digest/score_items.py",
+        "aggregation/digest/build.py",
+        "aggregation/digest/summarize.py",
+        "aggregation/digest/check_stage.py",
+        "aggregation/digest/quality.py",
+        "aggregation/digest/ai_quality.py",
+        "aggregation/digest/archive.py",
+        "aggregation/digest/finalize_local.py",
+        "aggregation/digest/html_to_long_image.py",
     ]:
         assert (ROOT / rel).exists(), rel
 

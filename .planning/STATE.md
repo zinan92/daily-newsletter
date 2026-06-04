@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 9 - Aggregation Boundary And Workflow Spec
+**Current focus:** Phase 10 - Full Verification And Cross-AI Review
 
 ## Current Position
 
@@ -23,6 +23,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Phase 6 completed: contract files, folder skeleton, workflow spec, and contract tests are in place.
 - Phase 7 completed: RSS, web scrape, X timeline, and X saved ingestion now live under channel folders with root compatibility wrappers.
 - Phase 8 completed: Douyin, WeChat RSS, WeChat exporter, manual links, seeded WeChat article parsing, and media transcript enrichment now live under channel/enrichment folders with root compatibility wrappers.
+- Phase 9 completed: scoring, digest building, summarize, quality gates, AI quality, archiving, local finalization, and HTML-to-image rendering now live under `aggregation/digest/` with root compatibility wrappers.
 
 ## Locked Decisions
 
@@ -58,10 +59,10 @@ python3 channel-health.py
 Next recommended command:
 
 ```text
-$gsd-plan-phase 9 --skip-research
+$gsd-plan-phase 10 --skip-research
 ```
 
-This should create the atomic plan for the digest aggregation boundary and workflow-as-code update.
+This should create the atomic plan for full output verification, Claude Code review, fixes, and milestone close.
 
 ---
-*State updated: 2026-06-04 after Phase 8 media and WeChat folderization.*
+*State updated: 2026-06-04 after Phase 9 aggregation boundary folderization.*
