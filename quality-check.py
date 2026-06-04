@@ -111,7 +111,10 @@ BAD_PATTERNS = (
     "audio transcript",
     "transcript too short",
     "转录失败",
-    "...",
+    # NB: a bare "..." is NOT banned — it legitimately appears in code syntax
+    # (e.g. `WebFetch(domain:...)` from changelogs) and prose, and was blocking
+    # valid digests. Truncated titles are handled by x_title_looks_truncated and
+    # source_headline uses … (U+2026), so this gate is no longer needed for that.
 )
 METADATA_PATTERNS = (
     "来源配置：sources.md",
