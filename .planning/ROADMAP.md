@@ -21,6 +21,7 @@ The previous brownfield milestones turned the existing Park-IO daily digest into
 - [x] **Phase 9: Aggregation Boundary And Workflow Spec** - Move digest aggregation behind an aggregation folder and add n8n-ready workflow-as-code.
 - [x] **Phase 10: Full Verification And Cross-AI Review** - Prove output compatibility, run full verification, run Claude Code review, fix findings, and close the milestone.
 - [x] **Phase 11: Executable Task Graph Foundation** - Define the repo-local task graph, validator, ready planner, thread planner, and claim/complete commands.
+- [x] **Phase 12: Executable Workflow Diagram Foundation** - Define workflow diagram graph schema, Daily Inbox graph, validator, and dry-run runner.
 
 ## Phase Details
 
@@ -178,6 +179,21 @@ Plans:
 Plans:
 - [x] 11-01: Create task graph schema, validator, ready planner, threads planner, and claim protocol.
 
+### Phase 12: Executable Workflow Diagram Foundation
+**Goal**: Make the Daily Inbox runtime diagram executable enough that graph edges determine dry-run order.
+**Depends on**: Phase 11
+**Requirements**: [DG-01, DG-02, DG-03, DG-04, DG-05]
+**Success Criteria** (what must be TRUE):
+  1. `workflow/diagram/schema.json` exists.
+  2. `workflow/diagram/daily-newsletter.graph.json` exists and covers channel fetch, enrichment, aggregation, quality, finalize, health, and alert nodes.
+  3. `scripts/workflow_graph_validate.py` passes.
+  4. `scripts/workflow_graph_dry_run.py` prints normal execution waves without running commands.
+  5. Tests prove changing graph edges changes execution order.
+**Plans**: 1 plan
+
+Plans:
+- [x] 12-01: Create executable workflow graph contract, validator, dry-run runner, and tests.
+
 ## Progress
 
 **Execution Order:**
@@ -196,10 +212,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 9. Aggregation Boundary And Workflow Spec | 1/1 | Complete | 2026-06-04 |
 | 10. Full Verification And Cross-AI Review | 1/1 | Complete | 2026-06-04 |
 | 11. Executable Task Graph Foundation | 1/1 | Complete | 2026-06-04 |
+| 12. Executable Workflow Diagram Foundation | 1/1 | Complete | 2026-06-04 |
 
 ## Current Recommendation
 
-Next target is Phase 12: executable workflow diagram contract and dry-run runner.
+Next target is Phase 13: n8n JSON export adapter or GitHub Issues sync, depending on whether the owner wants visual runtime first or agent issue claiming first.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

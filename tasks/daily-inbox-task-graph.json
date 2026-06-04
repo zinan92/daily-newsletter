@@ -7,290 +7,711 @@
       "id": "TG-001",
       "title": "Define executable task graph contract",
       "type": "contract",
-      "status": "todo",
+      "status": "done",
       "dependencies": [],
-      "files": ["tasks/schema.json", "tasks/README.md"],
-      "success_criteria": ["Task graph schema exists and documents id, dependencies, status, success criteria, tests, review, and claim fields."],
-      "test_commands": ["python3 scripts/task_graph_validate.py"],
-      "review_requirements": ["Review schema fields for enough detail to support autonomous agent claiming."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_lib.py"]
+      "files": [
+        "tasks/schema.json",
+        "tasks/README.md"
+      ],
+      "success_criteria": [
+        "Task graph schema exists and documents id, dependencies, status, success criteria, tests, review, and claim fields."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_validate.py"
+      ],
+      "review_requirements": [
+        "Review schema fields for enough detail to support autonomous agent claiming."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_lib.py"
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:46:25Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z",
+          "commit": "bd6c471"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:46:25Z",
+      "commit": "bd6c471"
     },
     {
       "id": "TG-002",
       "title": "Create Daily Inbox task graph DAG",
       "type": "workflow",
-      "status": "todo",
-      "dependencies": ["TG-001"],
-      "files": ["tasks/daily-inbox-task-graph.json"],
-      "success_criteria": ["Graph contains at least 20 atomic units with explicit dependencies and no cycles."],
-      "test_commands": ["python3 scripts/task_graph_validate.py"],
-      "review_requirements": ["Review every task for success criteria, tests, review requirements, and linter commands."],
-      "linter_commands": ["python3 -m json.tool tasks/daily-inbox-task-graph.json >/dev/null"]
+      "status": "done",
+      "dependencies": [
+        "TG-001"
+      ],
+      "files": [
+        "tasks/daily-inbox-task-graph.json"
+      ],
+      "success_criteria": [
+        "Graph contains at least 20 atomic units with explicit dependencies and no cycles."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_validate.py"
+      ],
+      "review_requirements": [
+        "Review every task for success criteria, tests, review requirements, and linter commands."
+      ],
+      "linter_commands": [
+        "python3 -m json.tool tasks/daily-inbox-task-graph.json >/dev/null"
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:46:25Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z",
+          "commit": "bd6c471"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:46:25Z",
+      "commit": "bd6c471"
     },
     {
       "id": "TG-003",
       "title": "Implement graph validator",
       "type": "implementation",
-      "status": "todo",
-      "dependencies": ["TG-001", "TG-002"],
-      "files": ["scripts/task_graph_lib.py", "scripts/task_graph_validate.py"],
-      "success_criteria": ["Validator rejects missing fields, unknown dependencies, invalid statuses, and dependency cycles."],
-      "test_commands": ["python3 tests/test_task_graph.py", "python3 scripts/task_graph_validate.py"],
-      "review_requirements": ["Review validation errors for clear operator-facing messages."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_lib.py scripts/task_graph_validate.py"]
+      "status": "done",
+      "dependencies": [
+        "TG-001",
+        "TG-002"
+      ],
+      "files": [
+        "scripts/task_graph_lib.py",
+        "scripts/task_graph_validate.py"
+      ],
+      "success_criteria": [
+        "Validator rejects missing fields, unknown dependencies, invalid statuses, and dependency cycles."
+      ],
+      "test_commands": [
+        "python3 tests/test_task_graph.py",
+        "python3 scripts/task_graph_validate.py"
+      ],
+      "review_requirements": [
+        "Review validation errors for clear operator-facing messages."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_lib.py scripts/task_graph_validate.py"
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:46:25Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z",
+          "commit": "bd6c471"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:46:25Z",
+      "commit": "bd6c471"
     },
     {
       "id": "TG-004",
       "title": "Implement ready-task planner",
       "type": "implementation",
-      "status": "todo",
-      "dependencies": ["TG-003"],
-      "files": ["scripts/task_graph_ready.py"],
-      "success_criteria": ["Ready planner lists only todo tasks whose dependencies are done."],
-      "test_commands": ["python3 tests/test_task_graph.py", "python3 scripts/task_graph_ready.py"],
-      "review_requirements": ["Review ready logic against status transitions and blocked tasks."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_ready.py"]
+      "status": "done",
+      "dependencies": [
+        "TG-003"
+      ],
+      "files": [
+        "scripts/task_graph_ready.py"
+      ],
+      "success_criteria": [
+        "Ready planner lists only todo tasks whose dependencies are done."
+      ],
+      "test_commands": [
+        "python3 tests/test_task_graph.py",
+        "python3 scripts/task_graph_ready.py"
+      ],
+      "review_requirements": [
+        "Review ready logic against status transitions and blocked tasks."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_ready.py"
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:46:25Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z",
+          "commit": "bd6c471"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:46:25Z",
+      "commit": "bd6c471"
     },
     {
       "id": "TG-005",
       "title": "Implement execution thread planner",
       "type": "implementation",
-      "status": "todo",
-      "dependencies": ["TG-003"],
-      "files": ["scripts/task_graph_threads.py"],
-      "success_criteria": ["Planner outputs parallel waves and serial execution threads from the dependency graph."],
-      "test_commands": ["python3 tests/test_task_graph.py", "python3 scripts/task_graph_threads.py"],
-      "review_requirements": ["Review whether waves and threads are understandable enough for agent dispatch."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_threads.py"]
+      "status": "done",
+      "dependencies": [
+        "TG-003"
+      ],
+      "files": [
+        "scripts/task_graph_threads.py"
+      ],
+      "success_criteria": [
+        "Planner outputs parallel waves and serial execution threads from the dependency graph."
+      ],
+      "test_commands": [
+        "python3 tests/test_task_graph.py",
+        "python3 scripts/task_graph_threads.py"
+      ],
+      "review_requirements": [
+        "Review whether waves and threads are understandable enough for agent dispatch."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_threads.py"
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:46:25Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z",
+          "commit": "bd6c471"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:46:25Z",
+      "commit": "bd6c471"
     },
     {
       "id": "TG-006",
       "title": "Implement claim and complete commands",
       "type": "implementation",
-      "status": "todo",
-      "dependencies": ["TG-004"],
-      "files": ["scripts/task_claim.py", "scripts/task_complete.py"],
-      "success_criteria": ["Agents can claim ready tasks and mark claimed tasks complete with history metadata."],
-      "test_commands": ["python3 tests/test_task_graph.py"],
-      "review_requirements": ["Review claim failure modes for already claimed, blocked, or unknown tasks."],
-      "linter_commands": ["python3 -m py_compile scripts/task_claim.py scripts/task_complete.py"]
+      "status": "done",
+      "dependencies": [
+        "TG-004"
+      ],
+      "files": [
+        "scripts/task_claim.py",
+        "scripts/task_complete.py"
+      ],
+      "success_criteria": [
+        "Agents can claim ready tasks and mark claimed tasks complete with history metadata."
+      ],
+      "test_commands": [
+        "python3 tests/test_task_graph.py"
+      ],
+      "review_requirements": [
+        "Review claim failure modes for already claimed, blocked, or unknown tasks."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_claim.py scripts/task_complete.py"
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T13:46:25Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T13:46:25Z",
+          "commit": "bd6c471"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T13:46:25Z",
+      "commit": "bd6c471"
     },
     {
       "id": "DG-001",
       "title": "Define executable workflow graph contract",
       "type": "contract",
       "status": "todo",
-      "dependencies": ["TG-003"],
-      "files": ["workflow/diagram/schema.json", "workflow/diagram/README.md"],
-      "success_criteria": ["Workflow graph schema defines nodes, edges, command adapters, inputs, outputs, and failure paths."],
-      "test_commands": ["python3 scripts/workflow_graph_validate.py"],
-      "review_requirements": ["Review that diagram semantics are executable, not just documentation."],
-      "linter_commands": ["python3 -m py_compile scripts/workflow_graph_validate.py"]
+      "dependencies": [
+        "TG-003"
+      ],
+      "files": [
+        "workflow/diagram/schema.json",
+        "workflow/diagram/README.md"
+      ],
+      "success_criteria": [
+        "Workflow graph schema defines nodes, edges, command adapters, inputs, outputs, and failure paths."
+      ],
+      "test_commands": [
+        "python3 scripts/workflow_graph_validate.py"
+      ],
+      "review_requirements": [
+        "Review that diagram semantics are executable, not just documentation."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/workflow_graph_validate.py"
+      ]
     },
     {
       "id": "DG-002",
       "title": "Create Daily Inbox executable workflow graph",
       "type": "workflow",
       "status": "todo",
-      "dependencies": ["DG-001"],
-      "files": ["workflow/diagram/daily-newsletter.graph.json"],
-      "success_criteria": ["Graph covers fetch, enrichment, scoring, aggregation, quality, finalize, health, and alert nodes."],
-      "test_commands": ["python3 scripts/workflow_graph_validate.py"],
-      "review_requirements": ["Review node boundaries against current root command wrappers."],
-      "linter_commands": ["python3 -m json.tool workflow/diagram/daily-newsletter.graph.json >/dev/null"]
+      "dependencies": [
+        "DG-001"
+      ],
+      "files": [
+        "workflow/diagram/daily-newsletter.graph.json"
+      ],
+      "success_criteria": [
+        "Graph covers fetch, enrichment, scoring, aggregation, quality, finalize, health, and alert nodes."
+      ],
+      "test_commands": [
+        "python3 scripts/workflow_graph_validate.py"
+      ],
+      "review_requirements": [
+        "Review node boundaries against current root command wrappers."
+      ],
+      "linter_commands": [
+        "python3 -m json.tool workflow/diagram/daily-newsletter.graph.json >/dev/null"
+      ]
     },
     {
       "id": "DG-003",
       "title": "Implement workflow graph validator",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["DG-002"],
-      "files": ["scripts/workflow_graph_validate.py"],
-      "success_criteria": ["Validator rejects missing commands, unknown node references, cycles unless allowed, and invalid failure edges."],
-      "test_commands": ["python3 tests/test_workflow_graph.py"],
-      "review_requirements": ["Review validation messages and diagram source-of-truth assumptions."],
-      "linter_commands": ["python3 -m py_compile scripts/workflow_graph_validate.py"]
+      "dependencies": [
+        "DG-002"
+      ],
+      "files": [
+        "scripts/workflow_graph_validate.py"
+      ],
+      "success_criteria": [
+        "Validator rejects missing commands, unknown node references, cycles unless allowed, and invalid failure edges."
+      ],
+      "test_commands": [
+        "python3 tests/test_workflow_graph.py"
+      ],
+      "review_requirements": [
+        "Review validation messages and diagram source-of-truth assumptions."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/workflow_graph_validate.py"
+      ]
     },
     {
       "id": "DG-004",
       "title": "Implement workflow graph dry-run runner",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["DG-003"],
-      "files": ["scripts/workflow_graph_dry_run.py"],
-      "success_criteria": ["Dry-run runner prints execution order from graph edges without running production commands."],
-      "test_commands": ["python3 tests/test_workflow_graph.py"],
-      "review_requirements": ["Review proof that changing an edge changes dry-run order."],
-      "linter_commands": ["python3 -m py_compile scripts/workflow_graph_dry_run.py"]
+      "dependencies": [
+        "DG-003"
+      ],
+      "files": [
+        "scripts/workflow_graph_dry_run.py"
+      ],
+      "success_criteria": [
+        "Dry-run runner prints execution order from graph edges without running production commands."
+      ],
+      "test_commands": [
+        "python3 tests/test_workflow_graph.py"
+      ],
+      "review_requirements": [
+        "Review proof that changing an edge changes dry-run order."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/workflow_graph_dry_run.py"
+      ]
     },
     {
       "id": "DG-005",
       "title": "Implement command runner behind diagram graph",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["DG-004"],
-      "files": ["scripts/workflow_graph_run.py"],
-      "success_criteria": ["Runner can execute selected graph nodes with dry-run by default and explicit run mode."],
-      "test_commands": ["python3 tests/test_workflow_graph.py", "python3 scripts/workflow_graph_dry_run.py"],
-      "review_requirements": ["Review safety gates before allowing production command execution."],
-      "linter_commands": ["python3 -m py_compile scripts/workflow_graph_run.py"]
+      "dependencies": [
+        "DG-004"
+      ],
+      "files": [
+        "scripts/workflow_graph_run.py"
+      ],
+      "success_criteria": [
+        "Runner can execute selected graph nodes with dry-run by default and explicit run mode."
+      ],
+      "test_commands": [
+        "python3 tests/test_workflow_graph.py",
+        "python3 scripts/workflow_graph_dry_run.py"
+      ],
+      "review_requirements": [
+        "Review safety gates before allowing production command execution."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/workflow_graph_run.py"
+      ]
     },
     {
       "id": "DG-006",
       "title": "Add workflow graph regression tests",
       "type": "verification",
       "status": "todo",
-      "dependencies": ["DG-004"],
-      "files": ["tests/test_workflow_graph.py"],
-      "success_criteria": ["Tests prove graph validation, dependency order, and edge-order mutation behavior."],
-      "test_commands": ["python3 tests/test_workflow_graph.py"],
-      "review_requirements": ["Review tests for actual diagram-as-source-of-truth behavior."],
-      "linter_commands": ["python3 -m py_compile tests/test_workflow_graph.py"]
+      "dependencies": [
+        "DG-004"
+      ],
+      "files": [
+        "tests/test_workflow_graph.py"
+      ],
+      "success_criteria": [
+        "Tests prove graph validation, dependency order, and edge-order mutation behavior."
+      ],
+      "test_commands": [
+        "python3 tests/test_workflow_graph.py"
+      ],
+      "review_requirements": [
+        "Review tests for actual diagram-as-source-of-truth behavior."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile tests/test_workflow_graph.py"
+      ]
     },
     {
       "id": "N8N-001",
       "title": "Define n8n workflow JSON adapter contract",
       "type": "contract",
       "status": "todo",
-      "dependencies": ["DG-002"],
-      "files": ["workflow/n8n/README.md"],
-      "success_criteria": ["Adapter contract maps executable graph nodes to n8n nodes and connections."],
-      "test_commands": ["python3 scripts/n8n_export.py --dry-run"],
-      "review_requirements": ["Review whether n8n is editor/runtime layer and not hidden source drift."],
-      "linter_commands": ["python3 -m py_compile scripts/n8n_export.py"]
+      "dependencies": [
+        "DG-002"
+      ],
+      "files": [
+        "workflow/n8n/README.md"
+      ],
+      "success_criteria": [
+        "Adapter contract maps executable graph nodes to n8n nodes and connections."
+      ],
+      "test_commands": [
+        "python3 scripts/n8n_export.py --dry-run"
+      ],
+      "review_requirements": [
+        "Review whether n8n is editor/runtime layer and not hidden source drift."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/n8n_export.py"
+      ]
     },
     {
       "id": "N8N-002",
       "title": "Export executable graph to n8n JSON",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["N8N-001", "DG-004"],
-      "files": ["scripts/n8n_export.py", "workflow/n8n/daily-newsletter.workflow.json"],
-      "success_criteria": ["Exporter creates importable n8n JSON with nodes and connections matching graph edges."],
-      "test_commands": ["python3 tests/test_n8n_export.py"],
-      "review_requirements": ["Review generated n8n node names and command parameters for operator readability."],
-      "linter_commands": ["python3 -m py_compile scripts/n8n_export.py tests/test_n8n_export.py"]
+      "dependencies": [
+        "N8N-001",
+        "DG-004"
+      ],
+      "files": [
+        "scripts/n8n_export.py",
+        "workflow/n8n/daily-newsletter.workflow.json"
+      ],
+      "success_criteria": [
+        "Exporter creates importable n8n JSON with nodes and connections matching graph edges."
+      ],
+      "test_commands": [
+        "python3 tests/test_n8n_export.py"
+      ],
+      "review_requirements": [
+        "Review generated n8n node names and command parameters for operator readability."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/n8n_export.py tests/test_n8n_export.py"
+      ]
     },
     {
       "id": "N8N-003",
       "title": "Import n8n JSON back to graph",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["N8N-002"],
-      "files": ["scripts/n8n_import.py"],
-      "success_criteria": ["Importer can reconstruct graph nodes and edges from n8n JSON for diff review."],
-      "test_commands": ["python3 tests/test_n8n_export.py"],
-      "review_requirements": ["Review round-trip limits and document unsupported n8n node features."],
-      "linter_commands": ["python3 -m py_compile scripts/n8n_import.py"]
+      "dependencies": [
+        "N8N-002"
+      ],
+      "files": [
+        "scripts/n8n_import.py"
+      ],
+      "success_criteria": [
+        "Importer can reconstruct graph nodes and edges from n8n JSON for diff review."
+      ],
+      "test_commands": [
+        "python3 tests/test_n8n_export.py"
+      ],
+      "review_requirements": [
+        "Review round-trip limits and document unsupported n8n node features."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/n8n_import.py"
+      ]
     },
     {
       "id": "GI-001",
       "title": "Define GitHub Issues sync contract",
       "type": "contract",
       "status": "todo",
-      "dependencies": ["TG-006"],
-      "files": ["tasks/github-sync.md"],
-      "success_criteria": ["Sync contract defines labels, issue body fields, task id mapping, and status transitions."],
-      "test_commands": ["python3 scripts/task_graph_validate.py"],
-      "review_requirements": ["Review local graph remains canonical before syncing issues."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_lib.py"]
+      "dependencies": [
+        "TG-006"
+      ],
+      "files": [
+        "tasks/github-sync.md"
+      ],
+      "success_criteria": [
+        "Sync contract defines labels, issue body fields, task id mapping, and status transitions."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_validate.py"
+      ],
+      "review_requirements": [
+        "Review local graph remains canonical before syncing issues."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_lib.py"
+      ]
     },
     {
       "id": "GI-002",
       "title": "Implement GitHub Issues dry-run exporter",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["GI-001"],
-      "files": ["scripts/task_graph_github_export.py"],
-      "success_criteria": ["Dry-run exporter renders issue titles, labels, bodies, and dependency metadata without calling GitHub."],
-      "test_commands": ["python3 tests/test_task_graph.py"],
-      "review_requirements": ["Review generated issue body is enough for an agent to claim and close work."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_github_export.py"]
+      "dependencies": [
+        "GI-001"
+      ],
+      "files": [
+        "scripts/task_graph_github_export.py"
+      ],
+      "success_criteria": [
+        "Dry-run exporter renders issue titles, labels, bodies, and dependency metadata without calling GitHub."
+      ],
+      "test_commands": [
+        "python3 tests/test_task_graph.py"
+      ],
+      "review_requirements": [
+        "Review generated issue body is enough for an agent to claim and close work."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_github_export.py"
+      ]
     },
     {
       "id": "AG-001",
       "title": "Define agent claim protocol",
       "type": "contract",
       "status": "todo",
-      "dependencies": ["TG-006"],
-      "files": ["tasks/agent-claim-protocol.md"],
-      "success_criteria": ["Protocol defines idle agent behavior, claim conflict handling, completion proof, and review proof."],
-      "test_commands": ["python3 scripts/task_graph_ready.py"],
-      "review_requirements": ["Review protocol for safe behavior when multiple agents claim tasks concurrently."],
-      "linter_commands": ["python3 -m py_compile scripts/task_claim.py scripts/task_complete.py"]
+      "dependencies": [
+        "TG-006"
+      ],
+      "files": [
+        "tasks/agent-claim-protocol.md"
+      ],
+      "success_criteria": [
+        "Protocol defines idle agent behavior, claim conflict handling, completion proof, and review proof."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_ready.py"
+      ],
+      "review_requirements": [
+        "Review protocol for safe behavior when multiple agents claim tasks concurrently."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_claim.py scripts/task_complete.py"
+      ]
     },
     {
       "id": "AG-002",
       "title": "Implement agent next-task command",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["AG-001", "TG-004"],
-      "files": ["scripts/task_next.py"],
-      "success_criteria": ["Command returns the best ready task for an idle agent using deterministic priority rules."],
-      "test_commands": ["python3 tests/test_task_graph.py"],
-      "review_requirements": ["Review priority rules for not starving critical path tasks."],
-      "linter_commands": ["python3 -m py_compile scripts/task_next.py"]
+      "dependencies": [
+        "AG-001",
+        "TG-004"
+      ],
+      "files": [
+        "scripts/task_next.py"
+      ],
+      "success_criteria": [
+        "Command returns the best ready task for an idle agent using deterministic priority rules."
+      ],
+      "test_commands": [
+        "python3 tests/test_task_graph.py"
+      ],
+      "review_requirements": [
+        "Review priority rules for not starving critical path tasks."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_next.py"
+      ]
     },
     {
       "id": "AG-003",
       "title": "Implement auto-claim loop dry run",
       "type": "implementation",
       "status": "todo",
-      "dependencies": ["AG-002"],
-      "files": ["scripts/task_agent_loop.py"],
-      "success_criteria": ["Dry-run loop shows how idle agents would claim ready tasks without executing code."],
-      "test_commands": ["python3 tests/test_task_graph.py"],
-      "review_requirements": ["Review that loop cannot mutate graph without explicit claim mode."],
-      "linter_commands": ["python3 -m py_compile scripts/task_agent_loop.py"]
+      "dependencies": [
+        "AG-002"
+      ],
+      "files": [
+        "scripts/task_agent_loop.py"
+      ],
+      "success_criteria": [
+        "Dry-run loop shows how idle agents would claim ready tasks without executing code."
+      ],
+      "test_commands": [
+        "python3 tests/test_task_graph.py"
+      ],
+      "review_requirements": [
+        "Review that loop cannot mutate graph without explicit claim mode."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_agent_loop.py"
+      ]
     },
     {
       "id": "PR-001",
       "title": "Define execution thread review checklist",
       "type": "review",
       "status": "todo",
-      "dependencies": ["TG-005", "AG-001"],
-      "files": ["tasks/review-checklist.md"],
-      "success_criteria": ["Checklist defines success, tests, lint, review, commit, and handover requirements for every execution thread."],
-      "test_commands": ["python3 scripts/task_graph_threads.py"],
-      "review_requirements": ["Review checklist against GSD phase summary requirements."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_threads.py"]
+      "dependencies": [
+        "TG-005",
+        "AG-001"
+      ],
+      "files": [
+        "tasks/review-checklist.md"
+      ],
+      "success_criteria": [
+        "Checklist defines success, tests, lint, review, commit, and handover requirements for every execution thread."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_threads.py"
+      ],
+      "review_requirements": [
+        "Review checklist against GSD phase summary requirements."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_threads.py"
+      ]
     },
     {
       "id": "PR-002",
       "title": "Run cross-AI review on task graph system",
       "type": "review",
       "status": "todo",
-      "dependencies": ["TG-006", "DG-004", "PR-001"],
-      "files": ["tasks/README.md", "tasks/daily-inbox-task-graph.json"],
-      "success_criteria": ["Claude Code review or equivalent returns no blocking findings for graph validator, ready planner, thread planner, and claim protocol."],
-      "test_commands": ["python3 scripts/task_graph_validate.py", "python3 scripts/task_graph_threads.py"],
-      "review_requirements": ["Independent review required before agent auto-claim is treated as production-ready."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_*.py scripts/task_claim.py scripts/task_complete.py"]
+      "dependencies": [
+        "TG-006",
+        "DG-004",
+        "PR-001"
+      ],
+      "files": [
+        "tasks/README.md",
+        "tasks/daily-inbox-task-graph.json"
+      ],
+      "success_criteria": [
+        "Claude Code review or equivalent returns no blocking findings for graph validator, ready planner, thread planner, and claim protocol."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_validate.py",
+        "python3 scripts/task_graph_threads.py"
+      ],
+      "review_requirements": [
+        "Independent review required before agent auto-claim is treated as production-ready."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_*.py scripts/task_claim.py scripts/task_complete.py"
+      ]
     },
     {
       "id": "DOC-001",
       "title": "Document task graph operating model",
       "type": "docs",
       "status": "todo",
-      "dependencies": ["TG-006", "DG-004"],
-      "files": ["README.md", "HANDOVER.md", "tasks/README.md"],
-      "success_criteria": ["Docs explain how to validate graph, list ready tasks, compute threads, claim tasks, and complete tasks."],
-      "test_commands": ["python3 scripts/task_graph_validate.py"],
-      "review_requirements": ["Review docs for non-programmer readability and owner operating clarity."],
-      "linter_commands": ["python3 -m py_compile scripts/task_graph_lib.py"]
+      "dependencies": [
+        "TG-006",
+        "DG-004"
+      ],
+      "files": [
+        "README.md",
+        "HANDOVER.md",
+        "tasks/README.md"
+      ],
+      "success_criteria": [
+        "Docs explain how to validate graph, list ready tasks, compute threads, claim tasks, and complete tasks."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_validate.py"
+      ],
+      "review_requirements": [
+        "Review docs for non-programmer readability and owner operating clarity."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile scripts/task_graph_lib.py"
+      ]
     },
     {
       "id": "VERIFY-001",
       "title": "Verify end-to-end task graph milestone",
       "type": "verification",
       "status": "todo",
-      "dependencies": ["PR-002", "DOC-001", "N8N-003", "GI-002", "AG-003"],
-      "files": ["tests/test_task_graph.py", "tests/test_workflow_graph.py", "tests/test_n8n_export.py"],
-      "success_criteria": ["All graph, workflow, n8n, and existing Daily Inbox regression tests pass."],
-      "test_commands": ["python3 scripts/task_graph_validate.py", "python3 scripts/task_graph_threads.py", "for t in tests/test_*.py; do python3 \"$t\"; done"],
-      "review_requirements": ["Review final summary includes remaining risks and next milestone recommendation."],
-      "linter_commands": ["python3 -m py_compile $(find scripts tests -name '*.py' -print)"]
+      "dependencies": [
+        "PR-002",
+        "DOC-001",
+        "N8N-003",
+        "GI-002",
+        "AG-003"
+      ],
+      "files": [
+        "tests/test_task_graph.py",
+        "tests/test_workflow_graph.py",
+        "tests/test_n8n_export.py"
+      ],
+      "success_criteria": [
+        "All graph, workflow, n8n, and existing Daily Inbox regression tests pass."
+      ],
+      "test_commands": [
+        "python3 scripts/task_graph_validate.py",
+        "python3 scripts/task_graph_threads.py",
+        "for t in tests/test_*.py; do python3 \"$t\"; done"
+      ],
+      "review_requirements": [
+        "Review final summary includes remaining risks and next milestone recommendation."
+      ],
+      "linter_commands": [
+        "python3 -m py_compile $(find scripts tests -name '*.py' -print)"
+      ]
     }
   ]
 }
-

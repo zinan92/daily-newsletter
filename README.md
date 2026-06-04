@@ -223,6 +223,18 @@ python3 scripts/task_complete.py TG-001 --agent codex --commit <sha>
 
 当前图在 `tasks/daily-inbox-task-graph.json`，schema 在 `tasks/schema.json`。GitHub Issues / n8n sync 是后续层；本地 task graph 先保持 source of truth。
 
+## Executable Workflow Diagram
+
+Daily Inbox runtime diagram 的最小可执行版本在 `workflow/diagram/`：
+
+```bash
+python3 scripts/workflow_graph_validate.py
+python3 scripts/workflow_graph_dry_run.py
+python3 scripts/workflow_graph_dry_run.py --json
+```
+
+`workflow/diagram/daily-newsletter.graph.json` 里的 `edges` 决定 dry-run 顺序。改 edge 后，dry-run 输出会变；这就是 diagram-as-source-of-truth 的第一层。
+
 ## For AI Agents
 
 这是一个 **CLI / cron 流水线**，不暴露 HTTP API。集成或修改前，请读 `AGENTS.md` 和 `GOTCHAS.md`。

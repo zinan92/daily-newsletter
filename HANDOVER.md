@@ -102,6 +102,21 @@ units first, execution threads derived from dependencies, then future GitHub
 Issues or n8n sync. Keep the local graph canonical until those sync layers are
 proven.
 
+## Executable workflow diagram
+
+The first runtime workflow graph is now in place:
+
+- Schema: `workflow/diagram/schema.json`
+- Graph: `workflow/diagram/daily-newsletter.graph.json`
+- Docs: `workflow/diagram/README.md`
+- Validator: `python3 scripts/workflow_graph_validate.py`
+- Dry-run: `python3 scripts/workflow_graph_dry_run.py`
+
+The graph currently has 22 nodes covering channel fetch, media enrichment,
+source health, digest build, quality, archive, local finalize, status, and
+failure alert. Dry-run is normal-path only; failure-only alert nodes are kept in
+the graph but excluded from normal dry-run order.
+
 ## What changed in the stabilization milestone
 1. **LLM failover + local finalize** (`lib.py`, `push-digest.sh`, `finalize-local.py`).
 2. **Douyin delivery and routing** — `digest_config.active_douyin_source_names()`

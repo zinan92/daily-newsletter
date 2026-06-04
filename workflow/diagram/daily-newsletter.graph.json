@@ -1,0 +1,230 @@
+{
+  "version": 1,
+  "name": "daily-newsletter-executable-diagram",
+  "source_of_truth": "workflow/diagram",
+  "description": "Executable diagram for Daily Inbox fetch, enrichment, aggregation, quality, and local output.",
+  "nodes": [
+    {
+      "id": "schedule_fetch",
+      "name": "Schedule Fetch Window",
+      "type": "trigger",
+      "command": "",
+      "inputs": [],
+      "outputs": ["fetch_window"],
+      "description": "Cron/launchd or future n8n schedule trigger."
+    },
+    {
+      "id": "manual_links",
+      "name": "Fetch Manual Links",
+      "type": "command",
+      "command": "python3 fetch-manual-links.py",
+      "inputs": ["fetch_window", "~/park-io/inbox/manual-links.md"],
+      "outputs": ["channel_artifact"]
+    },
+    {
+      "id": "rss",
+      "name": "Fetch RSS And YouTube Feeds",
+      "type": "command",
+      "command": "python3 fetch-rss.py",
+      "inputs": ["fetch_window", "~/park-io/sources.md"],
+      "outputs": ["channel_artifact", "media_candidate_artifact"]
+    },
+    {
+      "id": "x_timeline",
+      "name": "Fetch X Timeline",
+      "type": "command",
+      "command": "python3 fetch-twitter.py",
+      "inputs": ["fetch_window", "~/park-io/sources.md"],
+      "outputs": ["channel_artifact"]
+    },
+    {
+      "id": "x_saved",
+      "name": "Fetch X Saved Items",
+      "type": "command",
+      "command": "python3 fetch-twitter-saved.py",
+      "inputs": ["fetch_window", "twitter-auth.env"],
+      "outputs": ["channel_artifact"]
+    },
+    {
+      "id": "web_scrape",
+      "name": "Fetch Official Web Scrape",
+      "type": "command",
+      "command": "python3 fetch-scrape.py",
+      "inputs": ["fetch_window", "~/park-io/sources.md"],
+      "outputs": ["channel_artifact"]
+    },
+    {
+      "id": "wechat_seed",
+      "name": "Fetch Seeded WeChat Articles",
+      "type": "command",
+      "command": "python3 fetch-wechat.py",
+      "inputs": ["fetch_window", "~/park-io/sources.md"],
+      "outputs": ["channel_artifact"]
+    },
+    {
+      "id": "wechat_rss",
+      "name": "Fetch WeChat RSS",
+      "type": "command",
+      "command": "python3 fetch-wechat-rss.py",
+      "inputs": ["fetch_window", "~/park-io/sources.md", "wewe-rss"],
+      "outputs": ["channel_artifact"]
+    },
+    {
+      "id": "wechat_exporter",
+      "name": "Import WeChat Exporter Files",
+      "type": "command",
+      "command": "python3 fetch-wechat-exporter.py",
+      "inputs": ["fetch_window", "PARKIO_WECHAT_EXPORT_DIR"],
+      "outputs": ["channel_artifact"]
+    },
+    {
+      "id": "douyin",
+      "name": "Fetch Douyin Profiles",
+      "type": "command",
+      "command": "python3 fetch-douyin.py",
+      "inputs": ["fetch_window", "~/park-io/sources.md", "douyin cookies"],
+      "outputs": ["media_candidate_artifact", "channel_artifact"]
+    },
+    {
+      "id": "media_enrichment",
+      "name": "Enrich Media Transcripts",
+      "type": "command",
+      "command": "python3 fetch-media-transcripts.py",
+      "inputs": ["media_candidate_artifact", "yt-dlp", "mlx_whisper", "content-toolkit"],
+      "outputs": ["transcript", "deep_summary", "publishable_flag"]
+    },
+    {
+      "id": "source_health_record",
+      "name": "Record Source Health",
+      "type": "status",
+      "command": "python3 source-health.py --record",
+      "inputs": ["channel_artifact", "fetch_logs"],
+      "outputs": ["source-health.json"]
+    },
+    {
+      "id": "status_after_fetch",
+      "name": "Generate Status After Fetch",
+      "type": "status",
+      "command": "python3 generate-status.py",
+      "inputs": ["source-health.json", "fetch_logs"],
+      "outputs": ["~/park-io/inbox/status.html"]
+    },
+    {
+      "id": "schedule_digest",
+      "name": "Schedule Digest Build",
+      "type": "trigger",
+      "command": "",
+      "inputs": [],
+      "outputs": ["digest_window"]
+    },
+    {
+      "id": "open_batch",
+      "name": "Open Batch",
+      "type": "command",
+      "command": "python3 open-batch.py",
+      "inputs": ["digest_window", "channel_artifact", "deep_summary", "publishable_flag"],
+      "outputs": ["PARKIO_BATCH_ID", "processed_batch"]
+    },
+    {
+      "id": "score",
+      "name": "Score Items",
+      "type": "command",
+      "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 score.py",
+      "inputs": ["processed_batch", "scores.json"],
+      "outputs": ["scores.json", "scoring-health.json"]
+    },
+    {
+      "id": "build_digest",
+      "name": "Build Digest",
+      "type": "command",
+      "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 build-digest.py",
+      "inputs": ["processed_batch", "scores.json", "media-summaries.json"],
+      "outputs": ["markdown", "html", "png"]
+    },
+    {
+      "id": "quality",
+      "name": "Quality Gate",
+      "type": "gate",
+      "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 check-quality.py",
+      "inputs": ["markdown", "html"],
+      "outputs": ["quality_pass"]
+    },
+    {
+      "id": "archive",
+      "name": "Archive Items",
+      "type": "command",
+      "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 archive-items.py",
+      "inputs": ["quality_pass", "processed_batch"],
+      "outputs": ["profile_library"]
+    },
+    {
+      "id": "finalize_local",
+      "name": "Finalize Local Artifacts",
+      "type": "artifact",
+      "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 finalize-local.py",
+      "inputs": ["quality_pass", "markdown", "html", "png"],
+      "outputs": ["~/park-io/inbox/sent/<date>.md", "~/park-io/inbox/sent/<date>.html", "~/park-io/inbox/sent/<date>.png"]
+    },
+    {
+      "id": "status_after_digest",
+      "name": "Generate Status After Digest",
+      "type": "status",
+      "command": "python3 generate-status.py",
+      "inputs": ["quality_pass", "source-health.json", "scoring-health.json"],
+      "outputs": ["~/park-io/inbox/status.html"]
+    },
+    {
+      "id": "health_alert",
+      "name": "Write Health Alert On Failure",
+      "type": "notification",
+      "command": "python3 check-pipeline-health.py",
+      "inputs": ["failure_event", "source-health.json", "scoring-health.json"],
+      "outputs": ["~/park-io/inbox/health-alerts.md"]
+    }
+  ],
+  "edges": [
+    {"from": "schedule_fetch", "to": "manual_links", "type": "main"},
+    {"from": "schedule_fetch", "to": "rss", "type": "main"},
+    {"from": "schedule_fetch", "to": "x_timeline", "type": "main"},
+    {"from": "schedule_fetch", "to": "x_saved", "type": "main"},
+    {"from": "schedule_fetch", "to": "web_scrape", "type": "main"},
+    {"from": "schedule_fetch", "to": "wechat_seed", "type": "main"},
+    {"from": "schedule_fetch", "to": "wechat_rss", "type": "main"},
+    {"from": "schedule_fetch", "to": "wechat_exporter", "type": "main"},
+    {"from": "schedule_fetch", "to": "douyin", "type": "main"},
+    {"from": "rss", "to": "media_enrichment", "type": "main"},
+    {"from": "douyin", "to": "media_enrichment", "type": "main"},
+    {"from": "manual_links", "to": "source_health_record", "type": "main"},
+    {"from": "rss", "to": "source_health_record", "type": "main"},
+    {"from": "x_timeline", "to": "source_health_record", "type": "main"},
+    {"from": "x_saved", "to": "source_health_record", "type": "main"},
+    {"from": "web_scrape", "to": "source_health_record", "type": "main"},
+    {"from": "wechat_seed", "to": "source_health_record", "type": "main"},
+    {"from": "wechat_rss", "to": "source_health_record", "type": "main"},
+    {"from": "wechat_exporter", "to": "source_health_record", "type": "main"},
+    {"from": "douyin", "to": "source_health_record", "type": "main"},
+    {"from": "source_health_record", "to": "status_after_fetch", "type": "main"},
+    {"from": "schedule_digest", "to": "open_batch", "type": "main"},
+    {"from": "manual_links", "to": "open_batch", "type": "main"},
+    {"from": "rss", "to": "open_batch", "type": "main"},
+    {"from": "x_timeline", "to": "open_batch", "type": "main"},
+    {"from": "x_saved", "to": "open_batch", "type": "main"},
+    {"from": "web_scrape", "to": "open_batch", "type": "main"},
+    {"from": "wechat_seed", "to": "open_batch", "type": "main"},
+    {"from": "wechat_rss", "to": "open_batch", "type": "main"},
+    {"from": "wechat_exporter", "to": "open_batch", "type": "main"},
+    {"from": "douyin", "to": "open_batch", "type": "main"},
+    {"from": "media_enrichment", "to": "open_batch", "type": "main"},
+    {"from": "open_batch", "to": "score", "type": "main"},
+    {"from": "score", "to": "build_digest", "type": "main"},
+    {"from": "build_digest", "to": "quality", "type": "main"},
+    {"from": "quality", "to": "archive", "type": "success"},
+    {"from": "quality", "to": "finalize_local", "type": "success"},
+    {"from": "archive", "to": "status_after_digest", "type": "main"},
+    {"from": "finalize_local", "to": "status_after_digest", "type": "main"},
+    {"from": "quality", "to": "health_alert", "type": "failure"},
+    {"from": "source_health_record", "to": "health_alert", "type": "failure"},
+    {"from": "score", "to": "health_alert", "type": "failure"}
+  ]
+}
+

@@ -13,7 +13,15 @@
 - [x] **TG-04**: Ready-task and execution-thread commands derive claimable tasks, parallel waves, and serial execution threads from the graph.
 - [x] **TG-05**: Claim and complete commands update the local graph with agent and history metadata.
 - [ ] **TG-06**: A future GitHub Issues sync layer can export local tasks without making GitHub the source of truth.
-- [ ] **TG-07**: A future n8n/executable diagram layer can map workflow graph nodes into visual runtime nodes.
+- [x] **TG-07**: A future n8n/executable diagram layer can map workflow graph nodes into visual runtime nodes.
+
+### Executable Workflow Diagram
+
+- [x] **DG-01**: The repo contains a workflow diagram schema defining nodes, edges, commands, inputs, outputs, and failure paths.
+- [x] **DG-02**: The repo contains an executable Daily Inbox workflow graph that splits channel fetching, media enrichment, scoring, aggregation, quality, finalization, health, and alerts into nodes.
+- [x] **DG-03**: A validator rejects invalid node references, missing command payloads, cycles, and invalid edge types.
+- [x] **DG-04**: A dry-run runner derives execution order from graph edges without running production commands.
+- [x] **DG-05**: Tests prove changing graph edges changes execution order.
 
 ### Source-Ingestion Decomposition
 
@@ -76,7 +84,12 @@
 | TG-04 | Phase 11 | Complete |
 | TG-05 | Phase 11 | Complete |
 | TG-06 | Future | Pending |
-| TG-07 | Future | Pending |
+| TG-07 | Phase 12 | Complete |
+| DG-01 | Phase 12 | Complete |
+| DG-02 | Phase 12 | Complete |
+| DG-03 | Phase 12 | Complete |
+| DG-04 | Phase 12 | Complete |
+| DG-05 | Phase 12 | Complete |
 | DEC-01 | Phase 6, Phase 7, Phase 8 | In progress |
 | DEC-02 | Phase 6 | Complete |
 | DEC-03 | Phase 8 | Complete |
@@ -106,4 +119,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 11 executable task graph.*
+*Last updated: 2026-06-04 after Phase 12 executable workflow diagram.*
