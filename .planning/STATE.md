@@ -6,7 +6,7 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 
 **Core value:** Every morning the owner gets one trustworthy Chinese AI intelligence digest that is worth reading, with enough source-health visibility to know whether silence means no news or a broken channel.
 
-**Current focus:** Phase 5 - End-To-End Daily Run Proof
+**Current focus:** Milestone complete - waiting for next owner-selected milestone
 
 ## Current Position
 
@@ -15,7 +15,8 @@ See: `.planning/PROJECT.md` (updated 2026-06-04)
 - Phase 2 - Local Artifact Parity completed: local sent artifacts now include Markdown, HTML, and PNG when processed artifacts exist.
 - Phase 3 - Health Visibility Closure completed: `Ray在思考` surfaces as stale, and `克劳德猎手` pending WeWe RSS setup surfaces as action-needed instead of being hidden by seed content.
 - Phase 4 - Reader Quality Regression Lock completed: X title truncation, media publishability, active Douyin source routing, metadata/transcript leaks, raw English prose, narrator leakage, and Markdown/HTML divergence are covered by deterministic tests or gates.
-- Next implementation target should be Phase 5 - End-To-End Daily Run Proof.
+- Phase 5 - End-To-End Daily Run Proof completed: the 2026-06-04 controlled batch regenerated, local sent Markdown/HTML/PNG were finalized, quality gate passed, and handover was refreshed.
+- No remaining code blockers in this milestone.
 
 ## Locked Decisions
 
@@ -40,19 +41,21 @@ Use this command set before claiming a shipping milestone:
 ```bash
 python3 -m py_compile summarize.py digest_config.py lib.py quality-check.py fetch-douyin.py
 for t in tests/test_*.py; do python3 "$t"; done
+PARKIO_BATCH_ID=20260604 python3 build-digest.py
+PARKIO_BATCH_ID=20260604 python3 finalize-local.py
 PARKIO_BATCH_ID=20260604 PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py
 python3 channel-health.py
 ```
 
 ## Next Command
 
-Next recommended planning command:
+Next recommended command:
 
 ```text
-$gsd-plan-phase 5 --tdd
+Choose the next milestone, or resolve WeWe owner actions from HANDOVER.md.
 ```
 
-This should produce the next atomic plan: full milestone verification and handover.
+The current stabilization milestone is complete.
 
 ---
-*State updated: 2026-06-04 after Phase 4 reader quality regression lock.*
+*State updated: 2026-06-04 after Phase 5 end-to-end daily proof.*

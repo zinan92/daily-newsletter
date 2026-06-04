@@ -26,9 +26,9 @@
 
 ### Operations
 
-- [ ] **OPS-01**: Default model remains `deepseek-v4-flash` with thinking disabled, with DeepSeek -> CLIProxy/Sonnet fallback only for transient provider failures.
-- [ ] **OPS-02**: The owner can run a documented verification command set after any milestone.
-- [ ] **OPS-03**: Planning docs, handover docs, and GOTCHAS do not contradict each other on artifact and health contracts.
+- [x] **OPS-01**: Default model remains `deepseek-v4-flash` with thinking disabled, with DeepSeek -> CLIProxy/Sonnet fallback only for transient provider failures.
+- [x] **OPS-02**: The owner can run a documented verification command set after any milestone.
+- [x] **OPS-03**: Planning docs, handover docs, and GOTCHAS do not contradict each other on artifact and health contracts.
 
 ## Deferred Requirements
 
@@ -49,8 +49,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OPS-02 | Phase 1 | Pending |
-| OPS-03 | Phase 1 | Pending |
+| OPS-02 | Phase 1, Phase 5 | Complete |
+| OPS-03 | Phase 1, Phase 5 | Complete |
 | ART-01 | Phase 2 | Complete |
 | ART-02 | Phase 2 | Complete |
 | ART-03 | Phase 2 | Complete |
@@ -61,7 +61,7 @@
 | QUAL-02 | Phase 4 | Complete |
 | QUAL-03 | Phase 4 | Complete |
 | QUAL-04 | Phase 4 | Complete |
-| OPS-01 | Phase 5 | Pending |
+| OPS-01 | Phase 5 | Complete |
 
 **Coverage:**
 - Current milestone requirements: 13 total
@@ -70,4 +70,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 4 reader quality regression lock.*
+*Last updated: 2026-06-04 after Phase 5 end-to-end daily proof.*

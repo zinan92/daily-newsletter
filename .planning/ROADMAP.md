@@ -10,11 +10,11 @@ This brownfield milestone turns the existing Park-IO daily digest into a boring 
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions if needed
 
-- [ ] **Phase 1: Planning Baseline And Contract Reconciliation** - Make the existing project state explicit and parser-readable for GSD.
+- [x] **Phase 1: Planning Baseline And Contract Reconciliation** - Make the existing project state explicit and parser-readable for GSD.
 - [x] **Phase 2: Local Artifact Parity** - Produce Markdown, HTML, and PNG from the normal local daily path.
 - [x] **Phase 3: Health Visibility Closure** - Keep compact digest health plus detailed status-page diagnosis.
 - [x] **Phase 4: Reader Quality Regression Lock** - Prevent X title, media, Douyin, and metadata regressions.
-- [ ] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
+- [x] **Phase 5: End-To-End Daily Run Proof** - Prove the full routine with real verification and clean handover.
 
 ## Phase Details
 
@@ -30,7 +30,7 @@ This brownfield milestone turns the existing Park-IO daily digest into a boring 
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01: Commit parser-readable GSD planning baseline.
+- [x] 01-01: Commit parser-readable GSD planning baseline.
 
 ### Phase 2: Local Artifact Parity
 **Goal**: The normal local daily path produces the same complete artifact family every day: Markdown, HTML, and PNG from one Markdown source.
@@ -87,7 +87,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 05-01: Run milestone verification and update handover.
+- [x] 05-01: Run milestone verification and update handover.
 
 ## Progress
 
@@ -96,15 +96,15 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Planning Baseline And Contract Reconciliation | 0/1 | In progress | - |
+| 1. Planning Baseline And Contract Reconciliation | 1/1 | Complete | 2026-06-04 |
 | 2. Local Artifact Parity | 1/1 | Complete | 2026-06-04 |
 | 3. Health Visibility Closure | 1/1 | Complete | 2026-06-04 |
 | 4. Reader Quality Regression Lock | 1/1 | Complete | 2026-06-04 |
-| 5. End-To-End Daily Run Proof | 0/1 | Not started | - |
+| 5. End-To-End Daily Run Proof | 1/1 | Complete | 2026-06-04 |
 
 ## Current Recommendation
 
-Next implementation target is Phase 5: End-To-End Daily Run Proof. The reader quality contract is locked, so the next agent should prove the full daily routine end to end.
+The stabilization milestone is complete. Next work should be a new owner-selected milestone, or the two remaining infra actions in `HANDOVER.md` for WeWe RSS.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

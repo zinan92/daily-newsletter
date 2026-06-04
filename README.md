@@ -5,7 +5,7 @@
 **把分散在官方渠道、X、播客和公众号里的 AI 信息，每天自动凝练成一份中文摘要，保存成本地 Markdown / HTML / 长图。**
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
-[![Tests](https://img.shields.io/badge/tests-6%20suites-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-all%20suites-green.svg)](tests/)
 [![Pipeline](https://img.shields.io/badge/pipeline-deterministic-0f766e.svg)](inbox-workflow.yaml)
 [![License](https://img.shields.io/badge/license-private-lightgrey.svg)](#license)
 
@@ -151,7 +151,7 @@ PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.{md,html,p
 
 ## 回归不变量（GOTCHAS）
 
-这个项目的核心是一套硬规则——哪些内容必须出、哪些绝不能进正文。全部记录在 [`GOTCHAS.md`](GOTCHAS.md)，并由 `tests/`（6 个套件）+ 确定性质量门锁死。改 `summarize.py` / `digest_events.py` / `quality-check.py` / `fetch-*.py` 前先对照。重点：
+这个项目的核心是一套硬规则——哪些内容必须出、哪些绝不能进正文。全部记录在 [`GOTCHAS.md`](GOTCHAS.md)，并由 `tests/test_*.py` + 确定性质量门锁死。改 `summarize.py` / `digest_events.py` / `quality-check.py` / `fetch-*.py` 前先对照。重点：
 
 - **官方/手动/媒体 bypass 评分**——评分服务挂了，官方区也不能消失。
 - **正文必须是中文摘要**——英文原文、`公众号:/作者:`、`t.co`、内部元数据一律被门拦截。
@@ -168,7 +168,7 @@ LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 SSL/429/5xx 
 | `PARKIO_LLM_PROVIDER` | LLM 提供方：`deepseek` 或 `anthropic` | `deepseek` |
 | `PARKIO_LLM_FALLBACK_PROVIDER` | 主 LLM 临时故障时的备用 provider；设为 `none` 可关闭 | `anthropic` |
 | `PARKIO_DEEPSEEK_KEY` | DeepSeek API key（或写入 `~/park-io/secrets/deepseek-key`） | 无（必填） |
-| `PARKIO_DEEPSEEK_MODEL` | DeepSeek 模型 | `deepseek-v4-pro` |
+| `PARKIO_DEEPSEEK_MODEL` | DeepSeek 模型 | `deepseek-v4-flash` |
 | `PARKIO_DEEPSEEK_ENDPOINT` | DeepSeek 端点 | `https://api.deepseek.com/v1/chat/completions` |
 | `PARKIO_CLIPROXY_KEY` | Anthropic/备用模式的本地代理密钥；或 `~/park-io/secrets/cliproxy-key` | 无 |
 | `PARKIO_CLIPROXY_MODEL` | Anthropic/备用模式模型 | `claude-sonnet-4-5-20250929` |
@@ -194,7 +194,7 @@ daily-newsletter/
 ├── lib.py                     # 共享：路径、解析、llm_call(带重试)
 ├── inbox-workflow.yaml        # 工作流图真源 (v12 四路径)
 ├── GOTCHAS.md                 # 回归不变量清单
-├── tests/                     # 6 个回归测试套件
+├── tests/                     # 回归测试套件
 └── AGENTS.md                  # 给 AI agent 的编辑规则
 ```
 

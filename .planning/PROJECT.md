@@ -22,10 +22,10 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 - [x] The workflow diagram contract is four independent deterministic paths: official/code, X application, media, and saved/manual/WeChat.
 - [x] Regression tests and `check-quality.py` enforce core reader-facing quality gates.
 
-### Active
+### Completed
 
-- [ ] Preserve the recent title/media/Douyin fixes through regression tests so future agents cannot reintroduce raw X truncation, promo videos, no-transcript media, or Douyin whitelist loss.
-- [ ] Keep the daily run fast by default: `deepseek-v4-flash` with thinking disabled unless explicitly overridden.
+- [x] Preserve the recent title/media/Douyin fixes through regression tests so future agents cannot reintroduce raw X truncation, promo videos, no-transcript media, or Douyin whitelist loss.
+- [x] Keep the daily run fast by default: `deepseek-v4-flash` with thinking disabled unless explicitly overridden.
 
 ### Out of Scope
 
@@ -64,4 +64,4 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 | Brief channel health belongs in the digest | Owner should not need to open a second status page for basic channel health | Good |
 
 ---
-*Last updated: 2026-06-04 after Phase 3 health visibility closure.*
+*Last updated: 2026-06-04 after Phase 5 end-to-end daily proof.*
