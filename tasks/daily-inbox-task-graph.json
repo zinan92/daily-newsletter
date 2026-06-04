@@ -672,7 +672,7 @@
       "id": "GI-002",
       "title": "Implement GitHub Issues dry-run exporter",
       "type": "implementation",
-      "status": "todo",
+      "status": "done",
       "dependencies": [
         "GI-001"
       ],
@@ -690,7 +690,25 @@
       ],
       "linter_commands": [
         "python3 -m py_compile scripts/task_graph_github_export.py"
-      ]
+      ],
+      "claimed_by": "codex",
+      "claimed_at": "2026-06-04T14:49:25Z",
+      "history": [
+        {
+          "event": "claimed",
+          "agent": "codex",
+          "at": "2026-06-04T14:49:25Z"
+        },
+        {
+          "event": "completed",
+          "agent": "codex",
+          "at": "2026-06-04T14:50:06Z",
+          "commit": "pending"
+        }
+      ],
+      "completed_by": "codex",
+      "completed_at": "2026-06-04T14:50:06Z",
+      "commit": "pending"
     },
     {
       "id": "AG-001",

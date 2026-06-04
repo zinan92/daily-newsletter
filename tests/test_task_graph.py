@@ -24,6 +24,7 @@ from task_graph_lib import (  # noqa: E402
     ready_tasks,
     validate_graph,
 )
+from task_graph_github_export import export_payloads  # noqa: E402
 
 
 def minimal_task(task_id, deps=None, status="todo"):
@@ -184,6 +185,25 @@ def test_agent_loop_claim_mode_mutates_graph_file():
         updated = json.loads(graph_path.read_text(encoding="utf-8"))
         assert updated["tasks"][0]["status"] == "claimed"
         assert updated["tasks"][0]["claimed_by"] == "codex"
+
+
+def test_github_export_renders_issue_contract_fields():
+    g = graph([{**minimal_task("GI-001"), "type": "contract", "files": ["tasks/github-sync.md"]}])
+    payload = export_payloads(g, only_task="GI-001")[0]
+    assert payload["title"] == "[GI-001] GI-001"
+    assert payload["state"] == "open"
+    assert "daily-inbox" in payload["labels"]
+    assert "task:contract" in payload["labels"]
+    assert "ready" in payload["labels"]
+    assert "## Success Criteria" in payload["body"]
+    assert "## Source Of Truth" in payload["body"]
+
+
+def test_github_export_marks_done_tasks_closed():
+    g = graph([minimal_task("TG-001", status="done")])
+    payload = export_payloads(g, only_task="TG-001")[0]
+    assert payload["state"] == "closed"
+    assert "status:done" in payload["labels"]
 
 
 if __name__ == "__main__":
