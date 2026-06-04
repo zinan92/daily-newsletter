@@ -2,7 +2,7 @@
 
 ## Overview
 
-The previous brownfield milestone turned the existing Park-IO daily digest into a boring production routine. The new milestone decomposes source ingestion by runtime channel while preserving the current daily output.
+The previous brownfield milestones turned the existing Park-IO daily digest into a boring production routine, decomposed source ingestion by runtime channel, and added the first executable task graph for agent-claimable work.
 
 ## Phases
 
@@ -20,6 +20,7 @@ The previous brownfield milestone turned the existing Park-IO daily digest into 
 - [x] **Phase 8: Media And WeChat Folderization** - Move YouTube/media, Douyin, WeChat RSS, manual links, and media enrichment behind channel/enrichment folders.
 - [x] **Phase 9: Aggregation Boundary And Workflow Spec** - Move digest aggregation behind an aggregation folder and add n8n-ready workflow-as-code.
 - [x] **Phase 10: Full Verification And Cross-AI Review** - Prove output compatibility, run full verification, run Claude Code review, fix findings, and close the milestone.
+- [x] **Phase 11: Executable Task Graph Foundation** - Define the repo-local task graph, validator, ready planner, thread planner, and claim/complete commands.
 
 ## Phase Details
 
@@ -161,6 +162,22 @@ Plans:
 Plans:
 - [x] 10-01: Verify, review, fix, and close source-ingestion decomposition.
 
+### Phase 11: Executable Task Graph Foundation
+**Goal**: Make future work decomposable into atomic units and execution threads that idle agents can claim.
+**Depends on**: Phase 10
+**Requirements**: [TG-01, TG-02, TG-03, TG-04, TG-05]
+**Success Criteria** (what must be TRUE):
+  1. `tasks/schema.json` and `tasks/daily-inbox-task-graph.json` exist.
+  2. The graph contains at least 20 atomic units with success criteria, tests, review requirements, and linter commands.
+  3. `scripts/task_graph_validate.py` passes.
+  4. `scripts/task_graph_ready.py` outputs the current claimable task.
+  5. `scripts/task_graph_threads.py` outputs execution waves and serial threads.
+  6. Tests prove changing an edge changes execution order.
+**Plans**: 1 plan
+
+Plans:
+- [x] 11-01: Create task graph schema, validator, ready planner, threads planner, and claim protocol.
+
 ## Progress
 
 **Execution Order:**
@@ -178,10 +195,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 8. Media And WeChat Folderization | 1/1 | Complete | 2026-06-04 |
 | 9. Aggregation Boundary And Workflow Spec | 1/1 | Complete | 2026-06-04 |
 | 10. Full Verification And Cross-AI Review | 1/1 | Complete | 2026-06-04 |
+| 11. Executable Task Graph Foundation | 1/1 | Complete | 2026-06-04 |
 
 ## Current Recommendation
 
-Next target is Phase 8: folderize media, Douyin, WeChat RSS, and manual ingestion behind compatibility wrappers.
+Next target is Phase 12: executable workflow diagram contract and dry-run runner.
 
 ---
 *Roadmap created: 2026-06-04 from HANDOVER.md, README.md, GOTCHAS.md, AGENTS.md, and .planning/codebase/.*

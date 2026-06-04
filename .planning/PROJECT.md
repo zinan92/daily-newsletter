@@ -29,10 +29,17 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 
 ### Active Milestone
 
-- [ ] Decompose source ingestion into channel-owned folders while preserving the current daily Markdown/HTML/PNG output.
-- [ ] Define standard input/output/health contracts for every ingestion path.
-- [ ] Keep existing cron/CLI entrypoints as thin compatibility shims during the refactor.
-- [ ] Produce a workflow-as-code spec that can later become an n8n workflow without making n8n the source of truth in this milestone.
+- [x] Decompose source ingestion into channel-owned folders while preserving the current daily Markdown/HTML/PNG output.
+- [x] Define standard input/output/health contracts for every ingestion path.
+- [x] Keep existing cron/CLI entrypoints as thin compatibility shims during the refactor.
+- [x] Produce a workflow-as-code spec that can later become an n8n workflow without making n8n the source of truth in this milestone.
+
+### New Active Milestone
+
+- [ ] Create an executable task graph so future work can be decomposed into atomic units and execution threads.
+- [ ] Make ready tasks claimable by idle agents through a local, testable protocol.
+- [ ] Keep the repo-local graph as the source of truth before syncing to GitHub Issues or n8n.
+- [ ] Prove that changing graph edges changes the computed execution waves/threads.
 
 ### Out of Scope
 
@@ -70,6 +77,7 @@ Every morning the owner gets one trustworthy Chinese AI intelligence digest that
 | Curated media is valuable by default but must have transcript/summary | Media should not be lost to X-style score filters, but promo/no-transcript items should not reach readers | Good |
 | Brief channel health belongs in the digest | Owner should not need to open a second status page for basic channel health | Good |
 | Ingestion decomposes by runtime channel, not digest section | Each channel has different fetch/enrichment/failure behavior | Active |
+| Task graph becomes the source of truth for agent-claimable work | Owner wants 20-50 future steps decomposed into atomic units and execution threads | Active |
 
 ---
-*Last updated: 2026-06-04 for source-ingestion decomposition milestone.*
+*Last updated: 2026-06-04 for executable task graph milestone.*

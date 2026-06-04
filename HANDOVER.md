@@ -84,6 +84,24 @@ Recent GSD commits:
 - Root scripts remain the public command/import surface for cron, tests, and
   operator commands.
 
+## Executable task graph
+
+The first repo-local task graph is now in place:
+
+- Schema: `tasks/schema.json`
+- Graph: `tasks/daily-inbox-task-graph.json`
+- Docs: `tasks/README.md`
+- Validator: `python3 scripts/task_graph_validate.py`
+- Ready tasks: `python3 scripts/task_graph_ready.py`
+- Execution waves/threads: `python3 scripts/task_graph_threads.py`
+- Claim: `python3 scripts/task_claim.py <TASK_ID> --agent <name>`
+- Complete: `python3 scripts/task_complete.py <TASK_ID> --agent <name> --commit <sha>`
+
+This is the foundation for the owner's Symphony-like operating model: atomic
+units first, execution threads derived from dependencies, then future GitHub
+Issues or n8n sync. Keep the local graph canonical until those sync layers are
+proven.
+
 ## What changed in the stabilization milestone
 1. **LLM failover + local finalize** (`lib.py`, `push-digest.sh`, `finalize-local.py`).
 2. **Douyin delivery and routing** — `digest_config.active_douyin_source_names()`

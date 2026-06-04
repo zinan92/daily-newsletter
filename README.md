@@ -209,6 +209,20 @@ daily-newsletter/
 
 数据目录在 `~/park-io/`：`inbox/`（unprocessed/processed/sent）、`library/profiles/<id>/items/`（长期归档）、`status.html`（维护者面板）。
 
+## Agent-Claimable Task Graph
+
+未来的大改动先写进 repo-local task graph，再让 agent 认领 ready task：
+
+```bash
+python3 scripts/task_graph_validate.py
+python3 scripts/task_graph_ready.py
+python3 scripts/task_graph_threads.py
+python3 scripts/task_claim.py TG-001 --agent codex
+python3 scripts/task_complete.py TG-001 --agent codex --commit <sha>
+```
+
+当前图在 `tasks/daily-inbox-task-graph.json`，schema 在 `tasks/schema.json`。GitHub Issues / n8n sync 是后续层；本地 task graph 先保持 source of truth。
+
 ## For AI Agents
 
 这是一个 **CLI / cron 流水线**，不暴露 HTTP API。集成或修改前，请读 `AGENTS.md` 和 `GOTCHAS.md`。

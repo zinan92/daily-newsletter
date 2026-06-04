@@ -5,6 +5,16 @@
 
 ## Current Milestone Requirements
 
+### Executable Task Graph / Agent Claim System
+
+- [x] **TG-01**: The repo contains a task graph schema that defines task id, dependencies, status, success criteria, test commands, review requirements, linter commands, and claim metadata.
+- [x] **TG-02**: The repo contains a Daily Inbox task graph with at least 20 atomic units and explicit dependencies.
+- [x] **TG-03**: A validator rejects missing fields, invalid statuses, unknown dependencies, and dependency cycles.
+- [x] **TG-04**: Ready-task and execution-thread commands derive claimable tasks, parallel waves, and serial execution threads from the graph.
+- [x] **TG-05**: Claim and complete commands update the local graph with agent and history metadata.
+- [ ] **TG-06**: A future GitHub Issues sync layer can export local tasks without making GitHub the source of truth.
+- [ ] **TG-07**: A future n8n/executable diagram layer can map workflow graph nodes into visual runtime nodes.
+
 ### Source-Ingestion Decomposition
 
 - [x] **DEC-01**: Each runtime channel has a separate folder boundary: `rss`, `web_scrape`, `release_feed`, `x`, `youtube`, `douyin`, `wechat_rss`, and `manual_links`.
@@ -60,6 +70,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| TG-01 | Phase 11 | Complete |
+| TG-02 | Phase 11 | Complete |
+| TG-03 | Phase 11 | Complete |
+| TG-04 | Phase 11 | Complete |
+| TG-05 | Phase 11 | Complete |
+| TG-06 | Future | Pending |
+| TG-07 | Future | Pending |
 | DEC-01 | Phase 6, Phase 7, Phase 8 | In progress |
 | DEC-02 | Phase 6 | Complete |
 | DEC-03 | Phase 8 | Complete |
@@ -89,4 +106,4 @@
 
 ---
 *Requirements defined: 2026-06-04*
-*Last updated: 2026-06-04 after Phase 10 Claude Code review.*
+*Last updated: 2026-06-04 after Phase 11 executable task graph.*
