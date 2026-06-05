@@ -1,227 +1,355 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-06-04
+**Analysis Date:** 2026-06-05
 
 ## Directory Layout
 
-```text
-input-to-park/
-├── *.py                         # Flat Python CLI/cron pipeline scripts
-├── fetch-all.sh                 # Scheduled fetch entrypoint
-├── push-digest.sh               # Scheduled digest/finalize entrypoint
-├── prompts/                     # Markdown prompts for legacy/source summarization
-├── tests/                       # Plain Python regression tests
-├── logs/                        # Runtime logs written by shell and Python stages
-├── .runtime/wewe-rss/           # Local WeWe RSS runtime data
-├── .planning/codebase/          # Codebase map documents
-├── README.md                    # Product and operator overview
-├── AGENTS.md                    # Agent editing rules and workflow constraints
-├── GOTCHAS.md                   # Behavioral invariants and regression map
-├── HANDOVER.md                  # Current operational handover notes
-└── *.json                       # Local state, health, scoring, and media queues
+```
+input-to-park/                        # Repo root
+│
+├── contracts/                        # Global contract layer (schema-first)
+│   ├── README.md                     # Contract rules and boundary definition
+│   └── ingestion-artifact.schema.json  # Standard artifact JSON schema
+│
+├── ingestion/                        # Per-channel source adapters
+│   ├── common/                       # Shared ingestion primitives (no fetch logic)
+│   │   └── CONTRACT.md
+│   ├── rss/                          # RSS/Atom feeds (blogs, podcasts, YouTube RSS)
+│   │   ├── CONTRACT.md
+│   │   └── run.py
+│   ├── web_scrape/                   # Scrape-based ingestion (non-RSS sites)
+│   │   ├── CONTRACT.md
+│   │   └── run.py
+│   ├── x/                            # Twitter/X timeline and saved posts
+│   │   ├── CONTRACT.md
+│   │   ├── timeline.py               # Fetch user timeline
+│   │   └── saved.py                  # Fetch saved/bookmarked posts
+│   ├── wechat_rss/                   # WeChat via WeWe RSS bridge
+│   │   ├── CONTRACT.md
+│   │   ├── run.py                    # WeWe RSS bridge fetcher
+│   │   └── exporter.py              # External collector bridge importer
+│   ├── manual_links/                 # Owner-curated URLs
+│   │   ├── CONTRACT.md
+│   │   ├── run.py                    # Main manual link ingestion
+│   │   └── wechat_seed.py           # Seeded WeChat article handling
+│   ├── douyin/                       # Douyin (TikTok CN) video discovery
+│   │   ├── CONTRACT.md
+│   │   └── run.py
+│   ├── release_feed/                 # GitHub/changelog release feeds [CONTRACT ONLY]
+│   │   └── CONTRACT.md
+│   └── youtube/                      # YouTube-specific discovery [CONTRACT ONLY]
+│       └── CONTRACT.md
+│
+├── enrichment/                       # Cross-channel post-processing
+│   ├── media/                        # Video/audio transcript and deep summary
+│   │   ├── CONTRACT.md
+│   │   └── run.py
+│   └── quoted_article/               # X-quoted URL resolution [CONTRACT ONLY]
+│       └── CONTRACT.md
+│
+├── aggregation/
+│   └── digest/                       # Final reader-facing digest pipeline
+│       ├── CONTRACT.md
+│       ├── score_stage.py            # Stage: score all batch items
+│       ├── score_items.py            # Item-level scoring helpers
+│       ├── build.py                  # Assemble ranked digest Markdown
+│       ├── summarize.py             # LLM summarisation
+│       ├── check_stage.py           # Rule-based quality gate
+│       ├── quality.py               # Quality check helpers
+│       ├── ai_quality.py            # LLM-based quality gate
+│       ├── archive.py               # Archive items post-digest
+│       ├── finalize_local.py        # Write final MD + HTML + PNG
+│       └── html_to_long_image.py   # Render HTML to long PNG image
+│
+├── workflow/
+│   ├── diagram/                      # Canonical executable workflow graph
+│   │   ├── README.md
+│   │   ├── daily-newsletter.graph.json  # Node/edge definitions with commands
+│   │   └── schema.json              # Graph JSON schema
+│   └── n8n/                         # Generated n8n adapter artifacts
+│       ├── README.md
+│       └── daily-newsletter.workflow.json  # n8n-format export (generated)
+│
+├── scripts/                          # Ops/automation scripts (not in daily pipeline)
+│   ├── task_graph_lib.py            # Task graph data model
+│   ├── task_graph_validate.py       # Validate task graph JSON
+│   ├── task_graph_ready.py          # Compute ready tasks from graph
+│   ├── task_graph_threads.py        # Thread/parallelism analysis
+│   ├── task_agent_loop.py           # Agent claim/complete loop
+│   ├── task_claim.py                # Claim a task (agent protocol)
+│   ├── task_complete.py             # Mark task complete
+│   ├── task_next.py                 # Query next claimable task
+│   ├── workflow_graph_lib.py        # Workflow graph data model
+│   ├── workflow_graph_validate.py   # Validate workflow graph
+│   ├── workflow_graph_run.py        # Execute workflow graph nodes
+│   ├── workflow_graph_dry_run.py    # Dry-run workflow (no production data)
+│   ├── n8n_export.py               # Export graph to n8n JSON format
+│   └── n8n_import_diff.py          # Diff n8n import against canonical graph
+│
+├── tasks/                            # Planning agent task documents
+│   ├── README.md
+│   ├── agent-claim-protocol.md
+│   ├── cross-ai-review.md
+│   └── review-checklist.md
+│
+├── tests/                            # Test suite
+│   ├── test_ingestion_contracts.py
+│   ├── test_ingestion_wrappers.py
+│   ├── test_reader_quality_contract.py
+│   ├── test_alerts.py
+│   ├── test_bypass.py
+│   ├── test_channel_health.py
+│   ├── test_chinese_fallback.py
+│   ├── test_cleaning.py
+│   ├── test_douyin_delivery.py
+│   ├── test_empty_x.py
+│   ├── test_finalize_local.py
+│   ├── test_health_dashboard.py
+│   ├── test_llm_fallback.py
+│   ├── test_media.py
+│   ├── test_n8n_export.py
+│   ├── test_n8n_import_diff.py
+│   ├── test_scrape_sitemap.py
+│   ├── test_shorts.py
+│   ├── test_source_health.py
+│   ├── test_task_graph.py
+│   ├── test_thread_merge.py
+│   ├── test_titles.py
+│   └── test_workflow_graph.py
+│
+├── prompts/                          # LLM prompt templates
+│   ├── digest-intro.md
+│   ├── summarize-blogs.md
+│   └── summarize-tweets.md
+│
+│── .planning/                        # GSD planning docs (not shipped)
+│   ├── STATE.md
+│   ├── ROADMAP.md
+│   ├── codebase/
+│   └── phases/
+│
+│   ── Root-level Python (see below for classification)
+├── lib.py                            # Shared utilities (path constants, LLM, frontmatter)
+├── digest_config.py                 # Product policy constants (thresholds, roles)
+├── digest_events.py                 # Event identity and grouping rules
+├── digest_text.py                   # Text cleaning helpers
+│
+│   ── Shell orchestrators (cron/launchd primary entry)
+├── fetch-all.sh                      # Cron: runs fetch.py every 4h with lock
+├── push-digest.sh                   # Daily: open-batch → score → build → deliver
+│
+│   ── Python pipeline runners (called by shells)
+├── fetch.py                          # Stage 1 fan-out: runs all fetch-*.py
+├── open-batch.py                    # Move unprocessed → processed/<batch-id>/
+├── generate-status.py               # Owner inbox dashboard (post-deliver)
+├── push-telegram.py                 # Direct Telegram delivery
+│
+│   ── Root compatibility wrappers (re-export only — no logic here)
+├── fetch-rss.py                     # → ingestion/rss/run.py
+├── fetch-scrape.py                  # → ingestion/web_scrape/run.py
+├── fetch-twitter.py                 # → ingestion/x/timeline.py
+├── fetch-twitter-saved.py           # → ingestion/x/saved.py
+├── fetch-wechat.py                  # → ingestion/manual_links/wechat_seed.py
+├── fetch-wechat-rss.py              # → ingestion/wechat_rss/run.py
+├── fetch-wechat-exporter.py         # → ingestion/wechat_rss/exporter.py
+├── fetch-douyin.py                  # → ingestion/douyin/run.py
+├── fetch-manual-links.py            # → ingestion/manual_links/run.py
+├── fetch-media-transcripts.py       # → enrichment/media/run.py
+├── score.py                         # → aggregation/digest/score_stage.py
+├── score-items.py                   # → aggregation/digest/score_items.py
+├── build-digest.py                  # → aggregation/digest/build.py
+├── summarize.py                     # → aggregation/digest/summarize.py
+├── check-quality.py                 # → aggregation/digest/check_stage.py
+├── quality-check.py                 # → aggregation/digest/quality.py
+├── ai-quality-check.py              # → aggregation/digest/ai_quality.py
+├── archive-items.py                 # → aggregation/digest/archive.py
+├── finalize-local.py                # → aggregation/digest/finalize_local.py
+├── html-to-long-image.py            # → aggregation/digest/html_to_long_image.py
+├── send-artifacts.py                # delegates to push-telegram.py
+│
+│   ── Utility / ops scripts (not in daily pipeline)
+├── channel-health.py                # Per-channel health from fetch logs
+├── check-pipeline-health.py         # Daily pipeline alert (post-digest Telegram)
+├── source-health.py                 # Source-level fetch health tracker
+├── refresh-twitter-auth.py          # Manual X cookie refresh
+├── onboard-source.py                # One-time: build source profile from history
+├── onboard-baseline.py              # One-time: refresh source profile baseline
+├── polish-douyin.py                 # Corpus maintenance: transcript polish
+├── fix-asr-errors.py                # Corpus maintenance: ASR error corrections
+├── build-index.py                   # Library index for 慢学AI corpus
+└── backfill-claude-blog-library.py  # Backfill Claude Blog articles into library
 ```
 
 ## Directory Purposes
 
-**Repository Root:**
-- Purpose: Keep every executable pipeline stage at top level for cron/launchd and manual operation.
-- Contains: Fetchers (`fetch-*.py`), scoring (`score.py`, `score-items.py`), digest build (`build-digest.py`, `summarize.py`), quality gates (`check-quality.py`, `quality-check.py`, `ai-quality-check.py`), archival/finalization (`archive-items.py`, `finalize-local.py`), delivery (`send-artifacts.py`, `push-telegram.py`), status (`generate-status.py`, `channel-health.py`, `check-pipeline-health.py`).
-- Key files: `lib.py`, `digest_config.py`, `digest_events.py`, `digest_text.py`, `fetch.py`, `fetch-all.sh`, `push-digest.sh`, `summarize.py`, `quality-check.py`.
+**`contracts/`:**
+- Purpose: Global schema and boundary contract definitions. Defined first — before implementation.
+- Contains: `ingestion-artifact.schema.json` (required fields for every channel output), `README.md` (boundary rules)
+- Key files: `contracts/README.md`, `contracts/ingestion-artifact.schema.json`
 
-**`prompts/`:**
-- Purpose: Store markdown prompts used by summarization/assembly paths.
-- Contains: `prompts/summarize-blogs.md`, `prompts/summarize-tweets.md`, `prompts/digest-intro.md`.
-- Use prompt files for source-level prompt text when a script needs stable, editable instructions; keep product invariants in code/tests, not only prompt wording.
+**`ingestion/<channel>/`:**
+- Purpose: One folder per source channel. Each owns fetching, source-specific normalisation, and writing raw items to `~/park-io/inbox/unprocessed/`.
+- Contains: `run.py` (main entrypoint), `CONTRACT.md` (boundary prose), optional channel-specific modules
+- Key files: `ingestion/rss/run.py`, `ingestion/x/timeline.py`, `ingestion/wechat_rss/exporter.py`
+- Note: `ingestion/release_feed/` and `ingestion/youtube/` are `CONTRACT.md`-only stubs — no `run.py` yet.
+
+**`ingestion/common/`:**
+- Purpose: Shared ingestion primitives (not a channel). Provides source loading, artifact building, URL normalisation, health/error payloads, and test helpers.
+- Does not contain: any channel-specific fetch logic.
+
+**`enrichment/`:**
+- Purpose: Cross-channel post-processing. Each subfolder owns one enrichment concern.
+- Key files: `enrichment/media/run.py` (transcript + deep summary), `enrichment/quoted_article/CONTRACT.md` (future)
+
+**`aggregation/digest/`:**
+- Purpose: The complete reader-facing digest pipeline — all stages from raw scores to final PNG artifact.
+- Key files: `score_stage.py`, `build.py`, `summarize.py`, `check_stage.py`, `finalize_local.py`, `html_to_long_image.py`
+
+**`workflow/`:**
+- Purpose: Executable workflow graph specs (canonical source of truth) and generated n8n adapters.
+- `workflow/diagram/daily-newsletter.graph.json` — canonical; edit this.
+- `workflow/n8n/daily-newsletter.workflow.json` — generated by `scripts/n8n_export.py`; do not edit directly.
+
+**`scripts/`:**
+- Purpose: Automation, task-graph OS, and workflow graph tooling. Not part of the daily ingestion/digest pipeline.
+- Key files: `task_graph_lib.py`, `workflow_graph_lib.py`, `n8n_export.py`, `n8n_import_diff.py`
 
 **`tests/`:**
-- Purpose: Store regression tests for product invariants.
-- Contains: Standalone `tests/test_*.py` modules that can be run directly with `python3 tests/test_name.py`.
-- Key files: `tests/test_bypass.py`, `tests/test_cleaning.py`, `tests/test_titles.py`, `tests/test_thread_merge.py`, `tests/test_llm_fallback.py`, `tests/test_alerts.py`.
+- Purpose: Full test suite. Co-located with repo root (not inside src subdirectory).
+- Naming: `test_<feature>.py`. Coverage spans contracts, wrappers, quality gates, health, n8n adapters, workflow graph.
 
-**`logs/`:**
-- Purpose: Runtime log output for scheduled fetch and digest jobs.
-- Contains: `logs/fetch-all.log`, `logs/push-digest.log`, lock files such as `logs/fetch.lock`.
-- Generated: Yes.
-- Committed: Runtime files should be treated as local operational state.
+**`prompts/`:**
+- Purpose: LLM prompt templates loaded at runtime. Markdown files, not Python.
 
-**`.runtime/wewe-rss/`:**
-- Purpose: Local WeWe RSS runtime data for WeChat feed support.
-- Contains: Runtime data under `.runtime/wewe-rss/data`.
-- Generated: Yes.
-- Committed: Treat as local runtime state, not source code.
+## Root-Level Files: Wrapper vs Real Entrypoint
 
-**External Park-IO Data Root `~/park-io/`:**
-- Purpose: Hold source configuration, inbox queues, processed artifacts, sent artifacts, long-term library, status files, and secrets outside the code repo.
-- Key paths: `/Users/wendy/park-io/sources.md`, `/Users/wendy/park-io/inbox/manual-links.md`, `/Users/wendy/park-io/inbox/unprocessed/`, `/Users/wendy/park-io/inbox/processed/`, `/Users/wendy/park-io/inbox/sent/`, `/Users/wendy/park-io/library/profiles/`, `/Users/wendy/park-io/library/独立链接`.
-- Do not read or document secret values under `/Users/wendy/park-io/secrets/` or `/Users/wendy/park-io/outbox/.system/secrets/`.
+### Compatibility Wrappers (contain NO business logic — always delegate)
 
-## Key File Locations
+Every file in this category follows the same pattern:
+```python
+from ingestion.<channel>.run import *  # or enrichment / aggregation
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
 
-**Entry Points:**
-- `fetch-all.sh`: Cron/launchd fetch wrapper; selects Python 3.11+, sets `PYTHONPATH` for `~/content-toolkit/capabilities/download`, locks with `logs/fetch.lock`, then runs `fetch.py`.
-- `push-digest.sh`: Daily digest wrapper; waits for `logs/fetch.lock`, opens a batch with `open-batch.py`, then runs `score.py`, `build-digest.py`, `check-quality.py`, `archive-items.py`, `finalize-local.py`, and optionally `send-artifacts.py`.
-- `fetch.py`: Fetch orchestrator for source fetch stages.
-- `open-batch.py`: Moves pending inbox files into a processed batch and emits `PARKIO_BATCH_ID`.
-- `build-digest.py`: Runs `summarize.py`, then renders PNG from HTML via `html-to-long-image.py` when HTML exists.
+| Root file | Delegates to | Why it exists |
+|-----------|-------------|---------------|
+| `fetch-rss.py` | `ingestion/rss/run.py` | cron CLI compat |
+| `fetch-scrape.py` | `ingestion/web_scrape/run.py` | cron CLI compat |
+| `fetch-twitter.py` | `ingestion/x/timeline.py` | cron CLI compat |
+| `fetch-twitter-saved.py` | `ingestion/x/saved.py` | cron CLI compat |
+| `fetch-wechat.py` | `ingestion/manual_links/wechat_seed.py` | cron CLI compat |
+| `fetch-wechat-rss.py` | `ingestion/wechat_rss/run.py` | cron CLI compat |
+| `fetch-wechat-exporter.py` | `ingestion/wechat_rss/exporter.py` | cron CLI compat |
+| `fetch-douyin.py` | `ingestion/douyin/run.py` | cron CLI compat |
+| `fetch-manual-links.py` | `ingestion/manual_links/run.py` | cron CLI compat |
+| `fetch-media-transcripts.py` | `enrichment/media/run.py` | cron CLI compat |
+| `score.py` | `aggregation/digest/score_stage.py` | push-digest.sh compat |
+| `score-items.py` | `aggregation/digest/score_items.py` | push-digest.sh compat |
+| `build-digest.py` | `aggregation/digest/build.py` | push-digest.sh compat |
+| `summarize.py` | `aggregation/digest/summarize.py` | push-digest.sh compat (uses `globals().update()` due to name collision) |
+| `check-quality.py` | `aggregation/digest/check_stage.py` | push-digest.sh compat |
+| `quality-check.py` | `aggregation/digest/quality.py` | push-digest.sh compat |
+| `ai-quality-check.py` | `aggregation/digest/ai_quality.py` | push-digest.sh compat |
+| `archive-items.py` | `aggregation/digest/archive.py` | push-digest.sh compat |
+| `finalize-local.py` | `aggregation/digest/finalize_local.py` | push-digest.sh compat |
+| `html-to-long-image.py` | `aggregation/digest/html_to_long_image.py` | push-digest.sh compat |
+| `send-artifacts.py` | `push-telegram.py` | push-digest.sh compat |
 
-**Configuration:**
-- `lib.py`: Defines repo root and Park-IO paths: `ROOT`, `PARKIO`, `SOURCES_PATH`, `INBOX`, `UNPROCESSED_DIR`, `PROCESSED_DIR`, `SENT_DIR`, `LIBRARY_DIR`, `PROFILE_LIBRARY_DIR`, `INDEPENDENT_LINKS_DIR`.
-- `digest_config.py`: Product policy constants: score thresholds, source groups, source roles, source authority, bad LLM markers, active Douyin source lookup.
-- `/Users/wendy/park-io/sources.md`: Single source of truth for active sources; `lib.load_sources()` parses the first markdown table and ignores inactive rows.
-- `/Users/wendy/park-io/inbox/manual-links.md`: Single manual link queue with `Pending`, `Imported`, and `Failed` sections.
-- `state.json`, `scores.json`, `source-health.json`, `scoring-health.json`, `media-queue.json`, `media-summaries.json`, `tg-push-state.json`: Local JSON state and health files read/written by pipeline stages.
+**Rule:** Never add business logic to wrapper files. All changes go in the folder-layer module.
 
-**Core Logic:**
-- `lib.py`: Shared path helpers, source parser, state helpers, markdown item rendering, source output writer, LLM client, health alert writer, Telegram helper.
-- `summarize.py`: Main daily intelligence panel builder; reads processed items, scores, media summaries, source health, and writes final markdown/html artifacts.
-- `digest_events.py`: Event grouping, thread merging, official grouping, source ranking, semantic clustering.
-- `digest_text.py`: Reader-facing text cleanup; strips source metadata and bad LLM wording.
-- `quality-check.py`: Deterministic reader-facing gate; blocks metadata leaks, raw English, bad patterns, push marker issues, and markdown/html heading divergence.
-- `ai-quality-check.py`: AI second-pass quality review.
-- `archive-items.py`: Moves processed items into profile library files and keeps profile baselines current.
-- `finalize-local.py`: Writes final local sent artifacts under `/Users/wendy/park-io/inbox/sent/`.
+### Real Pipeline Entrypoints (contain logic)
 
-**Fetchers:**
-- `fetch-rss.py`: RSS, GitHub release feeds, and YouTube RSS/fallback handling.
-- `fetch-scrape.py`: HTML scrape sources such as official blogs/news pages.
-- `fetch-twitter.py`: X account fetch path.
-- `fetch-twitter-saved.py`: User saved X items path.
-- `fetch-wechat.py`: Direct WeChat article fetch/parser/library writer.
-- `fetch-wechat-rss.py`: WeWe RSS-based WeChat feed fetcher.
-- `fetch-wechat-exporter.py`: WeChat exporter import path.
-- `fetch-manual-links.py`: Manual WeChat article import path from `/Users/wendy/park-io/inbox/manual-links.md`.
-- `fetch-douyin.py`: Douyin source fetcher using `content_downloader` from `~/content-toolkit/capabilities/download`.
-- `fetch-media-transcripts.py`, `fix-asr-errors.py`, `polish-douyin.py`: Media transcription and cleanup path.
+| File | Role |
+|------|------|
+| `fetch-all.sh` | Cron shell orchestrator; fetch stage |
+| `push-digest.sh` | Daily shell orchestrator; aggregation + deliver |
+| `fetch.py` | Stage 1 Python runner; fans out to all fetchers |
+| `open-batch.py` | Opens a digest batch (moves files, emits BATCH_ID) |
+| `push-telegram.py` | Telegram delivery with section/item selection logic |
+| `generate-status.py` | Owner inbox dashboard HTML generator |
 
-**Status and Operations:**
-- `channel-health.py`: Source health truth from fetch logs and feed freshness.
-- `source-health.py`: Source health data collection.
-- `generate-status.py`: Maintainer status page writer.
-- `check-pipeline-health.py`: Writes local health alerts for transcription failures, scoring outages, stale feeds, and related operational problems.
-- `send-artifacts.py`, `push-telegram.py`: Delivery path; Telegram is optional and normally skipped by `PARKIO_SKIP_SEND=1`.
+### Shared Library Modules (not entrypoints, not wrappers)
 
-**Testing:**
-- `tests/test_bypass.py`: Official/manual/media score bypass invariants.
-- `tests/test_cleaning.py`: Reader-facing metadata cleanup invariants.
-- `tests/test_chinese_fallback.py`: Chinese fallback behavior.
-- `tests/test_titles.py`: Title generation and stale-title prevention.
-- `tests/test_thread_merge.py`: X thread merge behavior.
-- `tests/test_douyin_delivery.py`: Douyin delivery/archive behavior.
-- `tests/test_llm_fallback.py`: DeepSeek to Anthropic/Sonnet fallback behavior.
-- `tests/test_alerts.py`: Local health alert behavior.
-
-## Park-IO Output Folders
-
-**Unprocessed Queue:**
-- Location: `/Users/wendy/park-io/inbox/unprocessed/`.
-- Naming: `YY-MM-DD-profile_id.md`, created by `lib.write_source_output()` through `lib.profile_day_filename()`.
-- Current examples: `/Users/wendy/park-io/inbox/unprocessed/26-06-04-openai.md`, `/Users/wendy/park-io/inbox/unprocessed/26-06-04-x-saved.md`, `/Users/wendy/park-io/inbox/unprocessed/26-06-04-thariq.md`.
-
-**Processed Batch:**
-- Location: `/Users/wendy/park-io/inbox/processed/<YY-MM-DD>/`.
-- Final reader artifacts: `000-YY-MM-DD.md`, `000-YY-MM-DD.html`, `000-YY-MM-DD.png`, generated via `lib.batch_artifact_paths()` and `build-digest.py`.
-- Per-profile processed files remain alongside final artifacts, for example `/Users/wendy/park-io/inbox/processed/26-06-04/26-06-04-openai.md`.
-
-**Sent / Local Final:**
-- Location: `/Users/wendy/park-io/inbox/sent/`.
-- Purpose: Owner-facing local final digest output written by `finalize-local.py`.
-- Naming: `YY-MM-DD.md` and HTML when available; do not make timestamped variants.
-
-**Profile Library:**
-- Location: `/Users/wendy/park-io/library/profiles/<profile_id>/items/`.
-- Purpose: Long-term archived content by source/profile.
-- Profile metadata: `archive-items.py` creates or updates `/Users/wendy/park-io/library/profiles/<profile_id>/profile.md`.
-- Current profiles include `/Users/wendy/park-io/library/profiles/anthropic`, `/Users/wendy/park-io/library/profiles/openai`, `/Users/wendy/park-io/library/profiles/claude-hunter`, `/Users/wendy/park-io/library/profiles/zhuzi-tzfilm`.
-
-**Independent Links:**
-- Location: `/Users/wendy/park-io/library/独立链接/`.
-- Purpose: Manual or unknown-profile WeChat articles that cannot map to a tracked source.
-- Writer: `fetch-manual-links.py` via `save_independent_article()` and `archive-items.py` for `unknown-profile`, `x-saved`, or `manual-link`.
+| File | Role |
+|------|------|
+| `lib.py` | Path constants, LLM calls, frontmatter, source loading |
+| `digest_config.py` | Score thresholds, category order, source roles |
+| `digest_events.py` | Event identity and grouping rules |
+| `digest_text.py` | Text cleaning (HTML strip, release bullets) |
 
 ## Naming Conventions
 
 **Files:**
-- Top-level executable scripts use kebab-case verbs: `fetch-manual-links.py`, `score-items.py`, `quality-check.py`, `push-telegram.py`.
-- Shared import modules use snake_case: `digest_config.py`, `digest_events.py`, `digest_text.py`.
-- Tests use `test_<topic>.py`: `tests/test_source_health.py`, `tests/test_health_dashboard.py`.
-- Prompts use kebab-case markdown names: `prompts/summarize-blogs.md`, `prompts/summarize-tweets.md`.
-- Local state files use lowercase kebab names when operational: `source-health.json`, `scoring-health.json`, `media-queue.json`.
+- Ingestion adapters: `run.py` inside channel folder (plus `timeline.py`, `saved.py`, `exporter.py` for multi-entrypoint channels)
+- Aggregation stage files: `<verb>_stage.py` or `<noun>.py` (e.g., `score_stage.py`, `build.py`)
+- Root wrappers: `fetch-<channel>.py` (ingestion), bare stage name (`score.py`, `build-digest.py`) for aggregation — all use hyphens
+- Test files: `test_<feature>.py`
+- Contract docs: `CONTRACT.md` in each channel/enrichment/aggregation folder
 
 **Directories:**
-- Repo-local directories are lowercase purpose names: `prompts/`, `tests/`, `logs/`.
-- Park-IO batch directories use `YY-MM-DD`: `/Users/wendy/park-io/inbox/processed/26-06-04`.
-- Profile library directories use sanitized `profile_id` from `/Users/wendy/park-io/sources.md` or `lib.PROFILE_ID_BY_SOURCE_NAME`: `/Users/wendy/park-io/library/profiles/claude-hunter`.
-
-**Source/Profile/Library:**
-- Add or disable sources in `/Users/wendy/park-io/sources.md`; the first markdown table is parsed by `lib.load_sources()`.
-- Prefer explicit `profile_id` in `/Users/wendy/park-io/sources.md`; otherwise `lib.profile_id_for_source()` maps known names through `lib.PROFILE_ID_BY_SOURCE_NAME` or sanitizes `name`.
-- Store long-term profile items in `/Users/wendy/park-io/library/profiles/<profile_id>/items/`; do not add legacy per-channel subfolders under a profile.
-- Keep channel/source metadata in frontmatter and filenames, not extra library layers.
-
-## Manual Links Behavior
-
-- Manual links live in `/Users/wendy/park-io/inbox/manual-links.md`, not in the repo.
-- The file must keep exactly these sections for automation: `## Pending`, `## Imported`, `## Failed`.
-- `fetch-manual-links.py` automatically creates the file with default text if it is missing.
-- Only WeChat article URLs matching `https://mp.weixin.qq.com/s/...` are imported automatically.
-- Unsupported URLs in `Pending` are preserved and logged; they are not silently deleted.
-- Successfully imported URLs move from `Pending` to `Imported` with date, profile, title, and URL.
-- Failed URLs move to `Failed` with date, URL, and error.
-- Duplicate seen URLs are deduped through `state.json` under key `manual-links`.
-- Tracked WeChat accounts map to source/profile via `fetch-manual-links.py source_for_article()` and `/Users/wendy/park-io/sources.md`.
-- Unknown manual WeChat articles use profile `manual-link` and are saved under `/Users/wendy/park-io/library/独立链接/`.
+- Channel names use `snake_case` under `ingestion/` (e.g., `web_scrape`, `wechat_rss`, `manual_links`)
+- Aggregation has a single `digest/` subdirectory under `aggregation/`
+- Scripts use `snake_case` filenames with underscore separators
 
 ## Where to Add New Code
 
-**New Fetch Source Type:**
-- Primary code: add a new `fetch-<platform>.py` at repo root, then call it from `fetch.py`.
-- Shared source parsing/path behavior: use `lib.load_sources()`, `lib.write_source_output()`, `lib.profile_id_for_source()`, and `lib.safe_filename()`.
-- Tests: add focused regression coverage under `tests/test_<topic>.py`.
+**New ingestion channel:**
+1. Create `ingestion/<channel_name>/CONTRACT.md` — define boundary first
+2. Create `ingestion/<channel_name>/run.py` — implement `main()` following the standard artifact schema
+3. Create a root compatibility wrapper `fetch-<channel>.py` re-exporting from `run.py`
+4. Add the wrapper to the `STAGES` list in `fetch.py`
+5. Tests: `tests/test_ingestion_contracts.py` (contract) + `tests/test_ingestion_wrappers.py` (wrapper)
 
-**New Digest Behavior:**
-- Primary code: `summarize.py` for orchestration/rendering, `digest_events.py` for event grouping, `digest_text.py` for cleanup, `digest_config.py` for policy constants.
-- Tests: add or extend `tests/test_titles.py`, `tests/test_cleaning.py`, `tests/test_bypass.py`, or a new `tests/test_<invariant>.py`.
-- Invariants: update `GOTCHAS.md` when the behavior becomes a regression contract.
+**New aggregation stage:**
+1. Create `aggregation/digest/<stage>.py`
+2. Create a root wrapper `<stage-name>.py` re-exporting from the module
+3. Add wrapper to `STAGES` in `push-digest.sh` at the correct sequence position
+4. Update `aggregation/digest/CONTRACT.md` entrypoint list
 
-**New Prompt:**
-- Implementation: add `prompts/<purpose>.md`.
-- Loader/invocation: keep prompt loading inside the script that owns the AI call.
-- Critical rules: enforce with code/tests when a rule must be guaranteed; prompts alone are not sufficient.
+**New enrichment type:**
+1. Create `enrichment/<concern>/CONTRACT.md` — define inputs/outputs/boundary
+2. Create `enrichment/<concern>/run.py` — implement `main()`
+3. Create root wrapper `fetch-<concern>.py`
+4. Add to `fetch.py` STAGES if it runs in the fetch window, or handle separately
 
-**New Profile/Source:**
-- Source row: edit `/Users/wendy/park-io/sources.md`.
-- Profile id: use explicit `profile_id` in the row, and add `lib.PROFILE_ID_BY_SOURCE_NAME` only when code needs a stable name mapping.
-- Library: allow `archive-items.py` to create `/Users/wendy/park-io/library/profiles/<profile_id>/profile.md` and `items/`.
+**New utility/ops script:**
+- Place at repo root if it needs direct CLI access alongside existing ops tools
+- Place in `scripts/` if it is workflow-graph, task-graph, or n8n tooling
 
-**Utilities:**
-- Shared pipeline helpers: `lib.py`.
-- Product policy constants and source groups: `digest_config.py`.
-- Text cleanup helpers: `digest_text.py`.
-- Event grouping helpers: `digest_events.py`.
-- Avoid new packages/modules unless the behavior is shared across multiple top-level scripts.
+**Shared helper code:**
+- Pipeline-wide constants and utilities: `lib.py`
+- Digest-specific configuration: `digest_config.py`
+- Digest event logic: `digest_events.py`
+- Digest text manipulation: `digest_text.py`
 
 ## Special Directories
 
-**`.planning/codebase/`:**
-- Purpose: GSD codebase map documents.
-- Generated: Yes.
-- Committed: Yes, if the orchestrator chooses to commit maps.
+**`~/park-io/inbox/unprocessed/`:**
+- Purpose: Landing zone for raw ingestion artifacts (`<date>-<profile>.md`)
+- Generated: Yes (by ingestion adapters at runtime)
+- Committed: No (outside the repo, in `~/park-io/`)
 
-**`.claude/worktrees/`:**
-- Purpose: Local agent/worktree runtime state.
-- Generated: Yes.
-- Committed: Treat as tool/runtime state.
+**`~/park-io/inbox/processed/<batch-id>/`:**
+- Purpose: Batch working directory created by `open-batch.py`
+- Generated: Yes
+- Committed: No
 
-**`.ruff_cache/`:**
-- Purpose: Ruff cache.
-- Generated: Yes.
-- Committed: No.
+**`~/park-io/inbox/sent/`:**
+- Purpose: Final delivered artifacts
+- Generated: Yes
+- Committed: No
 
-**`__pycache__/`:**
-- Purpose: Python bytecode cache.
-- Generated: Yes.
-- Committed: No.
+**`logs/`:**
+- Purpose: Runtime logs (`fetch-all.log`, `push-digest.log`) and lock file (`fetch.lock`)
+- Generated: Yes
+- Committed: No (gitignored)
+
+**`.planning/`:**
+- Purpose: GSD planning documents, phase plans, and codebase maps
+- Generated: Partially (codebase maps are written by mapping agents)
+- Committed: Yes
 
 ---
 
-*Structure analysis: 2026-06-04*
+*Structure analysis: 2026-06-05*

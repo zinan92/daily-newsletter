@@ -1,66 +1,66 @@
 # External Integrations
 
-**Analysis Date:** 2026-06-04
+**Analysis Date:** 2026-06-05
 
 ## APIs & External Services
 
 **RSS / Atom / Web Feeds:**
-- Generic RSS/Atom sources - `fetch-rss.py` reads active `platform=rss` rows from `~/park-io/sources.md` through `lib.load_sources()`, fetches with `urllib.request`, and parses RSS/Atom XML with `xml.etree.ElementTree`.
+- Generic RSS/Atom sources - `ingestion/rss/run.py` reads active `platform=rss` rows from `~/park-io/sources.md` through `lib.load_sources()`, fetches with `urllib.request`, and parses RSS/Atom XML with `xml.etree.ElementTree`.
   - SDK/Client: Python standard library `urllib.request` and `xml.etree.ElementTree`.
   - Auth: None detected for generic RSS.
-- YouTube channel feeds and pages - `fetch-rss.py` supports YouTube RSS plus HTML page fallback for official channels; it enriches titles/durations through `yt-dlp`.
+- YouTube channel feeds and pages - `ingestion/rss/run.py` supports YouTube RSS plus HTML page fallback for official channels; it enriches titles/durations through `yt-dlp`.
   - SDK/Client: `yt-dlp`, `python -m yt_dlp`, or `/opt/homebrew/bin/yt-dlp`.
-  - Auth: Optional cookies are handled in `fetch-media-transcripts.py` through `PARKIO_YTDLP_COOKIES_FILE` and `PARKIO_YTDLP_COOKIE_SOURCES`.
+  - Auth: Optional cookies are handled in `enrichment/media/run.py` through `PARKIO_YTDLP_COOKIES_FILE` and `PARKIO_YTDLP_COOKIE_SOURCES`.
 
 **Twitter / X:**
-- Tracked X accounts - `fetch-twitter.py` calls `/Users/wendy/.local/bin/twitter user-posts <handle> --max 20 --json` for active `platform=twitter` sources.
+- Tracked X accounts - `ingestion/x/timeline.py` calls `/Users/wendy/.local/bin/twitter user-posts <handle> --max 20 --json` for active `platform=twitter` sources.
   - SDK/Client: local `twitter` CLI at `/Users/wendy/.local/bin/twitter`.
   - Auth: `twitter-auth.env` at `/Users/wendy/work/input-to-park/twitter-auth.env`; the file is loaded but must not be quoted or committed with values.
-- X Articles - `fetch-twitter.py` and `fetch-twitter-saved.py` call `/Users/wendy/.local/bin/twitter article <tweet_id> --json` to attach long-form article content.
+- X Articles - `ingestion/x/timeline.py` and `ingestion/x/saved.py` call `/Users/wendy/.local/bin/twitter article <tweet_id> --json` to attach long-form article content.
   - SDK/Client: local `twitter` CLI.
   - Auth: `TWITTER_AUTH_TOKEN`, `TWITTER_CT0`, `TWITTER_BROWSER`, and `TWITTER_CHROME_PROFILE` loaded from `twitter-auth.env`.
-- User bookmarks/likes - `fetch-twitter-saved.py` calls `twitter bookmarks -n <N> --json` and `twitter likes <self_handle> -n <N> --json`.
+- User bookmarks/likes - `ingestion/x/saved.py` calls `twitter bookmarks -n <N> --json` and `twitter likes <self_handle> -n <N> --json`.
   - SDK/Client: local `twitter` CLI.
   - Auth: `twitter-auth.env`; `PARKIO_X_SELF_HANDLE`, `PARKIO_X_BOOKMARK_MAX`, `PARKIO_X_LIKE_MAX`, and `PARKIO_X_BACKFILL_RECENT_BOOKMARKS` configure scope.
 
 **WeChat / WeWe RSS / Manual Links:**
-- Seeded WeChat articles - `fetch-wechat.py` fetches `mp.weixin.qq.com/s/...` seed URLs from active `platform=wechat` rows and extracts article text with `html.parser.HTMLParser`.
+- Seeded WeChat articles - `ingestion/manual_links/wechat_seed.py` fetches `mp.weixin.qq.com/s/...` seed URLs from active `platform=wechat` rows and extracts article text with `html.parser.HTMLParser`.
   - SDK/Client: Python standard library `urllib.request` and `html.parser`.
   - Auth: None detected for direct seed article fetching.
-- WeChat RSS/JSON bridge - `fetch-wechat-rss.py` reads active `platform=wechat-rss` rows or `platform=wechat` rows with `notes` containing `rss_url <url>`, then parses RSS XML or JSON feeds.
+- WeChat RSS/JSON bridge - `ingestion/wechat_rss/run.py` reads active `platform=wechat-rss` rows or `platform=wechat` rows with `notes` containing `rss_url <url>`, then parses RSS XML or JSON feeds.
   - SDK/Client: Python standard library `urllib.request`, `xml.etree.ElementTree`, and `json`.
   - Auth: No repo-side credential; README documents `wewe-rss` on `localhost:4000` as the bridge, with WeChat/WeRead login expiry handled outside this repo.
-- Manual WeChat links - `fetch-manual-links.py` imports pending `https://mp.weixin.qq.com/s/...` URLs from `~/park-io/inbox/manual-links.md`, reuses `fetch-wechat.py`, and writes imported/failed records back to that Markdown file.
-  - SDK/Client: local file plus `fetch-wechat.py`.
+- Manual WeChat links - `ingestion/manual_links/run.py` imports pending `https://mp.weixin.qq.com/s/...` URLs from `~/park-io/inbox/manual-links.md`, reuses `ingestion/manual_links/wechat_seed.py`, and writes imported/failed records back to that Markdown file.
+  - SDK/Client: local file plus `ingestion/manual_links/wechat_seed.py`.
   - Auth: None detected.
-- WeChat exporter directory - `fetch-wechat-exporter.py` imports JSON/Markdown/HTML exports from `PARKIO_WECHAT_EXPORT_DIR`, defaulting to `~/park-io/outbox/wechat-exporter`.
+- WeChat exporter directory - `ingestion/wechat_rss/exporter.py` imports JSON/Markdown/HTML exports from `PARKIO_WECHAT_EXPORT_DIR`, defaulting to `~/park-io/outbox/wechat-exporter`.
   - SDK/Client: local filesystem parser.
   - Auth: Not applicable in repo.
 
 **YouTube / Podcast / Media Transcription:**
-- YouTube subtitles and audio - `fetch-media-transcripts.py` uses `yt-dlp` to fetch subtitles first, then downloads audio when subtitles are missing or too short.
+- YouTube subtitles and audio - `enrichment/media/run.py` uses `yt-dlp` to fetch subtitles first, then downloads audio when subtitles are missing or too short.
   - SDK/Client: `yt-dlp` CLI/Python module and optional browser/cookie-file auth.
   - Auth: `PARKIO_YTDLP_COOKIES_FILE` defaulting to `~/park-io/secrets/youtube-cookies.txt`; `PARKIO_YTDLP_COOKIE_SOURCES` defaulting to `chrome,chrome:Default`.
-- Local ASR - `fetch-media-transcripts.py` calls `mlx_whisper.transcribe()` through a subprocess using `PARKIO_MLX_WHISPER_MODEL`, default `mlx-community/whisper-small-mlx`.
+- Local ASR - `enrichment/media/run.py` calls `mlx_whisper.transcribe()` through a subprocess using `PARKIO_MLX_WHISPER_MODEL`, default `mlx-community/whisper-small-mlx`.
   - SDK/Client: `mlx_whisper`.
   - Auth: None.
-- Media duration checks - `fetch-media-transcripts.py` uses `ffprobe` to skip overlong media based on `PARKIO_MEDIA_MAX_ASR_SECONDS`.
+- Media duration checks - `enrichment/media/run.py` uses `ffprobe` to skip overlong media based on `PARKIO_MEDIA_MAX_ASR_SECONDS`.
   - SDK/Client: `/opt/homebrew/bin/ffprobe` or PATH `ffprobe`.
   - Auth: None.
 
 **Douyin:**
-- Douyin profile monitor - `fetch-douyin.py` imports `content_downloader.adapters.douyin.api_client.DouyinAPIClient` from `~/content-toolkit/capabilities/download` and fetches user posts by `sec_uid`.
+- Douyin profile monitor - `ingestion/douyin/run.py` imports `content_downloader.adapters.douyin.api_client.DouyinAPIClient` from `~/content-toolkit/capabilities/download` and fetches user posts by `sec_uid`.
   - SDK/Client: local `content-toolkit` Python package, `DouyinAPIClient`.
   - Auth: cookie JSON at `~/park-io/secrets/content-ops/douyin-cookies.json`; existence only, do not read contents.
-- Douyin video transcription - `fetch-media-transcripts.py` imports `content_downloader.adapters.douyin.adapter.DouyinAdapter` from the same `content-toolkit` directory, downloads a video temporarily, then transcribes through MLX Whisper.
+- Douyin video transcription - `enrichment/media/run.py` imports `content_downloader.adapters.douyin.adapter.DouyinAdapter` from the same `content-toolkit` directory, downloads a video temporarily, then transcribes through MLX Whisper.
   - SDK/Client: `DouyinAdapter`, `mlx_whisper`, `ffprobe`.
   - Auth: `~/park-io/secrets/content-ops/douyin-cookies.json`.
 
 **Official / Scraped Web Sources:**
-- Claude blog backfill and scrape candidates - `backfill-claude-blog-library.py` uses helpers from `fetch-scrape.py` to fetch `https://claude.com/blog` candidates and persist library articles.
+- Claude blog backfill and scrape candidates - `backfill-claude-blog-library.py` uses helpers from `ingestion/web_scrape/run.py` to fetch `https://claude.com/blog` candidates and persist library articles.
   - SDK/Client: local scraper module plus Python standard library.
   - Auth: None detected.
-- General scrape stage - `fetch.py` runs `fetch-scrape.py` as one fetch stage; scrape outputs feed the same Markdown queue through `lib.write_source_output()`.
+- General scrape stage - `fetch.py` runs `ingestion/web_scrape/run.py` as one fetch stage; scrape outputs feed the same Markdown queue through `lib.write_source_output()`.
   - SDK/Client: local script.
   - Auth: None detected from inspected references.
 
@@ -84,10 +84,10 @@
   - Auth: same Telegram env/local secret names.
 
 **Browser / HTML / PNG Artifacts:**
-- HTML digest artifacts - `summarize.py` writes processed Markdown and HTML through paths from `lib.batch_artifact_paths()`.
+- HTML digest artifacts - `aggregation/digest/summarize.py` writes processed Markdown and HTML through paths from `lib.batch_artifact_paths()`.
   - SDK/Client: local renderer code.
   - Auth: None.
-- Long PNG rendering - `html-to-long-image.py` opens generated HTML through `file://`, launches Google Chrome headless, captures a full-page PNG through Chrome DevTools or CLI screenshot fallback, and trims bottom whitespace with Pillow when available.
+- Long PNG rendering - `aggregation/digest/html_to_long_image.py` opens generated HTML through `file://`, launches Google Chrome headless, captures a full-page PNG through Chrome DevTools or CLI screenshot fallback, and trims bottom whitespace with Pillow when available.
   - SDK/Client: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, optional `websockets`, optional `PIL.Image`.
   - Auth: None.
 - Status page - `generate-status.py` writes maintainer status HTML under `~/park-io/status.html` and reads sent digests, source health, manual links state, and channel health.
@@ -163,7 +163,7 @@
 
 **Secrets location:**
 - Repo-local secret-like file detected by path reference: `/Users/wendy/work/input-to-park/twitter-auth.env`; do not read or quote its contents.
-- Main local secret directory: `~/park-io/secrets/`, referenced by `lib._load_secret()`, `fetch-douyin.py`, and `fetch-media-transcripts.py`.
+- Main local secret directory: `~/park-io/secrets/`, referenced by `lib._load_secret()`, `ingestion/douyin/run.py`, and `enrichment/media/run.py`.
 - YouTube cookies default: `~/park-io/secrets/youtube-cookies.txt`.
 - Douyin cookies default: `~/park-io/secrets/content-ops/douyin-cookies.json`.
 
@@ -177,10 +177,10 @@
 - DeepSeek chat completions from `lib.py` to `PARKIO_DEEPSEEK_ENDPOINT`.
 - CLIProxy/Sonnet messages from `lib.py` to `PARKIO_CLIPROXY_ENDPOINT`.
 - Telegram Bot API calls from `push-telegram.py` and `lib.py`.
-- RSS/Atom/Web fetches from `fetch-rss.py`, `fetch-wechat.py`, `fetch-wechat-rss.py`, `fetch-scrape.py`, and related maintenance scripts.
-- X CLI subprocess calls from `fetch-twitter.py` and `fetch-twitter-saved.py`.
-- YouTube/Douyin media downloads from `fetch-media-transcripts.py`.
+- RSS/Atom/Web fetches from `ingestion/rss/run.py`, `ingestion/manual_links/wechat_seed.py`, `ingestion/wechat_rss/run.py`, `ingestion/web_scrape/run.py`, and related maintenance scripts.
+- X CLI subprocess calls from `ingestion/x/timeline.py` and `ingestion/x/saved.py`.
+- YouTube/Douyin media downloads from `enrichment/media/run.py`.
 
 ---
 
-*Integration audit: 2026-06-04*
+*Integration audit: 2026-06-05*

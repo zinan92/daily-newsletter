@@ -1,227 +1,237 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-06-04
-
-## Tech Debt
-
-**Large Root-Level Scripts:**
-- Issue: Core behavior is concentrated in large root-level scripts instead of smaller importable modules.
-- Files: `summarize.py` (2096 lines), `generate-status.py` (1002 lines), `lib.py` (800 lines), `fetch-media-transcripts.py` (664 lines), `fetch-scrape.py` (504 lines), `push-telegram.py` (489 lines), `quality-check.py` (375 lines).
-- Impact: Changes to rendering, routing, LLM calls, source health, and delivery state have wide blast radius and require careful regression coverage.
-- Fix approach: Extract pure functions only when changing a touched area; keep existing CLI entrypoints stable and add focused tests in `tests/`.
-
-**Hyphenated Script Modules:**
-- Issue: Production files such as `channel-health.py`, `source-health.py`, `fetch-douyin.py`, and `fetch-scrape.py` cannot be imported by normal Python module names.
-- Files: `tests/test_channel_health.py`, `tests/test_source_health.py`, `tests/test_douyin_delivery.py`, `tests/test_scrape_sitemap.py`.
-- Impact: Tests need `importlib.util.spec_from_file_location`, which is easy to copy incorrectly and makes shared fixtures awkward.
-- Fix approach: Preserve script filenames for CLI compatibility; when refactoring, move reusable logic into underscore-named modules and keep hyphenated files as thin wrappers.
-
-**Configuration Outside Repo:**
-- Issue: Source configuration and runtime data are outside this repository.
-- Files: `README.md`, `lib.py`, `fetch-all.sh`, `push-digest.sh`, `source-health.py`.
-- External paths: `~/park-io/sources.md`, `~/park-io/inbox/`, `~/park-io/library/`, `~/park-io/secrets/`.
-- Impact: Unit tests can pass while an operator run fails because external source rows, cookies, or state files are stale.
-- Fix approach: Keep tests for pure behavior in `tests/`; verify production readiness with `python3 channel-health.py`, `python3 check-pipeline-health.py`, and a batch-specific `check-quality.py` run.
-
-## Known Bugs
-
-**WeChat RSS Subscription Gaps:**
-- Symptoms: A WeChat source can be registered locally but remain seed-only or frozen because the WeWe RSS subscription/feed is missing or stale.
-- Files: `fetch-wechat-rss.py`, `fetch-wechat.py`, `source-health.py`, `check-pipeline-health.py`, `GOTCHAS.md`, `HANDOVER.md`.
-- Trigger: WeWe RSS bridge is unreachable, a feed freezes, or a source row has a pending `rss_url`.
-- Workaround: Use manual links for important WeChat articles; refresh/re-subscribe in WeWe RSS and confirm `source-health.py` reports the source as healthy.
-
-**PNG Not Produced In Default Local Run:**
-- Symptoms: Daily local finalize writes Markdown/HTML but not a PNG when Telegram send is skipped.
-- Files: `push-digest.sh`, `finalize-local.py`, `push-telegram.py`, `html-to-long-image.py`, `HANDOVER.md`.
-- Trigger: Default `PARKIO_SKIP_SEND=1` path runs `finalize-local.py` and skips `send-artifacts.py`, where PNG rendering currently lives.
-- Workaround: Run the send/render path explicitly if a PNG is needed, or add a dedicated PNG render stage to `push-digest.sh` / `finalize-local.py`.
-
-**Digest Can Skip When Fetch Lock Hangs Past 60 Minutes:**
-- Symptoms: The daily digest exits successfully with "skip this digest" if `logs/fetch.lock` still points to a live process after 60 minutes.
-- Files: `push-digest.sh`, `logs/fetch.lock`, `check-pipeline-health.py`.
-- Trigger: Slow or stuck fetch job overlaps the morning digest window.
-- Workaround: `check-pipeline-health.py` alerts if the digest is not sent and `push-digest` is not genuinely still running.
-
-## Security Considerations
-
-**Local Auth File In Repo Root:**
-- Risk: `twitter-auth.env` exists in the repo root and contains X/Twitter auth material.
-- Files: `twitter-auth.env`, `.gitignore`, `fetch-twitter.py`, `fetch-twitter-saved.py`, `refresh-twitter-auth.py`.
-- Current mitigation: `.gitignore` excludes `*.env` and `twitter-auth.env`; fetch scripts load only expected keys from the file.
-- Recommendations: Never read or print `twitter-auth.env`; keep file permissions restrictive; verify it remains ignored before commits with `git status --short --ignored twitter-auth.env`.
-
-**Secrets Loaded From Environment Or `~/park-io/secrets`:**
-- Risk: LLM, Telegram, Douyin, and YouTube credentials/cookies are required for production runs and can leak through logs or accidental file reads.
-- Files: `lib.py`, `push-telegram.py`, `fetch-douyin.py`, `fetch-media-transcripts.py`, `README.md`.
-- Current mitigation: `lib._load_secret()` reads env or local secret files; `.gitignore` excludes runtime state and env files; README instructs local secret storage.
-- Recommendations: Do not add secret defaults to source; avoid logging full request headers, bot URLs, cookie paths with values, or env values.
-
-**Telegram Bot URL Construction:**
-- Risk: Telegram API URLs include the bot token in the request URL.
-- Files: `push-telegram.py`, `lib.py`.
-- Current mitigation: Tokens come from `_load_secret()` and are not hardcoded; default daily run skips Telegram via `PARKIO_SKIP_SEND=1`.
-- Recommendations: Do not print `req.full_url` on Telegram failures; keep exception logging sanitized.
-
-## Performance Bottlenecks
-
-**LLM-Heavy Digest Build:**
-- Problem: Digest generation depends on repeated LLM calls for scoring, summaries, semantic clustering, and quality review.
-- Files: `lib.py`, `score-items.py`, `summarize.py`, `digest_events.py`, `ai-quality-check.py`.
-- Cause: Network LLM calls plus optional DeepSeek thinking mode can dominate runtime.
-- Improvement path: Keep `lib.DEEPSEEK_THINKING` disabled by default; use `tests/test_llm_fallback.py` to protect timeout/thinking behavior; cache only where correctness boundaries are explicit.
-
-**Media Transcript Pipeline:**
-- Problem: Video/podcast transcription can be slow or fail on download, cookie, duration, subtitle, or ASR steps.
-- Files: `fetch-media-transcripts.py`, `polish-douyin.py`, `fix-asr-errors.py`, `tests/test_media.py`, `tests/test_alerts.py`.
-- Cause: `yt-dlp`, cookies, Douyin adapter, local ASR, and LLM polish are all runtime dependencies.
-- Improvement path: Keep retryable failed media records visible; preserve `tests/test_alerts.py` coverage so transient failures do not stick forever.
-
-**Status Generation Complexity:**
-- Problem: `generate-status.py` is over 1000 lines and reads multiple runtime state files.
-- Files: `generate-status.py`, `source-health.json`, `media-queue.json`, `media-summaries.json`, `scoring-health.json`, `state.json`.
-- Cause: Status page combines fetch state, scoring health, channel health, and dependency checks.
-- Improvement path: Add focused tests for any new status section in `tests/test_health_dashboard.py` or a new `tests/test_status_*.py`.
-
-## Fragile Areas
-
-**Reader-Facing Product Quality:**
-- Files: `summarize.py`, `digest_text.py`, `quality-check.py`, `tests/test_cleaning.py`, `tests/test_chinese_fallback.py`, `tests/test_titles.py`, `GOTCHAS.md`.
-- Why fragile: The product must be a Chinese, value-first daily digest; raw English, metadata, source labels, AI refusal text, stale titles, and internal workflow artifacts are all known failure modes.
-- Safe modification: Run the full test loop plus `PARKIO_BATCH_ID=<batch> PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py` after changing rendering, title, cleaning, or summary logic.
-- Test coverage: Good deterministic regression coverage exists for known leaks; no snapshot test verifies a complete real daily Markdown/HTML pair.
-
-**Score Bypass And Outage Degradation:**
-- Files: `summarize.py`, `score-items.py`, `scoring-health.json`, `generate-status.py`, `tests/test_bypass.py`, `tests/test_alerts.py`.
-- Why fragile: A scoring outage can assign low/zero scores; official, code, key people, saved, WeChat, and media sources must still surface.
-- Safe modification: Keep `summarize.bypasses_score()` behavior locked by `tests/test_bypass.py`; keep scoring outages visible through `scoring-health.json`.
-- Test coverage: Good for bypass groups; weaker for full end-to-end "scoring failed but digest still useful" behavior.
-
-**Source Health Truthfulness:**
-- Files: `channel-health.py`, `source-health.py`, `check-pipeline-health.py`, `generate-status.py`, `tests/test_channel_health.py`, `tests/test_source_health.py`.
-- Why fragile: A fetch can run and still be broken; "0 new" must not hide DOWN or STALE upstream feeds.
-- Safe modification: Preserve distinctions among `DOWN`, `STALE`, `QUIET`, `NEW`, `UNKNOWN`, and `failed`.
-- Test coverage: Good for parser/classifier regressions; live service health still depends on logs and external feeds.
-
-**X/Twitter Fetching And Auth:**
-- Files: `fetch-twitter.py`, `fetch-twitter-saved.py`, `refresh-twitter-auth.py`, `twitter-auth.env`, `tests/test_thread_merge.py`, `tests/test_empty_x.py`.
-- Why fragile: Local auth cookies expire; quotes/retweets/nested tweets and threads must be normalized correctly.
-- Safe modification: Do not read or print `twitter-auth.env`; refresh auth only via `refresh-twitter-auth.py` from a logged-in desktop session; run thread and empty-X tests after parser changes.
-- Test coverage: Covers thread merge and empty bodies; does not hit live X endpoints.
-
-**Douyin Delivery State:**
-- Files: `fetch-douyin.py`, `fetch-media-transcripts.py`, `media-queue.json`, `media-summaries.json`, `tests/test_douyin_delivery.py`, `tests/test_alerts.py`.
-- Why fragile: Delivery, archival, transcription, and retry state are distinct; a late-first-seen video can be archived without appearing if these states are mixed.
-- Safe modification: Keep `awemes_to_deliver()` keyed on delivered IDs and recency window, not just library archival state.
-- Test coverage: Good for late-first-seen delivery; live coverage depends on cookies and Douyin adapter availability.
-
-**Manual Links And WeChat Reliability:**
-- Files: `fetch-manual-links.py`, `fetch-wechat-rss.py`, `fetch-wechat-exporter.py`, `GOTCHAS.md`, `README.md`.
-- Why fragile: WeChat official feed access is mediated by WeWe RSS and may expire; manual links are the reliable fallback path.
-- Safe modification: Keep `manual-links.md` as the operational fallback and make source health failures explicit.
-- Test coverage: `tests/test_source_health.py` covers bridge false-green; there is no dedicated test for manual link state transitions.
-
-## Scaling Limits
-
-**Single-Machine Cron/Launchd Pipeline:**
-- Current capacity: Designed for a daily local pipeline with `fetch-all.sh` every 4 hours and `push-digest.sh` once daily.
-- Limit: Long fetches, local service outages, or auth expiry can block the daily run.
-- Scaling path: Keep lock handling in `push-digest.sh`, add source-level timeouts when expanding fetchers, and surface failures through `check-pipeline-health.py`.
-
-**State Files Grow In Repo Working Tree:**
-- Current capacity: Runtime JSON files are present in the repo root but ignored by git.
-- Files: `scores.json`, `state.json`, `tg-push-state.json`, `source-health.json`, `media-queue.json`, `media-summaries.json`, `x-saved-items.json`, `x-saved-source-candidates.json`, `x-saved-state.json`.
-- Limit: Large JSON state files slow local inspection and can make accidental edits/noisy diffs more likely if ignore rules are broken.
-- Scaling path: Keep runtime files ignored; prefer bounded reads and deterministic cleanup/compaction scripts if state size grows.
-
-## Dependencies at Risk
-
-**WeWe RSS / Colima / Docker:**
-- Risk: Local bridge at `localhost:4000` can be down or feed accounts can freeze.
-- Impact: WeChat public account sources silently stop updating unless health checks catch it.
-- Migration plan: Keep WeWe RSS as primary, manual links as fallback, and add source-specific alerts when a high-value account is frozen.
-
-**Twitter/X Auth:**
-- Risk: `twitter-auth.env` cookies expire or become invalid.
-- Impact: All tracked X accounts and saved X imports can fail.
-- Migration plan: Refresh via `refresh-twitter-auth.py`; keep auth file local and ignored.
-
-**DeepSeek / CLIProxy LLM Providers:**
-- Risk: 429/5xx/SSL errors can interrupt scoring and summarization; 401/400 config errors must not be hidden.
-- Impact: Digest quality drops or generation fails.
-- Migration plan: Preserve `lib.llm_call()` failover semantics and `tests/test_llm_fallback.py`; keep `PARKIO_LLM_FALLBACK_PROVIDER` explicit.
-
-**Content Toolkit / yt-dlp / Local ASR:**
-- Risk: External download/transcription tooling changes, cookies expire, or duration limits skip media.
-- Impact: Podcast, YouTube, and Douyin sections lose high-value videos.
-- Migration plan: Keep media failure alerts and retries; document any replacement path in `README.md` and add tests around state transitions.
-
-## Missing Critical Features
-
-**Automated Full Artifact Regression:**
-- Problem: Tests cover many pure functions but do not build a full synthetic batch and assert the final Markdown/HTML/PNG contract.
-- Blocks: Confident refactors of `summarize.py`, `quality-check.py`, `finalize-local.py`, and `push-telegram.py`.
-
-**Dedicated Manual Links Tests:**
-- Problem: Manual links are operationally important but lack a focused regression file.
-- Blocks: Safe changes to `fetch-manual-links.py` state transitions among Pending, Imported, and Failed.
-
-**Dedicated Workflow Files Missing From Repo Listing:**
-- Problem: `AGENTS.md` references `inbox-workflow.yaml`, `render-workflow-diagram.py`, and `/Users/wendy/park-io/inbox/validate-workflow.py`, but those workflow files were not present in the inspected root file list.
-- Blocks: Local validation of the workflow diagram contract from this repo alone.
-
-## Test Coverage Gaps
-
-**End-To-End Daily Pipeline:**
-- What's not tested: `open-batch.py` → `score.py` → `build-digest.py` → `check-quality.py` → `archive-items.py` → `finalize-local.py` as one synthetic run.
-- Files: `push-digest.sh`, `open-batch.py`, `score.py`, `build-digest.py`, `archive-items.py`, `finalize-local.py`.
-- Risk: Stage interfaces can drift while unit tests pass.
-- Priority: High.
-
-**Telegram Send Path:**
-- What's not tested: `send-artifacts.py` and `push-telegram.py` delivery behavior with sanitized token handling and URL/content dedupe.
-- Files: `send-artifacts.py`, `push-telegram.py`, `tg-push-state.json`.
-- Risk: Telegram re-enable can resend duplicates or leak operational details.
-- Priority: Medium.
-
-**Complete HTML/PNG Parity:**
-- What's not tested: PNG rendering from final HTML and visual parity with Markdown.
-- Files: `html-to-long-image.py`, `summarize.py`, `quality-check.py`, `push-telegram.py`.
-- Risk: Markdown passes but HTML/PNG is missing content, has excess whitespace, or diverges visually.
-- Priority: Medium.
-
-**Live Source Fetchers:**
-- What's not tested: Real RSS, scrape, X, WeChat, Douyin, and media transcript calls.
-- Files: `fetch-rss.py`, `fetch-scrape.py`, `fetch-twitter.py`, `fetch-twitter-saved.py`, `fetch-wechat-rss.py`, `fetch-douyin.py`, `fetch-media-transcripts.py`.
-- Risk: Upstream markup/API/auth changes break production while offline tests pass.
-- Priority: High.
-
-**External Source Configuration:**
-- What's not tested: Compatibility of `~/park-io/sources.md` with `digest_config.py`, `lib.load_sources()`, and all fetchers.
-- Files: `digest_config.py`, `lib.py`, `source-health.py`, `fetch-all.sh`.
-- Risk: A source row typo or pending RSS URL can remove content without code changes.
-- Priority: High.
-
-## Product-Quality Risks
-
-**Reader Value Can Regress Into Internal Recap:**
-- Risk: The daily digest can become an implementation/status recap instead of a Chinese reader-facing product.
-- Files: `summarize.py`, `prompts/summarize-blogs.md`, `prompts/summarize-tweets.md`, `prompts/digest-intro.md`, `README.md`.
-- Current mitigation: `quality-check.py` blocks many internal/meta leaks; memory and docs emphasize Chinese/value-first output.
-- Recommendation: Review generated `~/park-io/inbox/sent/<date>.md` as the acceptance artifact after major prompt/rendering changes.
-
-**Duplicate Or Stale Content In Daily Digest:**
-- Risk: Cross-source semantic merge, title generation, and URL dedupe can duplicate the same update or reuse stale titles.
-- Files: `digest_events.py`, `summarize.py`, `push-telegram.py`, `tests/test_thread_merge.py`, `tests/test_titles.py`.
-- Current mitigation: Semantic clustering, thread merge tests, stale-template tests, and push marker dedupe.
-- Recommendation: Keep high-value summary short and details in release-specific sections to avoid repeated bullets.
-
-**Health Noise Or False Green:**
-- Risk: Too much health detail in the reader body reduces product value; too little hides broken channels.
-- Files: `channel-health.py`, `source-health.py`, `generate-status.py`, `summarize.py`, `tests/test_health_dashboard.py`.
-- Current mitigation: Source health is treated as owner/status data; digest surface uses a compact health dashboard.
-- Recommendation: Add/modify health details in status surfaces first, not the consumer body.
+**Analysis Date:** 2026-06-05
 
 ---
 
-*Concerns audit: 2026-06-04*
+## Root-Level .py Classification Table
+
+> **Owner's primary question:** which root `.py` files are wrappers, which are active, and which are safe to delete?
+
+All 20 wrapper targets were verified to exist. No broken wrappers detected.
+
+### Wrappers (thin compatibility shims — all targets confirmed present)
+
+| File | Classification | Re-export Target | Safe to Delete? | Note |
+|------|---------------|-----------------|-----------------|------|
+| `ai-quality-check.py` | WRAPPER | `aggregation/digest/ai_quality.py` | verify | Referenced by `tests/test_ingestion_wrappers.py` implicitly; check if any .sh uses it directly |
+| `archive-items.py` | WRAPPER | `aggregation/digest/archive.py` | verify | In `push-digest.sh` STAGES list; NOT deletable until push-digest.sh is updated |
+| `build-digest.py` | WRAPPER | `aggregation/digest/build.py` | verify | In `push-digest.sh` STAGES list; NOT deletable until push-digest.sh is updated |
+| `check-quality.py` | WRAPPER | `aggregation/digest/check_stage.py` | verify | In `push-digest.sh` STAGES list; NOT deletable until push-digest.sh is updated |
+| `fetch-douyin.py` | WRAPPER | `ingestion/douyin/run.py` | verify | Called via `fetch.py` subprocess; `tests/test_ingestion_wrappers.py` checks it |
+| `fetch-manual-links.py` | WRAPPER | `ingestion/manual_links/run.py` | verify | Called via `fetch.py` subprocess; `tests/test_ingestion_wrappers.py` checks it |
+| `fetch-media-transcripts.py` | WRAPPER | `enrichment/media/run.py` | verify | Called via `fetch.py` subprocess; `tests/test_ingestion_wrappers.py` checks it |
+| `fetch-rss.py` | WRAPPER | `ingestion/rss/run.py` | verify | Called via `fetch.py`; also loaded via `importlib` in `onboard-source.py` and `onboard-baseline.py` |
+| `fetch-scrape.py` | WRAPPER | `ingestion/web_scrape/run.py` | verify | Called via `fetch.py`; loaded via `importlib` in `backfill-claude-blog-library.py` |
+| `fetch-twitter.py` | WRAPPER | `ingestion/x/timeline.py` | verify | Called via `fetch.py`; loaded via `importlib` in `onboard-source.py` and `onboard-baseline.py` |
+| `fetch-twitter-saved.py` | WRAPPER | `ingestion/x/saved.py` | verify | Called via `fetch.py`; `tests/test_ingestion_wrappers.py` checks it |
+| `fetch-wechat.py` | WRAPPER | `ingestion/manual_links/wechat_seed.py` | verify | Called via `fetch.py`; `tests/test_ingestion_wrappers.py` checks it |
+| `fetch-wechat-exporter.py` | WRAPPER | `ingestion/wechat_rss/exporter.py` | verify | Called via `fetch.py`; `tests/test_ingestion_wrappers.py` checks it |
+| `fetch-wechat-rss.py` | WRAPPER | `ingestion/wechat_rss/run.py` | verify | Called via `fetch.py`; `tests/test_ingestion_wrappers.py` checks it |
+| `html-to-long-image.py` | WRAPPER | `aggregation/digest/html_to_long_image.py` | verify | Called by `aggregation/digest/build.py` via `ROOT / "html-to-long-image.py"` subprocess — actively needed |
+| `quality-check.py` | WRAPPER | `aggregation/digest/quality.py` | verify | `GOTCHAS.md` lists it; `tests/test_ingestion_wrappers.py` checks it |
+| `score.py` | WRAPPER | `aggregation/digest/score_stage.py` | verify | In `push-digest.sh` STAGES; in workflow graph JSON and YAML; NOT deletable |
+| `score-items.py` | WRAPPER | `aggregation/digest/score_items.py` | verify | Called by `aggregation/digest/score_stage.py` via `ROOT / "score-items.py"` subprocess — actively needed |
+| `summarize.py` | WRAPPER | `aggregation/digest/summarize.py` | verify | Called by `aggregation/digest/build.py` via `ROOT / "summarize.py"` subprocess — actively needed; uses `globals().update` + `sys.modules` trick |
+| `finalize-local.py` | WRAPPER | `aggregation/digest/finalize_local.py` | verify | In `push-digest.sh` STAGES; `tests/test_finalize_local.py` loads it directly via `importlib`; NOT deletable |
+
+**Key finding:** All 20 wrappers are still load-bearing. The `push-digest.sh` script references `score.py`, `build-digest.py`, `check-quality.py`, `archive-items.py`, `finalize-local.py` by name. `fetch.py` dispatches all fetch-* wrappers via subprocess. Three folder modules (`score_stage.py`, `build.py`) re-invoke root wrappers via `ROOT / "score-items.py"` and `ROOT / "summarize.py"` subprocesses, creating a wrapper→folder→wrapper chain that must be preserved until those folder modules are updated to call folder siblings directly.
+
+---
+
+### Active Entrypoints (hold real logic AND are invoked by live systems)
+
+| File | Classification | What References It | Safe to Delete? | Note |
+|------|---------------|-------------------|-----------------|------|
+| `fetch.py` | ACTIVE-ENTRYPOINT | `fetch-all.sh` (sole consumer) | no | Dispatches all 10 fetch-* wrappers via subprocess; ~30 lines of real logic |
+| `open-batch.py` | ACTIVE-ENTRYPOINT | `push-digest.sh`, `README.md`, `workflow/*.json/yaml` | no | Real batch-open logic; imports from `lib`; called first in every digest run |
+| `generate-status.py` | ACTIVE-ENTRYPOINT | `push-digest.sh`, `README.md` | no | 1002 lines of real status-page generation logic; no folder counterpart |
+| `channel-health.py` | ACTIVE-ENTRYPOINT | `tests/test_channel_health.py`, `README.md`, `aggregation/digest/summarize.py` (subprocess) | no | Contains truthful per-channel health logic; used by summarize.py at runtime |
+| `source-health.py` | ACTIVE-ENTRYPOINT | `tests/test_source_health.py`, `workflow/*.json/yaml`, `README.md` | no | Fetch health tracking; no folder counterpart; referenced in workflow graph |
+| `check-pipeline-health.py` | ACTIVE-ENTRYPOINT | `tests/test_alerts.py`, `tests/test_workflow_graph.py` | no | Daily pipeline alerter; contains real Telegram alert logic |
+| `push-telegram.py` | ACTIVE-ENTRYPOINT | `send-artifacts.py` (subprocess call), `README.md`, `AGENTS.md`, `GOTCHAS.md` | no | ~490 lines of real Telegram push logic; called by `send-artifacts.py` |
+| `send-artifacts.py` | ACTIVE-ENTRYPOINT | `push-digest.sh` (conditional STAGES), `README.md` | no | Thin but real: sets env, delegates to `push-telegram.py` |
+
+---
+
+### Shared Libraries (imported widely; not entrypoints but not deletable)
+
+| File | Classification | What References It | Safe to Delete? | Note |
+|------|---------------|-------------------|-----------------|------|
+| `lib.py` | SHARED-LIB | 41+ import statements across root scripts, tests, and folder modules (`aggregation/digest/build.py`, `ingestion/rss/run.py`, etc.) | no | Core shared library: `llm_call`, `load_sources`, `batch_id`, `batch_artifact_paths`, `log`, `today`, `_load_secret`, etc. 800 lines. |
+| `digest_config.py` | SHARED-LIB | `digest_events.py`, `digest_text.py`, `aggregation/digest/summarize.py`, `aggregation/digest/score_items.py`, `tests/test_bypass.py`, `tests/test_reader_quality_contract.py` | no | Source authority, category order, media source names config |
+| `digest_events.py` | SHARED-LIB | `aggregation/digest/summarize.py`, `tests/test_thread_merge.py` | no | Event clustering + thread merge logic |
+| `digest_text.py` | SHARED-LIB | `aggregation/digest/summarize.py`, `tests/test_cleaning.py` | no | Text cleaning utilities |
+
+---
+
+### Investigation Files — Manual/Maintenance Scripts (no live cron/shell references)
+
+| File | Classification | What References It | Safe to Delete? | Note |
+|------|---------------|-------------------|-----------------|------|
+| `onboard-source.py` | ACTIVE-ENTRYPOINT | `README.md` (documented), `.planning/phases/parkio-07-CONTEXT.md` | no | Run manually to onboard new sources; loads fetch-rss/twitter via importlib |
+| `onboard-baseline.py` | ACTIVE-ENTRYPOINT | `README.md` (implicit), `.planning/phases/parkio-07-CONTEXT.md` | no | Historical profile builder; loads fetch-rss/twitter via importlib |
+| `backfill-claude-blog-library.py` | ACTIVE-ENTRYPOINT | `.planning/phases/parkio-07-CONTEXT.md` | verify | One-shot backfill; only reference is in planning docs, not live cron — low risk if unused |
+| `build-index.py` | ACTIVE-ENTRYPOINT | Self-documents usage in its own docstring comment; no external references found | verify | Generates 慢学 AI profile index; only referenced inside the file itself; candidate for archival |
+| `polish-douyin.py` | ACTIVE-ENTRYPOINT | Only self-referenced in docstring | verify | Post-processes Douyin transcripts; no external callers found; one-shot maintenance |
+| `fix-asr-errors.py` | ACTIVE-ENTRYPOINT | Only self-referenced in docstring | verify | ASR error fixer for 慢学AI corpus; no external callers; likely one-shot |
+| `refresh-twitter-auth.py` | ACTIVE-ENTRYPOINT | `generate-status.py` reads the output file `twitter-auth.env` | no | Needed to refresh Twitter cookies; `generate-status.py` checks for its output |
+| `push-telegram.py` | ACTIVE-ENTRYPOINT | (see above table) | no | (repeated for clarity) |
+
+---
+
+### Safe-to-Delete Shortlist
+
+**No file can be confidently marked "yes, delete now."** Reasons:
+
+- All 20 wrappers remain live: `push-digest.sh` and `fetch.py` invoke them by name; folder modules invoke some via subprocess.
+- The 4 SHARED-LIB files (`lib.py`, `digest_config.py`, `digest_events.py`, `digest_text.py`) are imported by folder modules — deleting them would break `aggregation/digest/summarize.py` immediately.
+- Maintenance scripts (`build-index.py`, `fix-asr-errors.py`, `polish-douyin.py`, `backfill-claude-blog-library.py`) have no live cron callers but may be needed on-demand.
+
+**Candidates for eventual deletion (after prerequisite work is done):**
+
+| File | Prerequisite Before Deleting |
+|------|------------------------------|
+| All 20 WRAPPER files | Update `push-digest.sh`, `fetch.py`, and folder module subprocesses to call folder paths directly |
+| `score-items.py` wrapper | Update `aggregation/digest/score_stage.py` to import `score_items` directly instead of via subprocess |
+| `summarize.py` wrapper | Update `aggregation/digest/build.py` to import `summarize.main` directly |
+| `html-to-long-image.py` wrapper | Update `aggregation/digest/build.py` subprocess call |
+| `build-index.py` | Confirm it has been run and output is up to date; archive |
+| `fix-asr-errors.py` | Confirm corpus cleanup is complete; archive |
+| `polish-douyin.py` | Confirm corpus polishing is complete; archive |
+| `backfill-claude-blog-library.py` | Confirm backfill is complete; archive |
+
+---
+
+## Tech Debt
+
+**Wrapper-to-folder-to-wrapper subprocess chains:**
+- Issue: `aggregation/digest/score_stage.py` invokes `ROOT / "score-items.py"` via subprocess (a root wrapper), which then re-imports `aggregation/digest/score_items.py`. Similarly `aggregation/digest/build.py` calls `ROOT / "summarize.py"` and `ROOT / "html-to-long-image.py"`.
+- Files: `aggregation/digest/score_stage.py`, `aggregation/digest/build.py`
+- Impact: Extra subprocess overhead; the "folderization" refactor is incomplete — folder modules still delegate back to root wrappers instead of calling folder siblings directly.
+- Fix approach: Replace `subprocess.run([sys.executable, str(ROOT / "score-items.py")])` with a direct `from aggregation.digest.score_items import main; main()` call pattern.
+
+**No `__init__.py` files in any folder package:**
+- Issue: `aggregation/`, `aggregation/digest/`, `ingestion/`, `enrichment/` have no `__init__.py`. Imports work only because each module manually prepends `REPO_ROOT` to `sys.path`.
+- Files: All modules under `aggregation/`, `ingestion/`, `enrichment/`
+- Impact: Not proper Python packages; tools like mypy, pytest import discovery, and IDE navigation may behave unexpectedly. The sys.path manipulation is fragile if the repo is installed or used from a non-root working directory.
+- Fix approach: Add `__init__.py` to each package directory OR convert to proper installable package with `pyproject.toml`.
+
+**`lib.py` is a 800-line monolith with no folder counterpart:**
+- Issue: All shared utilities (`llm_call`, `load_sources`, `batch_id`, `_load_secret`, etc.) live in a single root file. Folder modules must import from the root-level `lib.py` breaking the layered folder design.
+- Files: `lib.py`, all folder modules that `from lib import ...`
+- Impact: Can't be moved without updating 41+ import sites. Blocks clean separation of layers.
+- Fix approach: Split into `contracts/lib_paths.py`, `contracts/lib_llm.py`, etc. as the refactor matures.
+
+**`digest_config.py`, `digest_events.py`, `digest_text.py` not yet folderized:**
+- Issue: These shared modules remain at root and are imported by `aggregation/digest/summarize.py` directly from root. They are referenced in `README.md` as root-level files.
+- Files: `digest_config.py`, `digest_events.py`, `digest_text.py`
+- Impact: Same layering violation as `lib.py`. Blocks clean root cleanup.
+- Fix approach: Move to `aggregation/digest/` or a new `shared/` folder; add re-export wrappers at root if needed.
+
+**`summarize.py` wrapper uses `sys.modules` monkey-patch:**
+- Issue: `summarize.py` does `sys.modules[__name__] = _impl` after `globals().update(...)`. This is unusual and may confuse importers or test frameworks.
+- Files: `summarize.py`
+- Impact: Works in practice but is fragile — any code importing `summarize` as a module may get surprising behavior. `finalize-local.py` uses a different manual delegation pattern.
+- Fix approach: Standardize wrapper pattern to pure `from aggregation.digest.summarize import *` like the other wrappers.
+
+---
+
+## Refactor Divergence Risks
+
+**Folder modules calling root wrappers by path (divergence chain):**
+- `aggregation/digest/score_stage.py` → `ROOT/"score-items.py"` → `aggregation/digest/score_items.py`
+- `aggregation/digest/build.py` → `ROOT/"summarize.py"` → `aggregation/digest/summarize.py`
+- `aggregation/digest/build.py` → `ROOT/"html-to-long-image.py"` → `aggregation/digest/html_to_long_image.py`
+- `aggregation/digest/summarize.py` → subprocess `ROOT/"channel-health.py"` (root-only, no folder counterpart)
+- Risk: If root wrappers diverge from folder modules (e.g. someone edits the root file thinking it's the real implementation), the divergence will be silent — the subprocess call just runs a different version.
+
+**`onboard-source.py` and `onboard-baseline.py` load wrappers via `importlib`:**
+- These load `fetch-rss.py`, `fetch-twitter.py` (root wrappers) via `importlib.util.spec_from_file_location`. If wrappers are deleted but `onboard-*.py` scripts are not updated, onboarding breaks silently.
+- Files: `onboard-source.py`, `onboard-baseline.py`
+
+**`aggregation/digest/build.py` imports from root `lib` (not a folder module):**
+- `from lib import ROOT, batch_artifact_paths` — this is intentional but means the folder module is coupled to the root-level shared library.
+
+---
+
+## Known Issues & Stale State
+
+**`Ray在思考` WeChat source is frozen (STALE since 2026-03-23):**
+- `HANDOVER.md` line 177: "wewe-rss subscription `MP_WXS_3226075849` is frozen since 2026-03-23"
+- `HANDOVER.md` line 200: "`Ray在思考` remains STALE, intentionally low priority"
+- `digest_config.py` line 267 lists it in a special category
+- Impact: Source produces no items; health checks show STALE; no action needed unless owner wants to remove the source
+
+**`PARKIO_SKIP_SEND=1` is the production default:**
+- `push-digest.sh` line 47: `PARKIO_SKIP_SEND="${PARKIO_SKIP_SEND:-1}"` — Telegram push is disabled by default
+- `send-artifacts.py` is only added to STAGES when `PARKIO_SKIP_SEND` is explicitly set to `0`
+- Impact: Digest is built locally but never sent to Telegram unless manually re-enabled; owner must consciously flip this flag
+
+---
+
+## Fragile External Auth Dependencies
+
+**Twitter/X cookie auth (`twitter-auth.env`):**
+- `refresh-twitter-auth.py` extracts `auth_token` and `ct0` cookies from a locally-installed `twitter-cli` Python package
+- `generate-status.py` checks for `twitter-auth.env` existence
+- `ingestion/x/timeline.py` and `ingestion/x/saved.py` consume these cookies
+- Fragility: Cookies expire without notice; `refresh-twitter-auth.py` requires a logged-in desktop session and a specific Python binary at `/Users/wendy/.local/share/uv/tools/twitter-cli/bin/python`
+- No automated re-auth; manual intervention required on each expiry
+
+**WeWe RSS bridge (WeChat public account feeds):**
+- `channel-health.py`, `check-pipeline-health.py`, `generate-status.py` all check for `localhost:4000` reachability
+- Requires Colima (Docker-compatible VM) to be running locally
+- Fragility: If Colima is stopped, all WeChat RSS sources go STALE silently; bridge may need manual WeChat re-login when session expires
+- `check-pipeline-health.py` sends Telegram alert when bridge is unreachable (gotcha #23 mitigated)
+
+**YouTube cookies (`~/park-io/secrets/youtube-cookies.txt`):**
+- Required for `yt-dlp` video download and transcription
+- `README.md` line 148: cookie expiry triggers "Sign in to confirm you're not a bot" — videos fail to download
+- No automated renewal; manual browser export required
+
+---
+
+## Security Considerations
+
+**`twitter-auth.env` contains live session tokens:**
+- Risk: File written to repo root by `refresh-twitter-auth.py`; if accidentally committed, Twitter session is compromised
+- `refresh-twitter-auth.py` line 41 writes a warning comment "Do not commit" in the file header
+- Current mitigation: `.gitignore` should exclude it (not verified in this audit); `README.md` warns against committing
+- Recommendation: Confirm `twitter-auth.env` is in `.gitignore`
+
+**Secrets loaded via `lib._load_secret()`:**
+- Reads from env var or `~/park-io/secrets/<filename>`; never hardcoded
+- Pattern is consistent across `push-telegram.py`, `lib.py`
+- Mitigation adequate; no secrets found in source code
+
+---
+
+## Test Coverage Gaps
+
+**Health scripts lack unit tests for core logic paths:**
+- `generate-status.py` (1002 lines) has no dedicated test file; `tests/test_health_dashboard.py` tests indirectly
+- `check-pipeline-health.py` is tested only for alert triggering, not for pipeline state logic
+
+**Maintenance scripts are untested:**
+- `polish-douyin.py`, `fix-asr-errors.py`, `build-index.py`, `backfill-claude-blog-library.py` have no test coverage
+- Risk: Silent breakage on corpus structure changes; Low priority if these are one-shot scripts
+
+**`onboard-source.py` and `onboard-baseline.py` have no tests:**
+- Both load wrapper scripts via `importlib` dynamically; a wrapper deletion would cause silent test gap
+
+---
+
+## Scaling Limits
+
+**`lib.py` `load_sources()` reads `~/park-io/sources.md` on every call:**
+- No caching; every script call re-parses the markdown table
+- Current source count is small; at ~200+ sources this will become noticeable
+
+**`generate-status.py` (1002 lines) runs synchronously at end of every digest:**
+- Makes HTTP probes to WeWe RSS, checks twitter-auth.env, reads all log files
+- No timeout guard on HTTP probes (beyond what `urllib.request` provides)
+
+---
+
+*Concerns audit: 2026-06-05*

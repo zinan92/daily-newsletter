@@ -1,61 +1,68 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-06-04
+**Analysis Date:** 2026-06-05
 
 ## Test Framework
 
 **Runner:**
-- Plain Python executable test files under `tests/`; each `tests/test_*.py` exposes `test_` functions and usually includes an `if __name__ == "__main__"` runner.
-- Pytest-compatible shape is partially supported; `tests/test_cleaning.py` documents `python3 -m pytest tests/ -q`, but the repo does not include `pytest.ini`, `pyproject.toml`, or a dependency manifest.
-- Config: Not detected.
+- Plain Python executable test files under `tests/`; each `tests/test_*.py` exposes `test_` functions and includes an `if __name__ == "__main__"` runner
+- Pytest-compatible shape is partially supported; `tests/test_cleaning.py` documents `python3 -m pytest tests/ -q`, but repo does not include `pytest.ini`, `pyproject.toml`, or dependency manifest
+- Config: Not detected
 
 **Assertion Library:**
-- Built-in `assert` statements.
-- `unittest.mock.patch` is used in `tests/test_llm_fallback.py`.
-- Temporary files are created with `tempfile` in `tests/test_alerts.py`.
+- Built-in `assert` statements
+- `unittest.mock.patch` used in `tests/test_llm_fallback.py`
+- Temporary files created with `tempfile` in `tests/test_alerts.py`
+- Dynamic module loading via `importlib.util.spec_from_file_location` for loading hyphenated scripts
 
 **Run Commands:**
 ```bash
-for t in tests/test_*.py; do python3 "$t"; done
+# From STATE.md Verification Baseline (2026-06-05)
 python3 -m py_compile summarize.py digest_config.py lib.py quality-check.py fetch-douyin.py
+for t in tests/test_*.py; do python3 "$t"; done
+PARKIO_BATCH_ID=20260604 python3 build-digest.py
+PARKIO_BATCH_ID=20260604 python3 finalize-local.py
 PARKIO_BATCH_ID=20260604 PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py
 python3 channel-health.py
-python3 check-pipeline-health.py
 ```
 
-**Current Verification:**
-- `for t in tests/test_*.py; do python3 "$t"; done` passes in the live repo on 2026-06-04.
-- The full loop prints one expected failover log from `tests/test_llm_fallback.py` while still passing: primary `deepseek` transient failure falls back to `anthropic`.
+**Current Status:**
+- All 23 test files in `tests/` pass when run directly: `for t in tests/test_*.py; do python3 "$t"; done`
+- Recent test additions: contract tests, ingestion wrapper tests, task graph tests, workflow graph tests, n8n export/import diff tests
 
 ## Test File Organization
 
 **Location:**
-- Tests are centralized in `tests/` and import root-level scripts by injecting the repo root into `sys.path`.
-- Hyphenated production scripts are imported via `importlib.util.spec_from_file_location`, e.g. `tests/test_channel_health.py` loads `channel-health.py`, `tests/test_douyin_delivery.py` loads `fetch-douyin.py`, and `tests/test_source_health.py` loads `source-health.py`.
+- Tests centralized in `tests/`
+- Root-level scripts imported via `importlib.util.spec_from_file_location` (handles kebab-case filenames)
+- Folderized modules imported as regular Python modules
 
-**Naming:**
-- Test files use `tests/test_<area>.py`.
-- Test functions use `test_<behavior>()`.
-- Tests are behavior/regression named, not implementation named: examples include `test_late_first_seen_within_window_is_delivered` in `tests/test_douyin_delivery.py` and `test_bridge_connection_refused_is_failed` in `tests/test_source_health.py`.
-
-**Structure:**
-```text
+**Test Files (23 total):**
+```
 tests/
-├── test_alerts.py              # failure alerts + retryable transcription failures
-├── test_bypass.py              # score bypass for official/manual/media/curated sources
-├── test_channel_health.py      # DOWN/STALE/QUIET/NEW classification
-├── test_chinese_fallback.py    # suppress raw English in reader output
-├── test_cleaning.py            # strip source/ingestion metadata from consumer text
-├── test_douyin_delivery.py     # delivery-vs-archival dedupe
-├── test_empty_x.py             # empty/link-only X handling
-├── test_health_dashboard.py    # compact digest health dashboard rendering
-├── test_llm_fallback.py        # DeepSeek retry/failover behavior
-├── test_media.py               # media summary inclusion/exclusion
-├── test_scrape_sitemap.py      # scrape sitemap extraction and age gates
-├── test_shorts.py              # YouTube Shorts filtering
-├── test_source_health.py       # source-health false-green prevention
-├── test_thread_merge.py        # X conversation/thread merge keys
-└── test_titles.py              # Chinese titles and stale-template guard
+├── test_alerts.py                  # failure alerts + transcription retry semantics
+├── test_bypass.py                  # score bypass for official/manual/media sources
+├── test_channel_health.py          # DOWN/STALE/QUIET/NEW classification from logs
+├── test_chinese_fallback.py        # suppress raw English in reader output
+├── test_cleaning.py                # strip source/ingestion metadata from text
+├── test_douyin_delivery.py         # delivery-vs-archival dedupe, late-first-seen fix
+├── test_empty_x.py                 # empty/link-only X handling
+├── test_finalize_local.py          # local artifact packaging (Markdown/HTML/PNG)
+├── test_health_dashboard.py        # compact health dashboard rendering
+├── test_ingestion_contracts.py     # CONTRACT.md presence + schema strictness
+├── test_ingestion_wrappers.py      # root wrapper re-export + folderized module location
+├── test_llm_fallback.py            # DeepSeek retry/failover + non-retryable fast-fail
+├── test_media.py                   # media summary inclusion/exclusion rules
+├── test_n8n_export.py              # n8n JSON export node/connection parity
+├── test_n8n_import_diff.py         # drift detection: added/removed visual connections
+├── test_reader_quality_contract.py # Phase 4 product-level regression lock
+├── test_scrape_sitemap.py          # sitemap extraction + age-gate behavior
+├── test_shorts.py                  # YouTube Shorts filtering
+├── test_source_health.py           # false-green prevention for bridge failures
+├── test_task_graph.py              # task graph validation, claim/complete semantics
+├── test_thread_merge.py            # X conversation thread merge keys
+├── test_titles.py                  # Chinese titles + truncation guard + stale template
+└── test_workflow_graph.py          # workflow diagram validation + dry-run planning
 ```
 
 ## Test Structure
@@ -80,15 +87,78 @@ if __name__ == "__main__":
             except AssertionError as exc:
                 failed += 1
                 print(f"FAIL {name}: {exc}")
+    print(f"\n{'ALL PASS' if not failed else f'{failed} FAILED'}")
     sys.exit(1 if failed else 0)
 ```
 
 **Patterns:**
-- Keep tests self-running so `AGENTS.md` can use `for t in tests/test_*.py; do python3 "$t"; done` without pytest.
-- Keep tests deterministic and mostly offline; mock network calls in `tests/test_llm_fallback.py`.
-- Use fixed synthetic dates for date-sensitive logic where possible, e.g. `TODAY = "2026-06-04"` in `tests/test_douyin_delivery.py`.
-- Use current local date only for alert recency tests where the production code also uses `today()`, e.g. `tests/test_alerts.py`.
-- Test exact historical failures documented in `GOTCHAS.md` rather than broad snapshots.
+- Keep tests self-running so verification baseline can use simple for-loop
+- Keep tests deterministic and mostly offline; mock network calls
+- Use fixed synthetic dates for date-sensitive logic (e.g., `TODAY = "2026-06-04"` in `test_douyin_delivery.py`)
+- Use current local date only for alert recency tests (e.g., `test_alerts.py`)
+- Test exact historical failures documented in GOTCHAS.md rather than broad snapshots
+
+## Contract Tests
+
+**Location:** `tests/test_ingestion_contracts.py`
+
+**Coverage:**
+- Verify all `CONTRACT.md` files exist under ingestion/enrichment/aggregation modules
+- Verify each CONTRACT.md names its folder/boundary
+- Verify ingestion schema JSON is parseable and strict (`additionalProperties: false`)
+- Verify schema includes all channel types (rss, web_scrape, x, douyin, wechat_rss, etc.)
+- Verify workflow spec YAML exists and declares `source_of_truth: repo`
+- Verify workflow spec includes all channel/enrichment/aggregation workflow IDs
+
+**Example test:**
+```python
+def test_contract_files_exist_and_name_boundaries():
+    for rel in EXPECTED_CONTRACTS:
+        path = ROOT / rel
+        assert path.exists(), f"missing {rel}"
+        text = path.read_text(encoding="utf-8")
+        assert rel.rsplit("/", 1)[0] in text, rel
+        assert "## Boundary" in text, rel
+```
+
+## Ingestion Wrapper Tests
+
+**Location:** `tests/test_ingestion_wrappers.py`
+
+**Coverage:**
+- Verify root fetch wrappers re-export expected symbols (e.g., `fetch-rss.py` exports `main`, `parse_feed`, `fetch_youtube_fallback`)
+- Verify folderized modules exist at expected paths
+- Verify manual links uses folderized WeChat parser (from `ingestion/manual_links/wechat_seed.py`)
+
+**Example:**
+```python
+def test_root_fetch_wrappers_reexport_expected_symbols():
+    for filename, attrs in WRAPPERS.items():
+        module = load_module(filename)
+        for attr in attrs:
+            assert hasattr(module, attr), f"{filename} missing {attr}"
+```
+
+## Reader Quality Contract Tests
+
+**Location:** `tests/test_reader_quality_contract.py`
+
+**Coverage (Phase 4 regression lock):**
+- X title truncation guard: `summarize.x_title_looks_truncated(title, body)`
+- Media publishability: transcript-backed, non-promo summaries only
+- Active Douyin sources: loaded from config, respect `active` flag
+- Quality gate blocks: `no_transcript`, `AI refusal markers`, raw English, source metadata, Markdown/HTML divergence
+
+**Example:**
+```python
+def test_x_titles_reject_truncated_first_sentence_prefixes():
+    cases = [
+        ("Codex 昨晚上线的这个 Site 插件非",
+         "Codex 昨晚上线的这个 Site 插件非常厉害。..."),
+    ]
+    for title, body in cases:
+        assert summarize.x_title_looks_truncated(title, body), title
+```
 
 ## Mocking
 
@@ -96,21 +166,28 @@ if __name__ == "__main__":
 
 **Patterns:**
 ```python
+# Mock LLM HTTP calls
 with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
         patch.object(lib, "LLM_FALLBACK_PROVIDER", "anthropic"), \
         patch("urllib.request.urlopen", fake_urlopen), \
         patch("time.sleep", lambda *_args: None):
     out = lib.llm_call("hello", max_tokens=20, retries=3, timeout=1)
+
+# Mock file paths
+ph.MEDIA_SUMMARIES = __import__("pathlib").Path(_write_json({
+    "u1": {"status": "failed", "title": "柱子哥视频", "updated_at": f"{TODAY}T10:00:00"},
+}))
 ```
 
 **What to Mock:**
-- Mock LLM HTTP calls in `tests/test_llm_fallback.py`; never hit DeepSeek, CLIProxy, or Anthropic from unit tests.
-- Mock mutable file paths for stateful helpers, e.g. `tests/test_alerts.py` replaces `check-pipeline-health.py` module paths with temporary JSON files.
-- Mock time sleeping when testing retry loops.
+- LLM HTTP calls: never hit DeepSeek, CLIProxy, or Anthropic from unit tests
+- Mutable file paths for stateful helpers (e.g., `test_alerts.py` replaces module paths with temp files)
+- Time sleeping in retry loops
 
 **What NOT to Mock:**
-- Do not mock pure rendering, cleaning, routing, title, thread, health classification, or score-bypass logic; assert directly against `summarize.py`, `digest_text.py`, `digest_events.py`, `source-health.py`, and `channel-health.py`.
-- Do not rely on real `twitter-auth.env`, `~/park-io/secrets/*`, `~/park-io/inbox/*`, or live feeds in regression tests.
+- Pure rendering, cleaning, routing, title, thread, health classification, or bypass logic
+- Real `twitter-auth.env`, `~/park-io/secrets/*`, `~/park-io/inbox/*` (skip if not available)
+- Parsing/extraction logic (assert directly against production functions)
 
 ## Fixtures and Factories
 
@@ -125,84 +202,120 @@ def _write_json(obj):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False)
     return path
+
+def minimal_task(task_id, deps=None, status="todo"):
+    return {
+        "id": task_id, "title": task_id, "type": "implementation",
+        "status": status, "dependencies": deps or [],
+        "success_criteria": ["done"], "test_commands": ["true"],
+    }
 ```
 
 **Location:**
-- Fixtures are local to each test file; there is no shared `tests/conftest.py`.
-- Historical leak strings live inline in `tests/test_cleaning.py`.
-- WeChat bridge fixture rows live inline in `tests/test_source_health.py`.
-- Synthetic tweet and event dictionaries live inline in `tests/test_thread_merge.py`, `tests/test_empty_x.py`, and `tests/test_titles.py`.
+- Fixtures are local to each test file; no shared `conftest.py`
+- Historical leak strings inline in `test_cleaning.py`
+- WeChat bridge fixtures inline in `test_source_health.py`
+- Synthetic tweet/event dicts inline in `test_thread_merge.py`, `test_empty_x.py`, `test_titles.py`
+- Task graph fixtures inline in `test_task_graph.py`
 
 ## Coverage
 
-**Requirements:** None enforced by tooling.
+**Requirements:** None enforced by tooling
 
 **View Coverage:**
 ```bash
 python3 -m coverage run -m pytest tests
 python3 -m coverage report
 ```
-- Coverage tooling is not configured in the repo; install/use it only as an ad hoc check.
+- Coverage tooling not configured in repo; use only as ad-hoc check
 
 ## Test Types
 
 **Unit Tests:**
-- Use `tests/test_bypass.py` for `summarize.bypasses_score()` and score outage invariants.
-- Use `tests/test_cleaning.py` for `digest_text.consumer_text()`, `sanitize_product_text()`, and `strip_source_meta()`.
-- Use `tests/test_titles.py` for `summarize.has_chinese()`, title truncation guards, and stale template prevention.
-- Use `tests/test_llm_fallback.py` for `lib.llm_call()` retryability, non-retryable 401 behavior, and DeepSeek thinking flags.
+- `test_bypass.py`: `summarize.bypasses_score()` + score outage invariants
+- `test_cleaning.py`: `digest_text.consumer_text()`, `sanitize_product_text()`, `strip_source_meta()`
+- `test_titles.py`: `summarize.has_chinese()`, title truncation, stale template prevention
+- `test_llm_fallback.py`: `lib.llm_call()` retryability, non-retryable 401, DeepSeek thinking flags
+- `test_shorts.py`: `lib.is_youtube_short()` URL + duration filtering
 
 **Integration-Style Regression Tests:**
-- Use `tests/test_alerts.py` for `check-pipeline-health.py` plus `fetch-media-transcripts.py` retry behavior against temp state files.
-- Use `tests/test_source_health.py` for `source-health.py` classification of WeChat bridge failures.
-- Use `tests/test_channel_health.py` for `channel-health.py` log parsing and feed freshness states.
-- Use `tests/test_scrape_sitemap.py` for `fetch-scrape.py` sitemap extraction and age-gate behavior.
+- `test_alerts.py`: `check-pipeline-health.py` + `fetch-media-transcripts.py` against temp state
+- `test_source_health.py`: `source-health.py` classification of bridge failures
+- `test_channel_health.py`: `channel-health.py` log parsing + feed freshness
+- `test_scrape_sitemap.py`: `fetch-scrape.py` sitemap extraction + age gates
+- `test_douyin_delivery.py`: Douyin delivery-vs-archival dedupe logic
+
+**Contract/Product Tests:**
+- `test_ingestion_contracts.py`: Boundary + schema strictness
+- `test_ingestion_wrappers.py`: Root wrapper exports + folderized locations
+- `test_reader_quality_contract.py`: Phase 4 product regression lock (x truncation, media, active sources, quality gates)
+- `test_task_graph.py`: Graph validation, dependency cycles, claim/complete semantics
+- `test_workflow_graph.py`: n8n diagram validation, dry-run planning, cycle detection
+- `test_n8n_export.py`: Node + connection parity from task graph to n8n JSON
+- `test_n8n_import_diff.py`: Drift detection for added/removed connections
 
 **E2E Tests:**
-- Not used as automated tests.
-- Manual pipeline verification is documented in `README.md` and `HANDOVER.md`: open a batch with `open-batch.py`, score with `score.py`, build with `build-digest.py`, gate with `check-quality.py`, archive with `archive-items.py`, and finalize with `finalize-local.py`.
+- Not used as automated tests
+- Manual verification: `open-batch.py` → `score.py` → `build-digest.py` → `check-quality.py` → `finalize-local.py`
 
 ## Common Patterns
 
-**Async Testing:**
+**Dynamic Module Loading (hyphenated scripts):**
 ```python
-_spec = importlib.util.spec_from_file_location("fetch_douyin", os.path.join(_ROOT, "fetch-douyin.py"))
-fd = importlib.util.module_from_spec(_spec)
+import importlib.util
+spec = importlib.util.spec_from_file_location("fetch_rss", ROOT / "fetch-rss.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+```
+
+**Skip on Missing Optional Dependencies:**
+```python
 try:
     _spec.loader.exec_module(fd)
 except Exception as exc:
     print(f"SKIP (cannot import fetch-douyin: {type(exc).__name__}: {exc})")
     sys.exit(0)
 ```
-- `tests/test_douyin_delivery.py` tolerates missing optional Douyin runtime dependencies by exiting success after a clear SKIP message.
 
 **Error Testing:**
 ```python
 raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", hdrs=None, fp=None)
 ```
-- `tests/test_llm_fallback.py` asserts 401/400-style configuration errors fail fast and do not fall back.
-- `tests/test_channel_health.py` asserts fetch errors classify as `DOWN`, not `QUIET`.
-- `tests/test_source_health.py` asserts a WeChat bridge connection refusal is `failed`, even if `last_fetch` is stamped for today.
+- Assert 401/400 errors fail fast without retry
+- Assert DOWN vs QUIET classification from fetch errors
+- Assert bridge connection refusal marks source as failed
+
+**Date-Sensitive Testing:**
+```python
+TODAY = "2026-06-04"  # fixed synthetic date
+def aweme(aid: str, date_str: str) -> dict:
+    return {"aweme_id": aid, "create_time": _epoch(date_str)}
+
+def test_late_first_seen_within_window_is_delivered():
+    out = fd.awemes_to_deliver([aweme("2", "2026-06-03")], delivered_ids=set(), today_str=TODAY)
+    assert ids(out) == ["2"]
+```
 
 ## Quality Gates
 
-**Deterministic Quality Gate:**
-- Run `python3 check-quality.py` or `PARKIO_BATCH_ID=<batch> PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py`.
-- `check-quality.py` delegates to `quality-check.py`.
-- `quality-check.py` blocks reader-facing output containing raw English body text, source metadata, AI refusal artifacts, Telegram marker leaks, duplicate visible URLs, missing push markers, and Markdown/HTML heading divergence.
+**Deterministic Quality Gate (tests/test_reader_quality_contract.py):**
+- Run `python3 check-quality.py` or `PARKIO_BATCH_ID=<batch> PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py`
+- Blocks: raw English, source metadata, AI refusal markers, Telegram leaks, duplicate URLs, Markdown/HTML divergence
+- Does NOT block: reader quality from transcripts (no transcript = no publish, but status is visible in health)
 
 **AI Quality Gate:**
-- `ai-quality-check.py` is a second review layer.
-- The AI layer is non-blocking by default; make it blocking with `PARKIO_STRICT_AI_QUALITY`.
-- Use deterministic checks first. `GOTCHAS.md` states quality gate is deterministic first, AI second.
+- `ai-quality-check.py` is second layer
+- Non-blocking by default; use `PARKIO_STRICT_AI_QUALITY` to enforce
+- Per GOTCHAS.md: deterministic first, AI second
 
 ## Files To Read Before Changing Tests
 
-- Read `AGENTS.md` for the required regression command and workflow invariants.
-- Read `GOTCHAS.md` for the current regression contract.
-- Read `HANDOVER.md` for current operational state, including local-only finalize behavior and outstanding infra actions.
-- Read the target production file and its paired test file together, e.g. `quality-check.py` with `tests/test_cleaning.py` and `tests/test_chinese_fallback.py`.
+- `STATE.md`: Verification Baseline section + current phase
+- `GOTCHAS.md`: Current regression contract
+- `HANDOVER.md`: Operational context, infra actions, model choices
+- Target production file + paired test file together (e.g., `quality-check.py` with `test_cleaning.py`, `test_titles.py`)
+- `.planning/codebase/CONVENTIONS.md`: Code style + module patterns
 
 ---
 
-*Testing analysis: 2026-06-04*
+*Testing analysis: 2026-06-05*
