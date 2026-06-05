@@ -12,7 +12,8 @@ from lib import ROOT
 
 
 def main() -> int:
-    return subprocess.run([sys.executable, str(ROOT / "score-items.py")]).returncode
+    score_items = Path(__file__).resolve().parent / "score_items.py"
+    return subprocess.run([sys.executable, str(score_items)]).returncode
 
 
 if __name__ == "__main__":
