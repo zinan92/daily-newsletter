@@ -12,7 +12,8 @@ from lib import ROOT, batch_artifact_paths
 
 
 def main() -> int:
-    result = subprocess.run([sys.executable, str(ROOT / "summarize.py")])
+    summarize = Path(__file__).resolve().parent / "summarize.py"
+    result = subprocess.run([sys.executable, str(summarize)])
     if result.returncode != 0:
         return result.returncode
     _, html_path, png_path = batch_artifact_paths()
