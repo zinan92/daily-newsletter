@@ -18,10 +18,11 @@ def main() -> int:
         return result.returncode
     _, html_path, png_path = batch_artifact_paths()
     if html_path.exists():
+        html_to_long_image = Path(__file__).resolve().parent / "html_to_long_image.py"
         screenshot = subprocess.run(
             [
                 sys.executable,
-                str(ROOT / "html-to-long-image.py"),
+                str(html_to_long_image),
                 str(html_path),
                 str(png_path),
                 "--width",
