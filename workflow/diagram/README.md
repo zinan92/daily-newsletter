@@ -19,9 +19,22 @@ python3 scripts/workflow_graph_dry_run.py
 python3 scripts/workflow_graph_dry_run.py --json
 ```
 
+Legacy reader-facing Inbox workflow map:
+
+```bash
+python3 workflow/diagram/validate-workflow.py /Users/wendy/park-io/inbox/inbox-workflow.yaml
+python3 workflow/diagram/render-workflow-diagram.py \
+  --input /Users/wendy/park-io/inbox/inbox-workflow.yaml \
+  --html /Users/wendy/park-io/inbox/inbox-workflow.html \
+  --png /Users/wendy/park-io/inbox/inbox-workflow.png \
+  --json /Users/wendy/park-io/inbox/inbox-workflow.json
+```
+
+The scripts live here because `park-io` is an Obsidian-facing vault. Do not put
+Python utilities back under `/Users/wendy/park-io/inbox/`.
+
 ## Safety
 
 - This phase does not replace `fetch.py` or `push-digest.sh`.
 - Production commands remain in root wrappers.
 - Future command execution must require an explicit run mode.
-

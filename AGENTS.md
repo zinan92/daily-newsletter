@@ -15,7 +15,8 @@ This repo is under git. Commit working states; never leave it un-versioned.
 
 ## Workflow diagram — Source Of Truth (v12 contract)
 
-The workflow is `inbox-workflow.yaml`, rendered by `render-workflow-diagram.py`.
+The human-facing workflow source is `/Users/wendy/park-io/inbox/inbox-workflow.yaml`.
+It is rendered by `/Users/wendy/work/input-to-park/workflow/diagram/render-workflow-diagram.py`.
 The v12 model is **four independent paths**, each running entry → … → its own
 Section sink:
 
@@ -45,7 +46,7 @@ Rules when editing the YAML, renderer, or validator:
 - Before rendering HTML/PNG, run the validator:
 
 ```bash
-python3 /Users/wendy/park-io/inbox/validate-workflow.py /Users/wendy/park-io/inbox/inbox-workflow.yaml
+python3 /Users/wendy/work/input-to-park/workflow/diagram/validate-workflow.py /Users/wendy/park-io/inbox/inbox-workflow.yaml
 ```
 
 - `render-workflow-diagram.py` must call the validator before writing
