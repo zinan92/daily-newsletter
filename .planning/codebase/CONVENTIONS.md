@@ -1,213 +1,161 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-06-04
+**Analysis Date:** 2026-06-05
 
 ## Naming Patterns
 
 **Files:**
-- Use flat, top-level CLI scripts for pipeline stages: `fetch.py`, `score.py`, `build-digest.py`, `quality-check.py`, `archive-items.py`, `finalize-local.py`.
-- Use kebab-case for executable scripts and shell entrypoints: `fetch-manual-links.py`, `fetch-twitter-saved.py`, `score-items.py`, `push-digest.sh`.
-- Use snake_case for reusable import modules: `lib.py`, `digest_config.py`, `digest_events.py`, `digest_text.py`.
-- Use `tests/test_<topic>.py` for regression tests: `tests/test_bypass.py`, `tests/test_cleaning.py`, `tests/test_llm_fallback.py`.
-- Use `prompts/<verb>-<domain>.md` for prompt files: `prompts/summarize-blogs.md`, `prompts/summarize-tweets.md`, `prompts/digest-intro.md`.
+- Root compatibility wrappers: kebab-case, non-executable in some cases: `fetch-*.py` (RSS, scrape, Twitter, Twitter saved, Douyin, WeChat RSS/exporter, manual links), `score-items.py`, `build-digest.py`, `check-quality.py`, `finalize-local.py`, `html-to-long-image.py`
+- Folderized core modules under `ingestion/`, `enrichment/`, `aggregation/`: `run.py` (main entrypoint per channel/module)
+- Channel-specific utilities: `timeline.py` (X timeline), `saved.py` (X saved), `exporter.py` (WeChat exporter), `wechat_seed.py` (manual links WeChat parser)
+- Aggregation stages: `score_stage.py`, `score_items.py`, `build.py`, `summarize.py`, `check_stage.py`, `quality.py`, `ai_quality.py`, `archive.py`, `finalize_local.py`, `html_to_long_image.py`
+- Shared libraries: `lib.py`, `digest_config.py`, `digest_text.py`, `digest_events.py` (lowercase, descriptive)
+- Test files: `test_*.py` (always lowercase, import root scripts by filepath)
+- Contract specs: `CONTRACT.md` under each module folder, plus `contracts/ingestion-artifact.schema.json` (JSON schema)
 
 **Functions:**
-- Use snake_case for functions: `load_sources()`, `profile_id_for_source()`, `write_source_output()`, `processed_batch_dir()`, `batch_artifact_paths()`.
-- CLI scripts should expose a `main()` function and finish with `if __name__ == "__main__": raise SystemExit(main())` when returning status codes, as in `build-digest.py` and `fetch-manual-links.py`.
-- Helper functions should name the domain object they operate on: `source_for_article()`, `save_independent_article()`, `render_manual_links()`, `archive_item()`.
-- Predicate helpers should read as booleans: `is_youtube_short()`, `bypasses_score()`, `bad_llm_text()`, `item_is_today()`.
+- snake_case universally: `load_sources()`, `parse_feed()`, `is_youtube_short()`, `awemes_to_deliver()`, `item_from_tweet()`, `validate_graph()`, `ready_tasks()`, `claim_task()`
+- Internal helpers prefixed with `_`: `_load_secret()`, `_llm_endpoint_config()`, `_deepseek_is_v4()`, `_parse_first_md_table()`
+- Descriptive action verbs: `fetch_url()`, `parse_date()`, `record_usage()`, `write_source_output()`, `write_health_alert()`, `dry_run_plan()`
 
 **Variables:**
-- Use uppercase module constants for paths, thresholds, regexes, and policy lists: `PARKIO`, `SOURCES_PATH`, `PROCESSED_DIR`, `SCORE_THRESHOLD`, `BAD_PATTERNS`, `WECHAT_URL_RE`.
-- Use short local names only in tight loops or local transformations: `src`, `it`, `fm`, `dt`.
-- Use explicit state keys for JSON-backed state, for example `manual-links` in `fetch-manual-links.py`.
-- Keep path values as `pathlib.Path` objects until rendering or JSON serialization.
+- Constants: UPPERCASE: `ROOT`, `PARKIO`, `SOURCES_PATH`, `STATE_PATH`, `INBOX`, `LOGS`, `PROCESSED_DIR`, `DEEPSEEK_ENDPOINT`, `YOUTUBE_MIN_SECONDS`
+- Module-level accumulation state: `_USAGE = {...}` (token tracking), `_LLM_FAILURES = [...]` (failure recording)
+- Loop/local vars: snake_case: `items`, `entries`, `headers`, `response`, `last_exc`, `payload`, `awemes`, `tasks`
 
 **Types:**
-- Use built-in generic type annotations where useful: `list[dict]`, `dict[str, list[dict]]`, `tuple[Path, Path, Path]`.
-- Keep markdown/frontmatter records as simple dictionaries, not dataclasses, because the pipeline reads/writes JSON and markdown frontmatter directly.
-- Use custom exceptions only where they communicate operational behavior, as with `LLMUnavailable` and `LLMNonRetryable` in `lib.py`.
+- Type hints used throughout: `def fetch_url(url: str, timeout=30)`, `def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: int = 120) -> str`
+- Union types for optional values: `list[str] | None`, `dict | None`, `Exception | None`
+- Type comments in older sections: `# type: dict` where inline hints not used
+
+**Dicts/Data structures:**
+- Source records: `{"name": str, "platform": str, "profile_id": str, "url": str, "active": str, "authority": int, ...}`
+- Item dicts follow contract schema (`contracts/ingestion-artifact.schema.json`): `{"id": str, "title": str, "url": str, "published": str, "content": str, "content_kind": str, "metadata": dict}`
+- Score records: `{"relevance_score": int, "line_fit": list[str], "tags": list[str], "reason": str}`
+- Task records (task graph): `{"id": str, "title": str, "type": str, "status": str, "dependencies": list[str], "success_criteria": list[str]}`
+- Workflow node records (n8n export): `{"id": str, "name": str, "type": str, "command": str, "inputs": list, "outputs": list}`
 
 ## Code Style
 
 **Formatting:**
-- No formatter config was detected in the repo root.
-- Follow existing Python style: 4-space indentation, module docstring at top, imports after docstring, constants near top, functions grouped by domain.
-- Keep lines readable and pragmatic; existing files often use long constant lists and explicit regex definitions.
-- Preserve UTF-8 Chinese text in docs, prompts, and reader-facing strings where the product requires Chinese output.
+- No explicit formatter configured (no ruff.toml, .black, autopep8 config)
+- Observed style: 4-space indentation, max ~100-120 characters per line
+- Import statements: stdlib, then blank, then local/relative modules
+- Docstrings: single-line for simple functions, multi-line with `"""` for complex behavior
+- Type hints preferred throughout (Python 3.10+)
 
 **Linting:**
-- No `.eslintrc`, `.prettierrc`, `eslint.config.*`, `biome.json`, or visible Ruff config was detected.
-- `.ruff_cache/` exists, so Ruff has been run locally, but rules are not declared in this repo.
-- Do not introduce lint-only churn across the flat scripts without an explicit task.
-
-**Shell Style:**
-- Use `#!/usr/bin/env bash` and `set -uo pipefail`, as in `fetch-all.sh` and `push-digest.sh`.
-- Resolve `SCRIPT_DIR`, `cd` into it, and write logs under `logs/`.
-- Use timestamp helper `ts() { date '+%F %T'; }` for runtime logs.
-- Avoid failing the whole fetch run on one fetcher failure unless the stage contract requires it; `fetch-all.sh` logs nonzero stage exits.
+- No linter configuration found (.flake8, ruff.toml, etc.)
+- `.ruff_cache/` exists, suggesting ruff runs locally
+- No enforced gate in test/CI
 
 ## Import Organization
 
-**Order:**
-1. Standard library imports: `json`, `os`, `re`, `sys`, `subprocess`, `urllib`, `datetime`, `pathlib`.
-2. Local shared modules: `from lib import ...`, `from digest_config import ...`, `from digest_events import ...`, `from digest_text import ...`.
-3. Lazy or optional imports inside functions when needed to avoid cycles or optional dependency failures, as in `digest_config.active_douyin_source_names()` and `fetch-manual-links.py load_fetch_wechat()`.
+**Order (observed pattern):**
+1. System imports: `asyncio`, `json`, `os`, `re`, `sys`, `time`, `urllib.*`, `subprocess`
+2. Standard library time/path: `from datetime import datetime, timezone, timedelta`, `from pathlib import Path`
+3. Blank line
+4. Local/relative imports: `from lib import (...)`, `from digest_config import ...`, `from ingestion.x.timeline import ...`
+5. Conditional/optional imports: wrapped in try/except for runtime dependencies (Douyin SDK, `content_downloader`, `task_graph_lib`)
 
 **Path Aliases:**
-- No Python package alias system is used.
-- Tests prepend the repo root to `sys.path` with `sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))`.
-- Scripts import local modules directly by filename module name, for example `import summarize` or `from lib import ROOT`.
-
-**Dependency Boundaries:**
-- Put repo/Park-IO path constants and shared IO in `lib.py`.
-- Do not import `digest_config.py` into `lib.py`; `digest_config.active_douyin_source_names()` lazily imports `lib.load_sources()` to keep the dependency direction one-way.
-- Keep AI prompts close to the script that calls `llm_call()` unless the prompt is a reusable markdown file under `prompts/`.
+- None used; all imports are module names or relative paths
+- Root detection pattern: `ROOT = Path(__file__).resolve().parents[N]`, then `sys.path.insert(0, str(ROOT))` to enable imports
+- Example: `aggregation/digest/score_items.py` uses `REPO_ROOT = Path(__file__).resolve().parents[2]`
+- Test pattern: `ROOT = Path(__file__).resolve().parents[1]`, `sys.path.insert(0, str(ROOT))`
 
 ## Error Handling
 
 **Patterns:**
-- Operational scripts log and continue where partial failure is expected: `fetch-all.sh` records nonzero fetch exits; `fetch-manual-links.py` records failed URLs and continues.
-- Configuration/request errors should fail fast for LLM calls: `lib.LLMNonRetryable` is raised for non-retryable HTTP/provider errors.
-- Transient LLM failures retry and can fail over from DeepSeek to Anthropic/Sonnet through `lib.llm_call()`.
-- Reader-facing quality failures should block release through `quality-check.py`.
-- Local owner alerts should be written through `lib.write_health_alert()` to `/Users/wendy/park-io/inbox/health-alerts.md`; alert writing must not break the pipeline.
-
-**Do This:**
-- Surface pipeline degradation explicitly in `scoring-health.json`, `source-health.json`, `health-alerts.md`, logs, or status pages.
-- Preserve bypass behavior for official, manual, saved, WeChat, and media inputs when scoring is down.
-- Return nonzero from `main()` for hard stage failures so shell wrappers stop correctly.
-
-**Avoid This:**
-- Do not silently drop curated sources because an upstream service failed.
-- Do not add content/template fallbacks beyond the single LLM provider fallback described in `HANDOVER.md`.
-- Do not catch broad exceptions around reader-facing generation unless the exception is recorded and the output remains valid.
+- Custom exception classes:
+  - `LLMUnavailable(RuntimeError)`: raised when endpoint unreachable after retries (transient)
+  - `LLMNonRetryable(RuntimeError)`: raised for config/request errors (fast fail, no retry)
+  - `TaskGraphError(ValueError)`: raised for task graph validation/execution failures
+  - `WorkflowGraphError(ValueError)`: raised for workflow diagram validation failures
+- All exception handling uses `try/except` blocks; broad catches only for optional/runtime dependencies
+- **Never silent swallowing:** errors either re-raised, logged, or explicitly handled with fallback
+- Health alerts via `write_health_alert()` — failures recorded to disk, never raise
 
 ## Logging
 
-**Framework:** console/file logging through shared helpers and shell redirection.
+**Framework:** `log()` helper in `lib.py` + file-based logs
+
+**log() signature:**
+- `log(source: str, msg: str)`: appends to per-day logfile under `logs/`, also prints
+- Example: `log("fetch-rss", "  skip YouTube short: ...")`
 
 **Patterns:**
-- Use `lib.log(stage, message)` from Python pipeline scripts for consistent stage logs.
-- Shell wrappers append to `logs/fetch-all.log` and `logs/push-digest.log`.
-- Include stage start/end messages and counts, for example `fetch-manual-links.py` logs `START`, per-source `NEW`, and `DONE`.
-- For health and owner action, write durable alerts through `lib.write_health_alert()`.
+- Summary at start: `log(script_name, "Starting...")`
+- Per-item filtering: `log(script_name, f"  skip {reason}")`
+- Retry/error: `log(script_name, f"Retry {n}/{retries}: {err}")`
+- Summary at end: new count, error count, processed count
+- No debug/info/warn levels; all output is INFO-equivalent
+
+**Health alerts (separate from logs):**
+- `write_health_alert(summary: str, details: list[str] | None = None) -> bool`
+- Used for observable failures (transcription failed, source DOWN, scoring outage)
+- Written to `~/park-io/inbox/health-alerts.md`, newest first
+- Never raises
 
 ## Comments
 
 **When to Comment:**
-- Comment non-obvious product invariants and failure modes, especially those tied to `GOTCHAS.md`.
-- Use comments to explain why fallback, bypass, or guard behavior exists, as in `lib.llm_call()` and `summarize.py event_title()`.
-- Keep comments operational and specific; avoid comments that only restate the code.
-
-**JSDoc/TSDoc:**
-- Not applicable.
-
-**Docstrings:**
-- Use module docstrings for scripts to state the stage purpose: `"""Stage 4: Build Digest."""`, `"""Pre-push quality checks for the Park-IO daily product."""`.
-- Use function docstrings for shared helpers and behavior with important contracts: `lib.load_sources()`, `lib.write_source_output()`, `digest_text.strip_source_meta()`.
+- Docstrings on public functions: describe inputs, outputs, side effects
+- Algorithmic intent: why workarounds exist (YouTube fallback, DeepSeek thinking reasoning)
+- External references: API quirks, platform behavior ("Owner wants long videos only — drop Shorts at ingestion")
+- Disabled/suppressed behavior: `# pragma: no cover - optional runtime dependency`
+- Product invariants tied to GOTCHAS.md or HANDOVER.md
 
 ## Function Design
 
-**Size:**
-- Small wrappers and helpers should stay focused, for example `build-digest.py main()` delegates to `summarize.py` and `html-to-long-image.py`.
-- Larger orchestration functions are acceptable in pipeline scripts when they represent a whole stage, but pull reusable parsing/path/text logic into `lib.py`, `digest_text.py`, or `digest_events.py`.
+**Size:** Under 80 lines typical; many under 30
+- Short: `fetch_url()` (6 lines), `is_youtube_short()` (17 lines), `published_local_date()` (8 lines)
+- Medium: `parse_feed()` (40+ lines, complex XML/Atom), `_llm_call_provider()` (35 lines, retry)
+- Long: `summarize.py main()` orchestrates whole digest stage
 
 **Parameters:**
-- Pass plain dictionaries for source and item records; use the same keys that markdown/frontmatter and JSON state use (`name`, `profile_id`, `platform`, `category`, `url`, `title`, `content`, `published`).
-- Use optional batch parameters for artifact path helpers, as in `processed_batch_dir(batch: str | None = None)` and `batch_artifact_paths(batch: str | None = None, prefix: bool = True)`.
-- Prefer environment variables for runtime overrides: `PARKIO_BATCH_ID`, `PARKIO_BATCH_DIR`, `PARKIO_DATE`, `PARKIO_SKIP_SEND`, `PARKIO_LLM_PROVIDER`, `PARKIO_DEEPSEEK_MODEL`.
-
-**Return Values:**
-- CLI `main()` should return an int when the stage can fail.
-- Parser helpers should return empty containers on missing/invalid optional state, as in `load_sources()`, `load_scores()`, and `load_media_summaries()`.
-- Path helpers should return `Path`, not strings.
+- Use keyword-only for options: `def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: int = 120)`
+- Defaults for common optional: `timeout=30`, `retries=3`, `max_len=72`
+- Positional for essential; keyword-only for optional/config
 
 ## Module Design
 
 **Exports:**
-- No explicit `__all__` convention is used.
-- Modules export functions/constants directly; import only the names needed with `from lib import ...`.
-- Keep shared constants centralized: paths in `lib.py`, product policy in `digest_config.py`, text cleaning markers in `digest_config.py` and `digest_text.py`.
+- Root compatibility wrappers re-export key functions from folderized equivalents
+- Example: `fetch-rss.py` defines `main()` and re-exports `parse_feed()`, `fetch_url()`
+- Actual implementation in `ingestion/rss/run.py`
+- Shared utilities in `lib.py` — single definition, imported by all
 
-**Barrel Files:**
-- Not used.
+**Contract-First Pattern:**
+- Every ingestion channel exports items matching `contracts/ingestion-artifact.schema.json`
+- `CONTRACT.md` defines boundaries under each module folder
+- Schema enforced by tests: `tests/test_ingestion_contracts.py`
 
-**Script Boundaries:**
-- `fetch.py` orchestrates fetch stage scripts; individual fetchers own platform-specific extraction.
-- `score.py` delegates scoring to `score-items.py`.
-- `build-digest.py` delegates digest rendering to `summarize.py` and image rendering to `html-to-long-image.py`.
-- `check-quality.py` is a thin wrapper over `quality-check.py`.
-- `send-artifacts.py` delegates Telegram behavior to `push-telegram.py`.
+## Compatibility Wrapper Pattern
 
-## Source/Profile/Library Conventions
+**Why:**
+- Root scripts remain public interface (backward compatible)
+- Folderized modules own channel/stage logic
+- Tests verify both layers work together
 
-**Source Configuration:**
-- Add/remove/disable sources in `/Users/wendy/park-io/sources.md`; this is the source list parsed by `lib.load_sources()`.
-- The first markdown table in `/Users/wendy/park-io/sources.md` must keep columns used by the parser: `id`, `profile_id`, `name`, `platform`, `url`, `category`, `priority`, `frequency`, `active`, `added_date`, `notes`.
-- Disable without deleting by setting `active` to `false`.
-- Keep WeChat `rss_url` and `user_name` notes in the `notes` column when available; pending WeWe subscriptions can remain noted there.
+**Implementation:**
+- Root script: minimal CLI entrypoint, imports and calls folderized module
+- Folderized module: `run.py` with actual implementation
+- Root script re-exports helper functions for backward compat (tested in `tests/test_ingestion_wrappers.py`)
 
-**Profile IDs:**
-- Prefer explicit `profile_id` in `/Users/wendy/park-io/sources.md`.
-- Use stable slugs such as `anthropic`, `openai`, `claude-hunter`, `zhuzi-tzfilm`.
-- If no explicit profile is present, `lib.profile_id_for_source()` maps known names through `PROFILE_ID_BY_SOURCE_NAME` or sanitizes the source `name`.
+## Environment Configuration
 
-**Library Files:**
-- Use `archive-items.py` and `lib.item_filename()` for archived item names.
-- Archived item filenames follow `YY-MM-DD-profile-channel-slug-hash.md`.
-- Keep profile metadata in `/Users/wendy/park-io/library/profiles/<profile_id>/profile.md`.
-- Keep items under `/Users/wendy/park-io/library/profiles/<profile_id>/items/`.
-- Use `/Users/wendy/park-io/library/独立链接/` for independent/manual items without a tracked profile.
+**Env vars (from lib.py, never hardcoded):**
+- LLM: `PARKIO_LLM_PROVIDER` (default "deepseek"), `PARKIO_LLM_FALLBACK_PROVIDER` (default "anthropic")
+- DeepSeek: `PARKIO_DEEPSEEK_ENDPOINT`, `PARKIO_DEEPSEEK_MODEL`, `PARKIO_DEEPSEEK_THINKING`, `PARKIO_DEEPSEEK_MAX_OUTPUT`
+- Anthropic: `PARKIO_CLIPROXY_ENDPOINT`, `PARKIO_CLIPROXY_MODEL`
+- YouTube: `PARKIO_YOUTUBE_MIN_SECONDS` (default 90)
+- Batch control: `PARKIO_BATCH_ID`, `PARKIO_SKIP_AI_QUALITY`, `PARKIO_RESCORE_CONTEXT`, `PARKIO_REFETCH_TODAY`
 
-## Manual Links Conventions
-
-- Manual links are operator data in `/Users/wendy/park-io/inbox/manual-links.md`, not repo code.
-- Preserve the `Pending`, `Imported`, and `Failed` section headings exactly.
-- Add one URL per line under `Pending`.
-- `fetch-manual-links.py` imports only WeChat article URLs matching `WECHAT_URL_RE`.
-- Unsupported URLs stay in `Pending`; do not delete them in cleanup.
-- Imported records are capped in rendered output to the last 200; failed records to the last 100.
-- Duplicate detection is URL-based through `state.json` key `manual-links`.
-
-## Prompt Conventions
-
-- Prompt files are markdown and instruction-heavy, with explicit output format and forbidden behavior sections.
-- Prompts should tell the model to output Chinese summaries while keeping product/tool names in original language when needed.
-- Prompt files can guide tone and format, but hard product constraints belong in code and tests.
-- Do not let prompt changes bypass `quality-check.py` or `GOTCHAS.md` invariants.
-
-## Documentation Conventions
-
-- `README.md` is reader/operator-facing and can include Chinese product explanations, command examples, stage tables, environment variables, and output examples.
-- `AGENTS.md` is the agent editing contract; check it before modifying workflow, digest, fetch, scoring, Telegram, or quality code.
-- `GOTCHAS.md` is the regression invariant source; update it when a new failure mode becomes a contract.
-- `HANDOVER.md` records current operational context, current model choices, recent changes, and known owner/infra actions.
-- Use concrete file paths in docs, especially paths under `/Users/wendy/park-io/` when documenting runtime data.
-
-## Test Conventions
-
-- Tests are plain Python modules with top-level `test_*` functions and direct-run harnesses.
-- Each test file imports repo modules by injecting the repo root into `sys.path`.
-- Run all tests with:
-
-```bash
-for t in tests/test_*.py; do python3 "$t"; done
-```
-
-- Many tests can also run under pytest, but direct execution is the repo-native pattern.
-- Test docstrings should name the gotcha or regression they lock, as in `tests/test_bypass.py` and `tests/test_cleaning.py`.
-- Prefer focused invariant tests over broad end-to-end tests when changing source routing, text cleanup, score bypass, title generation, health alerts, or media handling.
-
-## Reader-Facing Output Conventions
-
-- Final digest content must be Chinese-first, value-first, and free of ingestion metadata.
-- Markdown is the single content source; HTML and PNG must derive from final Markdown.
-- Final processed artifact names should stay stable: `000-YY-MM-DD.md`, `000-YY-MM-DD.html`, `000-YY-MM-DD.png`.
-- Do not produce timestamped daily digest variants such as morning/evening copies unless the product contract changes.
-- Keep `parkio-push-items` and `parkio-processed-items` markers machine-readable and hidden from visible reader content.
-- Never allow raw `公众号：`, `作者：`, `WeChat ID：`, `Source:`, `channel:`, `platform:`, `category:`, or `https://t.co/` metadata into reader-facing output.
+**Secrets (from ~/park-io/secrets/, never in repo):**
+- `deepseek-key`, `cliproxy-key`, `telegram-bot-token`, `telegram-chat-id`
+- Load via `_load_secret(env_name: str, secret_filename: str) -> str`
 
 ---
 
-*Convention analysis: 2026-06-04*
+*Convention analysis: 2026-06-05*

@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-06-04
+**Analysis Date:** 2026-06-05
 
 ## Languages
 
@@ -8,12 +8,12 @@
 - Python 3.11+ - Pipeline scripts, source fetchers, scoring, summarization, quality gates, health/status generation, and artifact rendering. Runtime selection is enforced by `fetch-all.sh`, which checks `sys.version_info >= (3, 11)`.
 - Bash - launchd-friendly orchestration wrappers in `fetch-all.sh` and `push-digest.sh`.
 - Markdown - Source configuration and durable content queues use Markdown tables, YAML-like frontmatter, and item sections through `~/park-io/sources.md`, `~/park-io/inbox/manual-links.md`, `~/park-io/inbox/unprocessed/*.md`, and `~/park-io/inbox/processed/<batch>/*.md`.
-- HTML/CSS - Reader and maintainer artifacts are generated as HTML by `summarize.py`, `generate-status.py`, and rendered to PNG by `html-to-long-image.py`.
+- HTML/CSS - Reader and maintainer artifacts are generated as HTML by `summarize.py`, `generate-status.py`, and rendered to PNG by `aggregation/digest/html_to_long_image.py`.
 
 **Secondary:**
 - JSON - Runtime state, media queues, Telegram dedupe, scoring health, and source health use JSON files such as `state.json`, `media-summaries.json`, `media-queue.json`, `tg-push-state.json`, `x-saved-items.json`, and `x-saved-state.json`.
-- XML/RSS/Atom - RSS, Atom, YouTube feed, and WeChat bridge parsing is implemented in `fetch-rss.py` and `fetch-wechat-rss.py` with `xml.etree.ElementTree`.
-- YAML - Workflow topology is documented as `inbox-workflow.yaml` per `AGENTS.md`, although the renderer/validator live outside the files inspected here.
+- XML/RSS/Atom - RSS, Atom, YouTube feed, and WeChat bridge parsing is implemented in `ingestion/rss/run.py` and `ingestion/wechat_rss/run.py` with `xml.etree.ElementTree`.
+- YAML - Workflow topology is documented as `workflow/daily-newsletter.workflow.yaml` per schema in `contracts/`, although the renderer/validator live outside the files inspected here.
 
 ## Runtime
 
@@ -39,8 +39,8 @@
 - `unittest.mock` is used in `tests/test_llm_fallback.py`; there is no detected pytest/vitest/jest config.
 
 **Build/Dev:**
-- No compiled build step. `build-digest.py` invokes `summarize.py`, then renders the generated HTML to PNG via `html-to-long-image.py`.
-- Google Chrome headless is the PNG rendering runtime in `html-to-long-image.py`, with DevTools websocket rendering when `websockets` exists and Chrome CLI screenshot fallback otherwise.
+- No compiled build step. `aggregation/digest/build.py` invokes `aggregation/digest/summarize.py`, then renders the generated HTML to PNG via `aggregation/digest/html_to_long_image.py`.
+- Google Chrome headless is the PNG rendering runtime in `aggregation/digest/html_to_long_image.py`, with DevTools websocket rendering when `websockets` exists and Chrome CLI screenshot fallback otherwise.
 - `fetch-all.sh` and `push-digest.sh` are the operational entrypoints consumed by launchd.
 
 ## Key Dependencies
@@ -48,15 +48,15 @@
 **Critical:**
 - DeepSeek OpenAI-compatible Chat Completions API - Primary LLM provider in `lib.py` via `PARKIO_LLM_PROVIDER=deepseek`, endpoint `PARKIO_DEEPSEEK_ENDPOINT`, model `PARKIO_DEEPSEEK_MODEL`, and key `PARKIO_DEEPSEEK_KEY` or `~/park-io/secrets/deepseek-key`.
 - CLIProxyAPI / Sonnet - Fallback Anthropic-compatible provider in `lib.py`, using `PARKIO_CLIPROXY_ENDPOINT`, `PARKIO_CLIPROXY_KEY` or `~/park-io/secrets/cliproxy-key`, and `PARKIO_CLIPROXY_MODEL`.
-- `twitter` CLI - X source fetching uses `/Users/wendy/.local/bin/twitter` in `fetch-twitter.py` and `fetch-twitter-saved.py`.
-- `content-toolkit` download capability - Douyin fetching/transcription imports `content_downloader` from `~/content-toolkit/capabilities/download` in `fetch-douyin.py` and `fetch-media-transcripts.py`.
-- `yt-dlp` / `yt_dlp` - YouTube feed fallback and transcript/audio download use Homebrew `yt-dlp`, `python -m yt_dlp`, or PATH `yt-dlp` in `fetch-rss.py` and `fetch-media-transcripts.py`.
+- `twitter` CLI - X source fetching uses `/Users/wendy/.local/bin/twitter` in `ingestion/x/timeline.py` and `ingestion/x/saved.py`.
+- `content-toolkit` download capability - Douyin fetching/transcription imports `content_downloader` from `~/content-toolkit/capabilities/download` in `ingestion/douyin/run.py` and `enrichment/media/run.py`.
+- `yt-dlp` / `yt_dlp` - YouTube feed fallback and transcript/audio download use Homebrew `yt-dlp`, `python -m yt_dlp`, or PATH `yt-dlp` in `ingestion/rss/run.py` and `enrichment/media/run.py`.
 - MLX Whisper - Audio ASR uses `mlx_whisper` with default model `mlx-community/whisper-small-mlx` in `fetch-media-transcripts.py`.
 
 **Infrastructure:**
-- Google Chrome - Full-page PNG rendering depends on `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` in `html-to-long-image.py`.
-- `websockets` Python package - Optional DevTools protocol renderer in `html-to-long-image.py`.
-- Pillow (`PIL`) - Optional whitespace trimming for PNG outputs in `html-to-long-image.py`.
+- Google Chrome - Full-page PNG rendering depends on `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` in `aggregation/digest/html_to_long_image.py`.
+- `websockets` Python package - Optional DevTools protocol renderer in `aggregation/digest/html_to_long_image.py`.
+- Pillow (`PIL`) - Optional whitespace trimming for PNG outputs in `aggregation/digest/html_to_long_image.py`.
 - `ffprobe` - Optional duration probe for downloaded media in `fetch-media-transcripts.py`, preferring `/opt/homebrew/bin/ffprobe`.
 - Telegram Bot API - Delivery and health alerts use `urllib.request` in `push-telegram.py` and `lib.py`.
 
@@ -97,7 +97,7 @@
 **Processed Output:**
 - `~/park-io/inbox/processed/<batch>/000-<label>.md` - Digest Markdown generated by `summarize.py`.
 - `~/park-io/inbox/processed/<batch>/000-<label>.html` - Reader HTML panel generated by `summarize.py`.
-- `~/park-io/inbox/processed/<batch>/000-<label>.png` - Long image rendered from HTML by `html-to-long-image.py`.
+- `~/park-io/inbox/processed/<batch>/000-<label>.png` - Long image rendered from HTML by `aggregation/digest/html_to_long_image.py`.
 - `~/park-io/inbox/sent/<YY-MM-DD>.md` and `.html` - Local final daily digest copied by `finalize-local.py`.
 
 **State/Health:**
@@ -132,4 +132,7 @@
 
 ---
 
-*Stack analysis: 2026-06-04*
+
+---
+
+*Stack analysis: 2026-06-05*

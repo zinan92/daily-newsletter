@@ -1,460 +1,258 @@
-<!-- refreshed: 2026-06-04 -->
+<!-- refreshed: 2026-06-05 -->
 # Architecture
 
-**Analysis Date:** 2026-06-04
+**Analysis Date:** 2026-06-05
 
 ## System Overview
 
-`input-to-park` is a local CLI/cron pipeline, not a web service. The repo contains executable Python scripts and shell orchestrators; runtime data lives primarily under `~/park-io/`.
-
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                  Cron / Manual Entrypoints                  │
-│ `fetch-all.sh`                       `push-digest.sh`       │
-└───────────────┬───────────────────────────────┬─────────────┘
-                │                               │
-                ▼                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       Fetch Raw Layer                       │
-│ `fetch.py` → `fetch-*.py` → `lib.write_source_output()`     │
-│ output: `~/park-io/inbox/unprocessed/*.md`                  │
-└───────────────┬─────────────────────────────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       Batch + Scoring                       │
-│ `open-batch.py` → `score.py` → `score-items.py`             │
-│ output: `~/park-io/inbox/processed/<batch>/`, `scores.json` │
-└───────────────┬─────────────────────────────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                Event Merge + Summarize + Render             │
-│ `build-digest.py` → `summarize.py` → `digest_events.py`     │
-│ output: `000-<batch>.md`, `.html`, optional `.png`          │
-└───────────────┬─────────────────────────────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 Quality, Archive, Finalize, Send            │
-│ `quality-check.py` + `ai-quality-check.py`                  │
-│ `archive-items.py` → `finalize-local.py` → `send-artifacts.py` │
-│ local sent: `~/park-io/inbox/sent/`; optional Telegram      │
-└───────────────┬─────────────────────────────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Status + Long-Term Memory                │
-│ `generate-status.py`, `source-health.py`, `channel-health.py` │
-│ `~/park-io/status.html`, `~/park-io/library/profiles/`      │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│              Shell Orchestrators (cron / launchd)                    │
+│   `fetch-all.sh`  (every 4h)      `push-digest.sh`  (daily fixed)   │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │ invokes root entrypoints
+┌────────────────────────▼─────────────────────────────────────────────┐
+│  Stage 1 – Ingestion   `fetch.py`  (fans out to all fetchers)        │
+│  ┌───────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
+│  │ingestion/ │ │ingestion/│ │ingestion/│ │ingestion/│ │ingestion/│  │
+│  │  rss/     │ │web_scrape│ │  x/      │ │wechat_rss│ │ douyin/  │  │
+│  │  run.py   │ │  run.py  │ │timeline  │ │  run.py  │ │  run.py  │  │
+│  └───────────┘ └──────────┘ │  saved   │ │exporter  │ └──────────┘  │
+│  ┌───────────┐               └──────────┘ └──────────┘               │
+│  │ingestion/ │                                                        │
+│  │manual_links/run.py, wechat_seed.py                                │
+│  └───────────┘                                                        │
+│  Output → `~/park-io/inbox/unprocessed/<date>-<profile>.md`          │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────────────────────┐
+│  Stage 1b – Enrichment   `fetch-media-transcripts.py` (wrapper)      │
+│  `enrichment/media/run.py`  — transcript, clean, deep summary        │
+│  `enrichment/quoted_article/`  — future: resolve X-quoted URLs       │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────────────────────┐
+│  Stage 2 – Batch Open   `open-batch.py`                              │
+│  Moves unprocessed/<date>-*.md → processed/<batch>/                  │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────────────────────┐
+│  Stage 3 – Aggregation / Digest  `aggregation/digest/`               │
+│  score_stage → build → check_stage → archive → finalize_local        │
+│  summarize (LLM) · quality (rules) · ai_quality (LLM gate)           │
+│  html_to_long_image (PNG artifact)                                    │
+│  Output → `~/park-io/inbox/processed/<batch>/` (md + html + png)     │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────────────────────┐
+│  Stage 4 – Deliver   `send-artifacts.py` → `push-telegram.py`        │
+│  Output → Telegram channel + `~/park-io/inbox/sent/`                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Component Responsibilities
 
-| Component | Determinism | Responsibility | File |
-|-----------|-------------|----------------|------|
-| Fetch orchestrator | Deterministic | Runs all fetchers, records source health, regenerates status. | `fetch.py`, `fetch-all.sh` |
-| Source fetchers | Mostly deterministic, network-dependent | Fetch RSS, scrape pages, X, saved X, WeChat, WeChat RSS/exporter, Douyin, and media transcripts. | `fetch-rss.py`, `fetch-scrape.py`, `fetch-twitter.py`, `fetch-twitter-saved.py`, `fetch-wechat.py`, `fetch-wechat-rss.py`, `fetch-wechat-exporter.py`, `fetch-douyin.py`, `fetch-media-transcripts.py` |
-| Manual link importer | Deterministic + network-dependent | Reads `~/park-io/inbox/manual-links.md`, imports supported WeChat links, moves them from Pending to Imported/Failed, and writes source output. | `fetch-manual-links.py` |
-| Shared runtime library | Deterministic infrastructure + stochastic LLM client | Defines repo/data paths, source parsing, item markdown parsing/rendering, state IO, logging, Telegram alerts, and `llm_call()`. | `lib.py` |
-| Batch opener | Deterministic | Moves raw pending markdown from `~/park-io/inbox/unprocessed/` into `~/park-io/inbox/processed/<batch>/`, merging duplicate profile-day files. | `open-batch.py` |
-| Scoring | AI/stochastic for ordinary items, deterministic bypass for curated classes | Scores ordinary items with an LLM and writes `scores.json`; media, WeChat, Douyin, saved X, and configured always-include classes bypass scoring. | `score.py`, `score-items.py`, `digest_config.py` |
-| Event merging | Mixed | Merges X threads deterministically by `conversation_id`; may use LLM semantic clustering for official/code/people same-event grouping; fails open to no semantic merge. | `digest_events.py` |
-| Digest builder | Mixed | Reads batch items, applies score/routing policy, creates Chinese markdown, renders HTML from the final markdown, and records push/processed markers. | `build-digest.py`, `summarize.py`, `digest_text.py` |
-| Long image renderer | Deterministic rendering, browser/tool dependent | Converts the HTML artifact into a long PNG when HTML exists. | `html-to-long-image.py` |
-| Deterministic quality gate | Deterministic | Blocks push/final pipeline failures for missing artifacts, bad AI phrases, metadata leakage, raw English prose, MD/HTML divergence, duplicate headings, duplicate push URLs, and local file URL leaks. | `check-quality.py`, `quality-check.py` |
-| AI quality check | AI/stochastic, non-blocking by default | Performs read-only product QC on final Markdown/HTML and returns structured pass/fail JSON; blocks only when `PARKIO_STRICT_AI_QUALITY=1`. | `ai-quality-check.py` |
-| Local finalizer | Deterministic | Copies processed Markdown/HTML into `~/park-io/inbox/sent/<label>.md|html` independent of Telegram. | `finalize-local.py` |
-| Telegram sender | Deterministic IO + network-dependent | Optionally sends compact digest text, HTML, and PNG; dedupes by hidden URL markers and `tg-push-state.json`. | `send-artifacts.py`, `push-telegram.py` |
-| Archive/profile library | Deterministic | Archives processed source items into `~/park-io/library/profiles/<profile_id>/items/` or `~/park-io/library/独立链接/`, and maintains `profile.md` baselines. | `archive-items.py` |
-| Status/dashboard | Deterministic probes + network-dependent checks | Builds owner dashboard and source health views from logs, current batch, state, manual links, media queue, sent digests, and library stats. | `generate-status.py`, `source-health.py`, `channel-health.py` |
+| Component | Responsibility | Key Files |
+|-----------|----------------|-----------|
+| Shell orchestrators | Cron/launchd entry; sequencing; lock management | `fetch-all.sh`, `push-digest.sh` |
+| `fetch.py` | Fan-out stage 1: runs all ingestion wrappers | `fetch.py` |
+| `ingestion/rss/` | RSS/Atom feed ingestion (blogs, podcasts, YouTube feeds) | `ingestion/rss/run.py` |
+| `ingestion/web_scrape/` | Scrape-based ingestion for non-RSS sites | `ingestion/web_scrape/run.py` |
+| `ingestion/x/` | Twitter/X timeline and saved-post ingestion | `ingestion/x/timeline.py`, `ingestion/x/saved.py` |
+| `ingestion/wechat_rss/` | WeChat public-account articles via WeWe RSS bridge | `ingestion/wechat_rss/run.py`, `ingestion/wechat_rss/exporter.py` |
+| `ingestion/douyin/` | Douyin (TikTok CN) video source discovery | `ingestion/douyin/run.py` |
+| `ingestion/manual_links/` | Owner-curated URLs and WeChat seed links | `ingestion/manual_links/run.py`, `ingestion/manual_links/wechat_seed.py` |
+| `ingestion/release_feed/` | GitHub release / changelog feeds (future split from rss) | `ingestion/release_feed/CONTRACT.md` (contract-only) |
+| `ingestion/youtube/` | YouTube-specific discovery (future split from rss) | `ingestion/youtube/CONTRACT.md` (contract-only) |
+| `ingestion/common/` | Shared helpers: source loading, artifact building, URL normalisation | `ingestion/common/CONTRACT.md` |
+| `enrichment/media/` | Transcript fetch, transcript cleanup, deep summary, publishability | `enrichment/media/run.py` |
+| `enrichment/quoted_article/` | Future: resolve links quoted in X posts | `enrichment/quoted_article/CONTRACT.md` (contract-only) |
+| `aggregation/digest/` | Scoring, digest build, summarise (LLM), quality gates, archive, HTML/PNG | `aggregation/digest/score_stage.py` … `finalize_local.py` |
+| `open-batch.py` | Move unprocessed raw files into a named batch directory | `open-batch.py` |
+| `push-telegram.py` | Deliver artifacts to Telegram | `push-telegram.py` |
+| `generate-status.py` | Owner-facing daily inbox dashboard HTML | `generate-status.py` |
+| `lib.py` | Shared path constants, LLM helpers, frontmatter parsing | `lib.py` |
+| `digest_config.py` | Score thresholds, category order, source roles | `digest_config.py` |
+| `digest_events.py` | Event identity and grouping rules | `digest_events.py` |
+| `digest_text.py` | Text cleaning helpers (HTML strip, release bullets) | `digest_text.py` |
+| `contracts/` | Contract layer: schema JSON and README defining the standard artifact | `contracts/README.md` |
+| `workflow/diagram/` | Executable workflow graph (JSON) — canonical node/edge definition | `workflow/diagram/daily-newsletter.graph.json` |
+| `workflow/n8n/` | Generated n8n adapter artifact from graph | `workflow/n8n/daily-newsletter.workflow.json` |
+| `scripts/` | Task-graph OS, workflow graph runners, n8n export/diff | `scripts/task_graph_lib.py`, `scripts/workflow_graph_lib.py` |
 
 ## Pattern Overview
 
-**Overall:** File-first ETL pipeline with deterministic routing and localized AI nodes.
+**Overall:** Contract-first layered ingestion pipeline
 
 **Key Characteristics:**
-- Use file artifacts as contracts: raw source files, batch directories, markdown/html/png output, JSON state, and profile library files.
-- Keep routing deterministic: source name/platform/category/profile maps decide section placement; AI does not choose the route.
-- Use AI inside bounded nodes: item scoring, semantic same-event clustering, headline/paragraph rewrites, release-note value bullets, and AI QC.
-- Fail visible: fetch failures are logged and surfaced through `source-health.json`, `source-health.md`, `channel-health.py`, digest channel banners, and `status.html`.
-- Preserve local ownership: secrets are loaded from env or `~/park-io/secrets/` by `lib._load_secret()` and `push-telegram.py`; do not put secret values in repo files.
+- Contracts (interface schemas) are defined in `contracts/` and per-channel `CONTRACT.md` files before implementation changes. Channels may not embed reader-facing logic.
+- Ingestion is channel-parallel: each channel adapter is independently runnable via its own `run.py`.
+- Root-level `fetch-*.py` wrappers are thin compatibility shims — they re-export from the new module and call `main()`. All real logic lives in the folder layer.
+- Aggregation stages are strictly sequential (open-batch → score → build → quality-check → archive → finalize), gated by `push-digest.sh`.
+- The pipeline writes to `~/park-io/inbox/` (outside the repo) as its artifact store.
 
 ## Layers
 
-**Entrypoint Layer:**
-- Purpose: Cron/manual control surfaces.
-- Location: `fetch-all.sh`, `push-digest.sh`
-- Contains: shell orchestration, lock handling, stage sequencing, environment setup.
-- Depends on: Python 3.11+, repo scripts, `logs/fetch.lock`.
-- Used by: launchd/cron/manual operator.
+**Contracts Layer:**
+- Purpose: Define the schema and boundary rules for every channel before any implementation.
+- Location: `contracts/` (global), `ingestion/*/CONTRACT.md`, `enrichment/*/CONTRACT.md`, `aggregation/digest/CONTRACT.md`
+- Contains: JSON schema (`contracts/ingestion-artifact.schema.json`), boundary prose
+- Depends on: nothing
+- Used by: all ingestion adapters and downstream enrichment/aggregation
 
-**Fetch Raw Layer:**
-- Purpose: Gather raw content into normalized markdown queue files.
-- Location: `fetch.py`, `fetch-*.py`, `lib.write_source_output()`
-- Contains: platform-specific fetch logic, source state updates, raw markdown rendering.
-- Depends on: `~/park-io/sources.md`, `state.json`, platform credentials/cookies, network sources, `~/content-toolkit/capabilities/download` for some media/Douyin paths.
-- Used by: `fetch-all.sh`, `open-batch.py`, `source-health.py`, `channel-health.py`.
+**Ingestion Layer:**
+- Purpose: Per-channel raw data fetching and source-specific normalisation into standard artifacts
+- Location: `ingestion/<channel>/run.py` (or `timeline.py`, `saved.py`, `exporter.py` for multi-entrypoint channels)
+- Contains: HTTP fetch, feed parsing, dedup, `~/park-io/inbox/unprocessed/<date>-<profile>.md` writes
+- Depends on: `lib.py`, `ingestion/common/`, channel-specific external runtime (content-toolkit, wewe-rss, twitter-cli)
+- Used by: root wrapper scripts, `fetch.py`
 
-**Manual Links Layer:**
-- Purpose: Human-supplied one-off links enter the same source-output path as fetched sources.
-- Location: `fetch-manual-links.py`
-- Contains: `~/park-io/inbox/manual-links.md` section management, WeChat URL extraction, import records, failure records, independent-link archive writes.
-- Depends on: `fetch-wechat.py`, `lib.load_sources()`, `lib.write_source_output()`.
-- Used by: `fetch.py`.
+**Enrichment Layer:**
+- Purpose: Cross-channel post-processing of individual items (transcript, quoted article resolution)
+- Location: `enrichment/media/run.py`, `enrichment/quoted_article/` (future)
+- Contains: yt-dlp / MLX Whisper / content-toolkit calls, transcript cleaning, deep LLM summary, `publishable` flag
+- Depends on: `lib.py`, ingestion outputs
+- Used by: root wrapper `fetch-media-transcripts.py`, runs alongside ingestion in `fetch.py`
 
-**Batch Layer:**
-- Purpose: Freeze currently pending source files into the day's processed batch.
-- Location: `open-batch.py`
-- Contains: move/merge logic from `~/park-io/inbox/unprocessed/` to `~/park-io/inbox/processed/<batch>/`.
-- Depends on: `lib.batch_id()`, `lib.processed_batch_dir()`, frontmatter parsing/rendering.
-- Used by: `push-digest.sh`.
+**Aggregation Layer:**
+- Purpose: Batch assembly, scoring, summarisation, quality gating, archiving, rendering
+- Location: `aggregation/digest/`
+- Contains: `score_stage.py`, `score_items.py`, `build.py`, `summarize.py`, `check_stage.py`, `quality.py`, `ai_quality.py`, `archive.py`, `finalize_local.py`, `html_to_long_image.py`
+- Depends on: `lib.py`, `digest_config.py`, `digest_events.py`, `digest_text.py`, Anthropic/DeepSeek LLM API
+- Used by: root wrapper scripts, `push-digest.sh`
 
-**Scoring Layer:**
-- Purpose: Attach relevance scores, line-fit, tags, and reasons.
-- Location: `score.py`, `score-items.py`
-- Contains: `SCORING_PROMPT`, owner context loading from `~/park-io/sources.md`, profile context loading from `~/park-io/library/profiles/*/profile.md`, outage recording to `scoring-health.json`.
-- Depends on: `lib.llm_call()`, `digest_config.media_source_names()`, batch/raw markdown parser.
-- Used by: `push-digest.sh`, `summarize.py`.
-
-**Routing + Event Layer:**
-- Purpose: Convert source items into section-ready events.
-- Location: `digest_config.py`, `digest_events.py`, `summarize.py`
-- Contains: source-role maps, source groups, bypass rules, path breakdown, deterministic thread merge, optional semantic event clustering.
-- Depends on: `scores.json`, source metadata, `conversation_id`, `SOURCE_ROLES`, `SOURCE_AUTHORITY`.
-- Used by: `summarize.render_panel()`, `generate-status.py`.
-
-**Summarize/Render Layer:**
-- Purpose: Produce the reader-facing Chinese daily digest.
-- Location: `build-digest.py`, `summarize.py`, `digest_text.py`, `html-to-long-image.py`
-- Contains: markdown rendering, HTML rendering from final markdown, optional PNG generation, hidden push/processed URL markers.
-- Depends on: `lib.llm_call()` for value paragraphs/headlines/release-note rewrites, deterministic text sanitizers from `digest_text.py`, health rows from `source_health()`.
-- Used by: `quality-check.py`, `finalize-local.py`, `push-telegram.py`.
-
-**Quality Layer:**
-- Purpose: Stop bad final artifacts before finalization/send.
-- Location: `check-quality.py`, `quality-check.py`, `ai-quality-check.py`
-- Contains: deterministic hard gate plus optional AI QC.
-- Depends on: `lib.batch_artifact_paths()`, final Markdown/HTML, hidden markers, `lib.llm_call()` for AI QC.
-- Used by: `push-digest.sh`, `push-telegram.py`.
-
-**Delivery Layer:**
-- Purpose: Persist local sent artifacts and optionally push to Telegram.
-- Location: `finalize-local.py`, `send-artifacts.py`, `push-telegram.py`
-- Contains: local copy-to-sent, Telegram multipart send, chunking, compact push body extraction, URL dedupe state.
-- Depends on: `~/park-io/inbox/sent/`, env/secrets for Telegram, hidden URL markers.
-- Used by: `push-digest.sh` when `PARKIO_SKIP_SEND=0`; local finalize always runs.
-
-**Archive + Observability Layer:**
-- Purpose: Preserve historical items and show operator status.
-- Location: `archive-items.py`, `generate-status.py`, `source-health.py`, `channel-health.py`
-- Contains: profile item archive, profile baseline updates, processed cleanup, status HTML generation, source health history, truthful channel health classification from logs.
-- Depends on: `~/park-io/library/`, `~/park-io/inbox/sent/`, `logs/*.log`, `state.json`, `source-health.json`, `scoring-health.json`.
-- Used by: owner dashboard, digest health sections, future scoring context.
+**Workflow / Task-Graph Layer:**
+- Purpose: Executable graph specs for n8n and planning-agent task orchestration
+- Location: `workflow/diagram/`, `workflow/n8n/`, `scripts/workflow_graph_*.py`, `scripts/task_graph_*.py`
+- Contains: Graph JSON, export/diff adapters, dry-run runners
+- Depends on: nothing in the pipeline (spec-only at this stage)
+- Used by: CI verification, future n8n automation
 
 ## Data Flow
 
-### Primary Daily Pipeline
+### Primary Daily Run
 
-1. Fetch scheduler invokes `fetch-all.sh`.
-2. `fetch-all.sh` picks Python 3.11+ and runs `fetch.py`; it uses `logs/fetch.lock` to avoid overlapping fetch and appends to `logs/fetch-all.log`.
-3. `fetch.py` runs `fetch-manual-links.py`, `fetch-rss.py`, `fetch-twitter.py`, `fetch-twitter-saved.py`, `fetch-scrape.py`, `fetch-wechat.py`, `fetch-wechat-rss.py`, `fetch-wechat-exporter.py`, `fetch-douyin.py`, and `fetch-media-transcripts.py`.
-4. Each fetcher reads active rows from `~/park-io/sources.md` through `lib.load_sources()` and writes new items through `lib.write_source_output()` to `~/park-io/inbox/unprocessed/<YY-MM-DD-profile_id>.md`.
-5. Each fetcher updates `state.json` through `lib.save_state()` with `last_fetch`, seen IDs/URLs, status, and errors where implemented.
-6. `fetch.py` runs `source-health.py --record`, which writes `source-health.json` in the repo and `~/park-io/source-health.md`.
-7. `fetch.py` runs `generate-status.py`, which writes the owner dashboard using current health, state, library, sent digest, and dependency signals.
-8. Digest scheduler invokes `push-digest.sh`.
-9. `push-digest.sh` waits for `logs/fetch.lock` to clear, then runs `open-batch.py`.
-10. `open-batch.py` moves all pending raw markdown to `~/park-io/inbox/processed/<batch>/`, preserving dated subdirectories and merging destination collisions.
-11. `push-digest.sh` exports `PARKIO_BATCH_ID` and runs `score.py`.
-12. `score.py` delegates to `score-items.py`; ordinary items are scored by `lib.llm_call()` and persisted to `scores.json`, while configured curated classes are skipped for deterministic bypass.
-13. `score-items.py` writes `scoring-health.json` so outages are visible in status and digest context.
-14. `push-digest.sh` runs `build-digest.py`.
-15. `build-digest.py` runs `summarize.py`; `summarize.read_today_items()` parses batch markdown, attaches scores, applies bypass/threshold rules, and dedupes within each source file.
-16. `summarize.render_panel()` builds section output for health overview, today conclusion, official/code sources, WeChat articles, saved items, X application events, media updates, contact blocks, and hidden processed/push markers.
-17. `summarize.py` writes `~/park-io/inbox/processed/<batch>/000-<batch>.md` and renders `000-<batch>.html` from the same final markdown.
-18. `build-digest.py` invokes `html-to-long-image.py` to create `000-<batch>.png` when HTML exists; render failure is a warning, not a digest failure.
-19. `push-digest.sh` runs `check-quality.py`, which delegates to `quality-check.py`.
-20. `quality-check.py` performs deterministic blocking checks and then runs `ai-quality-check.py` unless `PARKIO_SKIP_AI_QUALITY=1`; AI QC is non-blocking unless `PARKIO_STRICT_AI_QUALITY=1`.
-21. `push-digest.sh` runs `archive-items.py`, which archives source-item markdown into `~/park-io/library/profiles/<profile_id>/items/` or `~/park-io/library/独立链接/`.
-22. `push-digest.sh` runs `finalize-local.py`, which copies the final Markdown/HTML into `~/park-io/inbox/sent/<label>.md|html`.
-23. If `PARKIO_SKIP_SEND=0`, `push-digest.sh` runs `send-artifacts.py`, which delegates to `push-telegram.py` with quality skipped because the stage already passed.
-24. `push-telegram.py` extracts hidden push/processed URL markers, dedupes against `tg-push-state.json`, sends compact text plus HTML/PNG to Telegram, updates URL state, and moves/removes processed artifacts.
-25. `push-digest.sh` runs `generate-status.py` at the end even when Telegram is skipped.
+1. `fetch-all.sh` (cron, every 4h) → invokes `fetch.py`
+2. `fetch.py` → fans out to all `fetch-*.py` wrappers sequentially
+3. Each wrapper → re-exports and calls `main()` from its `ingestion/<channel>/run.py`
+4. Each adapter writes raw items to `~/park-io/inbox/unprocessed/<date>-<profile>.md`
+5. `fetch-media-transcripts.py` → `enrichment/media/run.py` runs transcript/summary enrichment
+6. `push-digest.sh` (daily launchd, fixed time) waits for fetch lock to clear
+7. `open-batch.py` → moves `unprocessed/` files into `processed/<batch-id>/`; emits `PARKIO_BATCH_ID`
+8. `score.py` → `aggregation/digest/score_stage.py`: scores all items in the batch
+9. `build-digest.py` → `aggregation/digest/build.py`: assembles ranked digest Markdown
+10. `check-quality.py` → `aggregation/digest/check_stage.py`: rule-based quality gate
+11. `archive-items.py` → `aggregation/digest/archive.py`: archives items
+12. `finalize-local.py` → `aggregation/digest/finalize_local.py`: writes final MD + HTML + PNG
+13. `send-artifacts.py` → `push-telegram.py`: pushes selected sections to Telegram; moves to `sent/`
+14. `generate-status.py`: writes owner-facing daily inbox dashboard
 
-### Manual Links Flow
+### Batch Abort Path
 
-1. User edits `~/park-io/inbox/manual-links.md` under the `## Pending` section.
-2. `fetch.py` runs `fetch-manual-links.py`.
-3. `fetch-manual-links.py` extracts supported WeChat article URLs with `WECHAT_URL_RE`; unsupported URLs are preserved in Pending.
-4. For each new supported URL, `fetch-manual-links.py` dynamically loads `fetch-wechat.py`, calls `fetch_url()` and `parse_article()`, and determines a source/profile with `source_for_article()`.
-5. Known configured accounts are saved through `fetch-wechat.save_article_to_library()`; unknown manual links are saved under `~/park-io/library/独立链接/` by `save_independent_article()`.
-6. Imported items are grouped by source and sent into `lib.write_source_output()` so they enter the same raw queue as automated sources.
-7. The manual links file is rewritten with remaining Pending lines, recent Imported records, and recent Failed records.
-8. `state.json` key `manual-links` stores seen URLs, imported records, failed records, and library paths.
-
-### Scoring And Routing Flow
-
-1. `score-items.py` parses each source markdown file via `lib.parse_frontmatter()` and `lib.parse_md_items()`.
-2. Items from platforms/categories/sources in `ALWAYS_INCLUDE_PLATFORMS`, `ALWAYS_INCLUDE_CATEGORIES`, `ALWAYS_INCLUDE_SOURCES`, media source names, and video/WeChat categories bypass scoring.
-3. Non-bypassed queued items are batched by `BATCH_SIZE=10` and sent to the LLM with `SCORING_PROMPT`.
-4. Valid LLM JSON rows update `scores.json` by URL with `score`, `tags`, `line_fit`, `reason`, and `scored_at`.
-5. `summarize.attach_scores()` attaches score metadata; missing scores become `score=0` with a filtering reason.
-6. `summarize.bypasses_score()` deterministically keeps official/code/people/media/saved/WeChat/Douyin sources regardless of score.
-7. Non-bypassed items require `score >= digest_config.SCORE_THRESHOLD` to enter the kept set.
-8. Section routing is deterministic from `digest_config.source_names_for_group()`, `digest_config.SOURCE_ROLES`, platform/category, and helper filters in `summarize.py`.
-
-### Event Merging Flow
-
-1. `summarize.py` builds per-section raw item pools: official/code/people, Twitter application layer, saved X, WeChat, and media.
-2. `digest_events.build_events()` groups same-thread X items deterministically when multiple items share a `conversation_id`.
-3. `digest_events.event_key()` gives stable unique-by-default keys for manual items, code releases, official blogs, and application-practice sources.
-4. `digest_events._semantic_cluster()` may call the LLM for official/code/people candidate items and returns shared event keys only for same-event groups.
-5. If semantic clustering is disabled with `PARKIO_SEMANTIC_CLUSTER=0` or fails, it returns `{}` and items remain separate.
-6. Events are sorted deterministically by score, source authority, and title.
-7. Official events are grouped by company/category through `group_official_events()` and `group_official_events_by_category()`.
-8. Application events use high-value Twitter items; saved and WeChat events bypass score and are rendered in their own sections.
-
-### Summarize And Render Flow
-
-1. `summarize.render_panel()` collects source health, path breakdown, kept/filtered items, media summaries, saved events, WeChat events, official events, and application events.
-2. Titles and paragraphs use deterministic cleanups first (`digest_text.py`, `clean_reader_text()`, `deterministic_headline()`, `source_headline()`).
-3. AI/stochastic calls are used for `event_summary()`, `value_paragraph()`, `saved_value_paragraph()`, `item_headline()`, and `release_value_notes()` when deterministic output is insufficient.
-4. LLM failures are recorded through `note_llm_failure()`; fallback deterministic/source text is used where possible.
-5. Markdown is the single content source. `render_html_from_markdown()` renders HTML from final markdown and strips hidden markers.
-6. Hidden markers `<!-- parkio-processed-items:... -->` and `<!-- parkio-push-items:... -->` are appended by `summarize.render_panel()` for downstream dedupe and delivery.
-7. `html-to-long-image.py` creates the PNG from HTML after markdown/html are written.
-
-### Quality Gate Flow
-
-1. `quality-check.py` resolves artifact paths through `lib.batch_artifact_paths()` in batch mode or from `~/park-io/inbox/sent/` otherwise.
-2. Missing Markdown/HTML is a deterministic failure.
-3. Visible Markdown/HTML are checked against `BAD_PATTERNS` and `METADATA_PATTERNS`.
-4. Raw English body prose is detected by `raw_english_body_lines()` and blocks the pipeline.
-5. Markdown headings must appear in HTML via `heading_divergence()`.
-6. Required sections, event headings, duplicate headings, duplicate push URLs, local file URLs, and size warnings are checked deterministically.
-7. `ai-quality-check.py` inspects trimmed visible Markdown/HTML with an LLM and expects strict JSON.
-8. AI QC failure is a warning by default; set `PARKIO_STRICT_AI_QUALITY=1` to make it a hard gate.
-
-### Delivery And Archive Flow
-
-1. `archive-items.py` reads processed batch source markdown files, parses items, writes each item to a profile library path, ensures `profile.md`, and removes old processed batches.
-2. `finalize-local.py` copies final processed Markdown/HTML to `~/park-io/inbox/sent/` with a temp-file replace.
-3. `send-artifacts.py` invokes `push-telegram.py` with `PARKIO_SKIP_QUALITY=1`.
-4. `push-telegram.py` optionally re-runs quality when not skipped, extracts push/processed markers, compacts the visible body, and chunks messages under Telegram limits.
-5. Telegram credentials are loaded from `PARKIO_TELEGRAM_BOT_TOKEN`, `PARKIO_TELEGRAM_CHAT_ID`, or `~/park-io/secrets/telegram-*`.
-6. `push-telegram.py` stores processed and pushed URL state in `tg-push-state.json`.
-
-### Status And Dashboard Flow
-
-1. `source-health.py --record` writes historical fetch success to `source-health.json` and `~/park-io/source-health.md`.
-2. `channel-health.py` reads fetch logs and probes WeChat RSS freshness to distinguish `DOWN`, `STALE`, `QUIET`, `NEW`, and `UNKNOWN`.
-3. `summarize.source_health()` folds channel health into digest-visible source rows.
-4. `generate-status.py` imports `summarize.py`, reads today items, scoring health, manual link state, media queue, sent digests, library profiles, dependency probes, and channel health.
-5. `generate-status.py` renders an owner-facing HTML status/dashboard page under `~/park-io/status.html` using deterministic HTML string rendering.
+If any stage in `push-digest.sh`'s `STAGES` array exits non-zero, the shell script stops immediately and logs `push-digest STOPPED at <stage>`. No subsequent stages run.
 
 **State Management:**
-- Repo state files: `state.json`, `scores.json`, `scoring-health.json`, `source-health.json`, `media-summaries.json`, `media-queue.json`, `x-saved-state.json`, `tg-push-state.json`.
-- Runtime content roots: `~/park-io/inbox/unprocessed/`, `~/park-io/inbox/processed/`, `~/park-io/inbox/sent/`, `~/park-io/library/profiles/`, `~/park-io/library/独立链接/`.
-- Source configuration: `~/park-io/sources.md` is parsed by `lib.load_sources()` and treated as the active source list.
-- Logs: `logs/<component>.log` are the operational truth for channel health and dashboard status.
-
-## Deterministic vs AI/Stochastic Map
-
-**Deterministic Components:**
-- Source/profile/path routing: `digest_config.py`, `summarize.bypasses_score()`, `summarize.compute_path_breakdown()`.
-- Raw queue rendering and parsing: `lib.write_source_output()`, `lib.parse_md_items()`, `lib.render_frontmatter()`.
-- Batch opening and file movement: `open-batch.py`.
-- X thread merging by `conversation_id`: `digest_events.build_events()`.
-- Score bypass classes: `score-items.py`, `summarize.bypasses_score()`.
-- Markdown-to-HTML rendering from final markdown: `summarize.render_html_from_markdown()`.
-- Deterministic quality gate: `quality-check.py`.
-- Local sent copy: `finalize-local.py`.
-- Archive/profile writes: `archive-items.py`.
-- Status dashboard rendering and most health classification: `generate-status.py`, `source-health.py`, `channel-health.py`.
-
-**AI/Stochastic Components:**
-- Item scoring and tag/line-fit extraction: `score-items.py` via `lib.llm_call()`.
-- Official/code/people same-event semantic clustering: `digest_events._semantic_cluster()`.
-- Event summaries and item value paragraphs: `summarize.event_summary()`, `summarize.value_paragraph()`, `summarize.saved_value_paragraph()`.
-- Headline regeneration for prose/X titles: `summarize.item_headline()`.
-- Release-note value bullets: `summarize.release_value_notes()`.
-- AI product quality review: `ai-quality-check.py`.
-- ASR fixing/media summarization paths are visible in the fetch layer through `fetch-media-transcripts.py`, `polish-douyin.py`, and `fix-asr-errors.py`.
-
-**Network/External Non-Determinism:**
-- RSS/scrape/X/WeChat/Douyin/media fetchers: `fetch-rss.py`, `fetch-scrape.py`, `fetch-twitter.py`, `fetch-wechat*.py`, `fetch-douyin.py`, `fetch-media-transcripts.py`.
-- Telegram delivery: `push-telegram.py`.
-- WeChat RSS freshness probes: `channel-health.py`.
-- Dependency probes: `generate-status.py`.
+- Inter-stage state is filesystem-based: files in `~/park-io/inbox/` are the shared artifact store.
+- `PARKIO_BATCH_ID` environment variable carries the batch identifier from `open-batch.py` through all downstream stages in a single `push-digest.sh` run.
+- `state.json` in the repo root carries persistent cross-run state (source tracking, last-seen items).
+- `source-health.json` tracks fetch health per source.
 
 ## Key Abstractions
 
-**Source Row:**
-- Purpose: One configured input channel from `~/park-io/sources.md`.
-- Examples: consumed by `fetch-rss.py`, `fetch-twitter.py`, `summarize.py`, `source-health.py`.
-- Pattern: dict rows from `lib.load_sources()` with normalized `profile_id`.
+**Standard Ingestion Artifact:**
+- Purpose: Channel-neutral JSON structure emitted by every ingestion adapter
+- Schema: `contracts/ingestion-artifact.schema.json`
+- Fields: `schema_version`, `channel`, `source`, `run`, `items`, `health`, `errors`
+- Channel-specific details go in `item.metadata` or `source.metadata`, never in `content`
 
-**Profile:**
-- Purpose: Stable person/company/channel grouping used for queue files and library archive.
-- Examples: `lib.profile_id_for_source()`, `lib.PROFILE_ID_BY_SOURCE_NAME`, `~/park-io/library/profiles/<profile_id>/profile.md`.
-- Pattern: deterministic mapping from explicit `profile_id`, known source name, or safe filename.
+**Compatibility Wrapper:**
+- Purpose: Root-level `fetch-*.py` / `score.py` / `build-digest.py` etc. keep cron/launchd CLI paths stable during refactor
+- Pattern: `from ingestion.<channel>.run import *; main()` — zero business logic
+- Governed by: `STATE.md` decision "Root CLI/cron entrypoints must remain compatible until the refactor is fully proven"
 
-**Raw Source Markdown File:**
-- Purpose: Append-only per-profile-day queue of fetched items.
-- Examples: written by `lib.write_source_output()`, moved by `open-batch.py`, parsed by `score-items.py` and `summarize.py`.
-- Pattern: frontmatter + repeated `## <title>` item blocks with metadata and `[link](...)`.
+**`lib.py` Shared Utilities:**
+- Purpose: Single import point for path constants, LLM calls, frontmatter parsing, source loading
+- Location: `lib.py`
+- Key exports: `ROOT`, `PARKIO`, `INBOX`, `UNPROCESSED_DIR`, `SENT_DIR`, `load_sources()`, `llm_call()`, `parse_frontmatter()`, `batch_id()`
 
-**Batch Directory:**
-- Purpose: Frozen daily processing unit.
-- Examples: `lib.processed_batch_dir()`, `open-batch.py`, `build-digest.py`, `quality-check.py`.
-- Pattern: `~/park-io/inbox/processed/<YY-MM-DD-label>/` with raw source files plus `000-<label>.md|html|png`.
-
-**Score Record:**
-- Purpose: Persistent per-URL score metadata.
-- Examples: `scores.json`, `score-items.py`, `summarize.attach_scores()`.
-- Pattern: URL-keyed JSON with `score`, `tags`, `line_fit`, `reason`, `scored_at`.
-
-**Event:**
-- Purpose: Group of one or more items rendered as one digest unit.
-- Examples: `digest_events.build_events()`, `summarize.render_summary_event()`.
-- Pattern: dict with `event_key`, `items`, `primary`, `score`, `line_fit`, `tags`.
-
-**Hidden Markers:**
-- Purpose: Machine-readable URL lists embedded in final markdown without visible rendering.
-- Examples: `summarize.PROCESSED_MARKER`, `summarize.PUSH_MARKER`, `push-telegram.py`.
-- Pattern: HTML comments containing JSON arrays.
-
-**Channel Health Row:**
-- Purpose: Distinguish healthy quiet channels from broken or stale channels.
-- Examples: `channel-health.py`, `summarize.source_health()`, `generate-status.py`.
-- Pattern: `state`/`status` values derived from fetch logs plus feed freshness.
+**Digest Config / Events / Text:**
+- `digest_config.py`: product policy constants (score thresholds, category order, source roles)
+- `digest_events.py`: event identity, grouping, source-role resolution
+- `digest_text.py`: text cleaning and HTML-to-Markdown helpers
 
 ## Entry Points
 
-**Fetch Raw:**
-- Location: `fetch-all.sh`
-- Triggers: cron/launchd/manual every few hours.
-- Responsibilities: choose Python, prevent overlapping fetches, run `fetch.py`, log results.
+**Shell Orchestrators (primary cron / launchd entrypoints):**
+- `fetch-all.sh`: Runs every 4 hours; acquires a lock file; calls `fetch.py`; handles Python discovery
+- `push-digest.sh`: Daily fixed-time run; waits for fetch lock; runs `open-batch.py` then the aggregation stage sequence
 
-**Fetch Orchestrator:**
-- Location: `fetch.py`
-- Triggers: `fetch-all.sh`.
-- Responsibilities: run all fetchers, record source health, regenerate dashboard.
+**Python Stage Runners (invoked by shells):**
+- `fetch.py`: Stage 1 fan-out — sequentially runs all `fetch-*.py` wrappers
+- `open-batch.py`: Moves unprocessed items into a named batch; prints `PARKIO_BATCH_ID`
+- `generate-status.py`: Generates daily inbox dashboard; not gated, runs after deliver
 
-**Digest Orchestrator:**
-- Location: `push-digest.sh`
-- Triggers: cron/launchd/manual daily run.
-- Responsibilities: wait for fetch lock, open batch, score, build digest, quality-check, archive, finalize local sent, optional Telegram, regenerate status.
+**Root Compatibility Wrappers (NOT real entrypoints — thin re-exports):**
 
-**Manual Batch Open:**
-- Location: `open-batch.py`
-- Triggers: `push-digest.sh` or manual.
-- Responsibilities: move pending raw files into a processed batch and print the batch id.
+| Root file | Real implementation |
+|-----------|---------------------|
+| `fetch-rss.py` | `ingestion/rss/run.py` |
+| `fetch-scrape.py` | `ingestion/web_scrape/run.py` |
+| `fetch-twitter.py` | `ingestion/x/timeline.py` |
+| `fetch-twitter-saved.py` | `ingestion/x/saved.py` |
+| `fetch-wechat.py` | `ingestion/manual_links/wechat_seed.py` |
+| `fetch-wechat-rss.py` | `ingestion/wechat_rss/run.py` |
+| `fetch-wechat-exporter.py` | `ingestion/wechat_rss/exporter.py` |
+| `fetch-douyin.py` | `ingestion/douyin/run.py` |
+| `fetch-manual-links.py` | `ingestion/manual_links/run.py` |
+| `fetch-media-transcripts.py` | `enrichment/media/run.py` |
+| `score.py` | `aggregation/digest/score_stage.py` |
+| `score-items.py` | `aggregation/digest/score_items.py` |
+| `build-digest.py` | `aggregation/digest/build.py` |
+| `summarize.py` | `aggregation/digest/summarize.py` |
+| `check-quality.py` | `aggregation/digest/check_stage.py` |
+| `quality-check.py` | `aggregation/digest/quality.py` |
+| `ai-quality-check.py` | `aggregation/digest/ai_quality.py` |
+| `archive-items.py` | `aggregation/digest/archive.py` |
+| `finalize-local.py` | `aggregation/digest/finalize_local.py` |
+| `html-to-long-image.py` | `aggregation/digest/html_to_long_image.py` |
+| `send-artifacts.py` | delegates to `push-telegram.py` |
 
-**Build Digest:**
-- Location: `build-digest.py`
-- Triggers: `push-digest.sh`.
-- Responsibilities: run `summarize.py` and optional HTML-to-PNG rendering.
-
-**Quality Check:**
-- Location: `check-quality.py`
-- Triggers: `push-digest.sh`.
-- Responsibilities: delegate to `quality-check.py`.
-
-**Telegram Push:**
-- Location: `send-artifacts.py`
-- Triggers: `push-digest.sh` only when `PARKIO_SKIP_SEND=0`, or manual.
-- Responsibilities: delegate to `push-telegram.py` with quality skip.
-
-**Status Page:**
-- Location: `generate-status.py`
-- Triggers: `fetch.py`, `push-digest.sh`, manual.
-- Responsibilities: render owner dashboard from pipeline state and health.
+**Utility / Ops Scripts (not in daily pipeline):**
+- `channel-health.py`: Per-channel health derived from fetch logs
+- `check-pipeline-health.py`: Daily health alert via Telegram (post-digest)
+- `source-health.py`: Records and renders source-level fetch health
+- `push-telegram.py`: Direct Telegram delivery (also called by `send-artifacts.py`)
+- `refresh-twitter-auth.py`: Manual X/Twitter cookie refresh
+- `onboard-source.py`, `onboard-baseline.py`: One-time source onboarding
+- `polish-douyin.py`, `fix-asr-errors.py`: Corpus maintenance tools
+- `build-index.py`, `backfill-claude-blog-library.py`: Library index tools
 
 ## Architectural Constraints
 
-- **Runtime model:** Single-machine Python CLI pipeline. There is no HTTP API server in this repo.
-- **Concurrency:** `fetch-all.sh` uses `logs/fetch.lock`; `push-digest.sh` waits up to 60 minutes for that lock before skipping the digest.
-- **Global state:** `lib.py` defines module-level paths and LLM provider settings; `digest_config.py` caches active Douyin source names; `digest_events.py` caches semantic cluster results in `_SEM_CACHE`; `summarize.py` tracks per-run LLM headline budget and failures.
-- **File state:** Many scripts read/write shared JSON and markdown files directly (`state.json`, `scores.json`, `tg-push-state.json`, `~/park-io/inbox/*`), so avoid concurrent writes outside the orchestrators.
-- **Routing rule:** AI must not decide source routing; use deterministic source/profile/group helpers in `digest_config.py` and `summarize.py`.
-- **Quality boundary:** Reader-facing output must pass `quality-check.py` before delivery; AI QC is advisory unless strict mode is enabled.
-- **Secrets:** Do not read or commit secret contents. Code loads secret values via env or files under `~/park-io/secrets/`.
-- **Output authority:** Markdown is the single digest content source; HTML is rendered from that markdown by `summarize.render_html_from_markdown()`.
-- **External runtime assumptions:** X auth, WeWe RSS, Douyin downloader/cookies, YouTube cookies, DeepSeek/Anthropic-compatible LLM access, and Telegram credentials can affect runs but are outside repo source code.
-
-## Anti-Patterns
-
-### Letting AI Decide Routing
-
-**What happens:** Adding an LLM classification step to choose whether an item belongs in official, X, media, saved, WeChat, or manual sections.
-
-**Why it's wrong:** The repo contract keeps routing deterministic so sections remain stable and debuggable.
-
-**Do this instead:** Add or adjust source groups and roles in `digest_config.py`, then use existing helpers in `summarize.py`.
-
-### Rendering HTML From Raw Sources
-
-**What happens:** Generating HTML with separate summarization/rendering logic instead of from final markdown.
-
-**Why it's wrong:** Markdown/HTML divergence is a hard quality failure in `quality-check.py`.
-
-**Do this instead:** Keep markdown as the source and render with `summarize.render_html_from_markdown()`.
-
-### Hiding Fetch Or Scoring Failures As Empty Content
-
-**What happens:** Treating failed fetches or scoring outages as "no updates".
-
-**Why it's wrong:** The operator needs to know whether a source is quiet, stale, or broken.
-
-**Do this instead:** Record source errors in `state.json`, `source-health.json`, `scoring-health.json`, and logs; consume them through `channel-health.py`, `summarize.source_health()`, and `generate-status.py`.
-
-### Bypassing The Quality Gate
-
-**What happens:** Sending Telegram or finalizing reader-facing output before `quality-check.py`.
-
-**Why it's wrong:** The deterministic gate catches producer voice, metadata leakage, raw English, hidden marker problems, duplicate push URLs, and MD/HTML divergence.
-
-**Do this instead:** Keep `push-digest.sh` stage order: `build-digest.py` → `check-quality.py` → archive/finalize/send.
-
-### Using Historical Push State To Decide Today's Digest
-
-**What happens:** Filtering today’s visible digest based on prior sent/pushed URLs.
-
-**Why it's wrong:** `summarize.read_today_items()` scopes dedupe to the current batch; historical push state is only for Telegram delivery dedupe.
-
-**Do this instead:** Use `tg-push-state.json` only in `push-telegram.py` and keep digest rendering batch-scoped.
+- **Contract-first refactor in progress:** `ingestion/release_feed/` and `ingestion/youtube/` exist as `CONTRACT.md`-only stubs — no `run.py` yet. RSS adapter handles those sources in the interim.
+- **Root wrappers are frozen:** do not add business logic to root `fetch-*.py` / aggregation wrapper files. All changes go in the folder layer.
+- **Filesystem as message bus:** stages communicate via `~/park-io/inbox/` files, not in-process calls. No queue or broker.
+- **Sequential aggregation:** `push-digest.sh` runs aggregation stages strictly in order; a non-zero exit halts the pipeline.
+- **External secrets:** bot token, API keys, and Twitter cookies are stored outside the repo in `~/park-io/secrets/` or env vars. `lib._load_secret()` is the only sanctioned loader.
+- **LLM model:** DeepSeek deepseek-chat (deepseek-v4-flash, thinking disabled) with Anthropic as failover. Model selection constants live in `lib.py` / caller code, not in config files.
+- **`summarize.py` re-export pattern:** uses `globals().update(vars(_impl))` rather than `import *` because the module name collides with the Python stdlib; all other wrappers use `import *`.
 
 ## Error Handling
 
-**Strategy:** Continue where possible in fetch/status stages; fail hard before final delivery when product quality or required artifacts are invalid.
+**Strategy:** Fail-fast with logged exit codes; no silent swallowing.
 
 **Patterns:**
-- Fetch orchestrator logs each failing fetcher but continues to the next fetcher in `fetch.py`.
-- Platform fetchers write per-source failure status/error into `state.json` where implemented.
-- `lib.llm_call()` retries transient LLM failures and can fail over from DeepSeek to Anthropic-compatible CLIProxy; non-retryable provider/config errors fail fast.
-- `score-items.py` records scoring outages in `scoring-health.json` and keeps official/manual/media classes independent from scoring.
-- `summarize.py` falls back to deterministic/source-derived text when LLM calls fail and writes a local health alert for true LLM degradation.
-- `quality-check.py` returns non-zero for deterministic red lines; AI QC is non-blocking unless strict mode is enabled.
-- `finalize-local.py` uses temp-file copy and replace for local sent artifacts.
-- `push-telegram.py` can dry-run with `PARKIO_PUSH_DRY_RUN=1` and force URL pushes with `PARKIO_FORCE_PUSH=1`.
+- Each stage in `push-digest.sh` checks exit code; non-zero → log `STOPPED at <stage>` and `exit "$EXIT"`.
+- `fetch.py` logs per-fetcher exit but continues to the next fetcher (fetch errors are non-fatal for the fan-out; individual adapter errors are logged).
+- `check-pipeline-health.py` sends Telegram alert when today's digest was not sent or a source has been down for 7+ days.
+- `lib.py` `llm_call()` raises on HTTP errors; callers are responsible for catching and surfacing failures.
 
 ## Cross-Cutting Concerns
 
-**Logging:** Use `lib.log(component, msg)` for component-specific logs under `logs/<component>.log`; shell orchestrators write `logs/fetch-all.log` and `logs/push-digest.log`.
-
-**Validation:** Deterministic product validation lives in `quality-check.py`; workflow/source invariants are documented in `AGENTS.md` and `GOTCHAS.md`; tests live in `tests/`.
-
-**Authentication:** Local env and secret-file loading only. LLM keys use `PARKIO_DEEPSEEK_KEY` / `~/park-io/secrets/deepseek-key` and `PARKIO_CLIPROXY_KEY` / `~/park-io/secrets/cliproxy-key`; Telegram uses `PARKIO_TELEGRAM_BOT_TOKEN`, `PARKIO_TELEGRAM_CHAT_ID`, or `~/park-io/secrets/telegram-*`; other fetcher auth/cookies stay in local files referenced by fetch/status code.
-
-**Configuration:** Source list and owner context come from `~/park-io/sources.md`; LLM and runtime toggles are environment variables read by `lib.py`, `score-items.py`, `summarize.py`, `quality-check.py`, `push-telegram.py`, and shell scripts.
-
-**Observability:** `generate-status.py` is the owner-facing status surface; `source-health.py` provides historical fetch success; `channel-health.py` provides truthful current channel state from logs plus freshness probes; digest markdown includes a compact channel overview.
-
-**Archival:** `archive-items.py` keeps long-term profile assets under `~/park-io/library/profiles/` and independent/manual content under `~/park-io/library/独立链接/`; profile baselines feed future scoring context in `score-items.py`.
+**Logging:** File-based (`logs/fetch-all.log`, `logs/push-digest.log`); each stage writes timestamped lines via `lib.log()`.
+**Validation:** Source config validated by `ingestion/common/` helpers; item contract validated in tests (`tests/test_ingestion_contracts.py`).
+**Authentication:** Secrets loaded via `lib._load_secret()` from env var or `~/park-io/secrets/<file>`; never hardcoded.
 
 ---
 
-*Architecture analysis: 2026-06-04*
+*Architecture analysis: 2026-06-05*
