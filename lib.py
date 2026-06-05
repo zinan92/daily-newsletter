@@ -349,7 +349,6 @@ PROFILE_ID_BY_SOURCE_NAME = {
     "Why Not TV": "why-not-tv",
     "数字生命卡兹克": "shuzi-shengming-kazike",
     "AGI Hunt": "agi-hunt",
-    "Ray在思考": "ray-thinking",
     "卡尔的AI沃茨": "karls-ai-watts",
     "海外独角兽": "haiwai-dujiaoshou",
     "嘉妍Kea": "kea",
