@@ -8,19 +8,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import ROOT, batch_artifact_paths
+from lib import batch_artifact_paths
 
 
 def main() -> int:
-    result = subprocess.run([sys.executable, str(ROOT / "summarize.py")])
+    summarize = Path(__file__).resolve().parent / "summarize.py"
+    result = subprocess.run([sys.executable, str(summarize)])
     if result.returncode != 0:
         return result.returncode
     _, html_path, png_path = batch_artifact_paths()
     if html_path.exists():
+        html_to_long_image = Path(__file__).resolve().parent / "html_to_long_image.py"
         screenshot = subprocess.run(
             [
                 sys.executable,
-                str(ROOT / "html-to-long-image.py"),
+                str(html_to_long_image),
                 str(html_path),
                 str(png_path),
                 "--width",
