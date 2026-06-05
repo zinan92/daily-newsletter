@@ -12,7 +12,8 @@ from lib import ROOT
 
 
 def main() -> int:
-    return subprocess.run([sys.executable, str(ROOT / "quality-check.py")]).returncode
+    quality = Path(__file__).resolve().parent / "quality.py"
+    return subprocess.run([sys.executable, str(quality)]).returncode
 
 
 if __name__ == "__main__":
