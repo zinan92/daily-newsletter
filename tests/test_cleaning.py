@@ -54,6 +54,23 @@ def test_legit_content_survives():
         assert len(out) >= len(raw) * 0.7, f"over-deleted: {raw!r} -> {out!r}"
 
 
+def test_internal_line_and_handle_names_are_cleaned():
+    out = consumer_text("尤其适合面向内容创作的 Line3 类公众号直接推送，作者ai_xiaomu持续输出。")
+    assert "Line3" not in out
+    assert "Line 3" not in out
+    assert "ai_xiaomu" not in out
+    assert "黄小木" in out
+
+
+def test_wechat_reader_chrome_is_cleaned():
+    raw = "今年高考，我让12个顶级AI一起考了语文和数学。 Original 数字生命卡兹克 数字生命卡兹克 在小说阅读器读本章 去阅读 在小说阅读器中沉浸阅读 一年一度的高考季又到了。"
+    out = consumer_text(raw)
+    assert "Original" not in out
+    assert "小说阅读器" not in out
+    assert "去阅读" not in out
+    assert "一年一度的高考季" in out
+
+
 def test_strip_source_meta_idempotent():
     for raw in LEAK_CASES + LEGIT_CASES:
         once = strip_source_meta(raw)

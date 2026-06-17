@@ -55,8 +55,6 @@ def event_key(item: dict) -> str:
         return url or item.get("title") or "openai-codex-release"
     if source in {"Claude Blog", "OpenAI Blog"}:
         return url or item.get("title") or "official-blog-post"
-    if SOURCE_ROLES.get(source) in {"application_practice", "creator_growth"} and "闲鱼" in normalized_topic_text(item):
-        return f"{source}:xianyu-practice"
     if SOURCE_ROLES.get(source) in {"application_practice", "creator_growth"}:
         return url or item.get("title") or "application-practice"
     # Unique by default: items only merge via semantic clustering or thread id,

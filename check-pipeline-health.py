@@ -19,10 +19,12 @@ import urllib.request
 from datetime import datetime
 
 from lib import PARKIO, ROOT, load_sources, today, write_health_alert
+from run_report import latest_run_report, problem_lines
 
 PUSH_LOG = ROOT / "logs" / "push-digest.log"
 MEDIA_SUMMARIES = ROOT / "media-summaries.json"
 SCORING_HEALTH = ROOT / "scoring-health.json"
+WEWE_AUTH_ALERT = PARKIO / "_inbox" / "wewe-auth-alert.json"
 
 
 def failed_transcriptions() -> list[str]:
@@ -63,9 +65,25 @@ def scoring_outage() -> str | None:
     return None
 
 
+def wewe_auth_issue() -> str | None:
+    """WeWe bridge is reachable but the reader account itself is invalid."""
+    if not WEWE_AUTH_ALERT.exists():
+        return None
+    try:
+        data = json.loads(WEWE_AUTH_ALERT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if data.get("status") == "invalid":
+        names = "、".join(str(row.get("name") or "未知账号") for row in data.get("invalid_accounts", [])[:4])
+        return f"公众号登录态失效（{names or 'WeWe 读书账号'}）— 打开 inbox/status.html 扫码重新登录"
+    if data.get("status") == "failed":
+        return f"公众号登录态检测失败（{data.get('error', '未知错误')}）"
+    return None
+
+
 def digest_sent_today() -> bool:
-    sent = PARKIO / "inbox" / "sent" / f"{today()[2:]}.md"
-    sent_full = PARKIO / "inbox" / "sent" / f"{today()}.md"
+    sent = PARKIO / "_inbox" / "sent" / f"{today()[2:]}.md"
+    sent_full = PARKIO / "_inbox" / "sent" / f"{today()}.md"
     return sent.exists() or sent_full.exists()
 
 
@@ -152,6 +170,7 @@ def wechat_bridge_down() -> str | None:
 
 def main() -> int:
     problems: list[str] = []
+    report = latest_run_report(today())
 
     if not digest_sent_today():
         if push_still_running():
@@ -159,23 +178,32 @@ def main() -> int:
         else:
             problems.append("今日简报未发送（push-digest 未完成或失败）")
 
-    try:
-        problems.extend(broken_sources())
-    except Exception as exc:  # never let source-health crash the check
-        print(f"[health] source check skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
+    if report:
+        problems.extend(problem_lines(report))
+        wewe = wewe_auth_issue()
+        if wewe and not any("公众号登录态" in p for p in problems):
+            problems.append(wewe)
+    else:
+        try:
+            problems.extend(broken_sources())
+        except Exception as exc:  # never let source-health crash the check
+            print(f"[health] source check skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
 
-    bridge = wechat_bridge_down()
-    if bridge:
-        problems.append(bridge)
+        bridge = wechat_bridge_down()
+        if bridge:
+            problems.append(bridge)
+        wewe = wewe_auth_issue()
+        if wewe:
+            problems.append(wewe)
 
-    try:
-        problems.extend(failed_transcriptions())
-    except Exception as exc:
-        print(f"[health] transcription check skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
+        try:
+            problems.extend(failed_transcriptions())
+        except Exception as exc:
+            print(f"[health] transcription check skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
 
-    scoring = scoring_outage()
-    if scoring:
-        problems.append(scoring)
+        scoring = scoring_outage()
+        if scoring:
+            problems.append(scoring)
 
     if not problems:
         # Heartbeat so the owner can see the check actually ran and found nothing.

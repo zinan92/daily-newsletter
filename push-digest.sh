@@ -38,8 +38,30 @@ if [ -e "$FETCH_LOCK" ]; then
   exit 0
 fi
 
-echo "[$(ts)] >>> open-batch.py" >> "$LOG"
-BATCH_ID="$(python3 "$SCRIPT_DIR/open-batch.py" 2>> "$LOG" | tail -n 1)"
+if [ "${PARKIO_IGNORE_BLOCKING_DEPS:-0}" != "1" ]; then
+  echo "[$(ts)] >>> morning-preflight.py" >> "$LOG"
+  python3 "$SCRIPT_DIR/morning-preflight.py" >> "$LOG" 2>&1
+  EXIT=$?
+  if [ "$EXIT" -eq 2 ]; then
+    echo "[$(ts)] recoverable source auth/cookie problem; generate status page and skip scheduled push" >> "$LOG"
+    python3 "$SCRIPT_DIR/generate-status.py" >> "$LOG" 2>&1 || true
+    exit 0
+  elif [ "$EXIT" -ne 0 ]; then
+    echo "[$(ts)] !!! morning-preflight.py exit=$EXIT" >> "$LOG"
+    exit "$EXIT"
+  fi
+fi
+
+echo "[$(ts)] >>> stages/to_md/run.py" >> "$LOG"
+python3 "$SCRIPT_DIR/stages/to_md/run.py" >> "$LOG" 2>&1
+EXIT=$?
+if [ "$EXIT" -ne 0 ]; then
+  echo "[$(ts)] !!! stages/to_md/run.py exit=$EXIT" >> "$LOG"
+  exit "$EXIT"
+fi
+
+echo "[$(ts)] >>> stages/coarse_filter/run.py" >> "$LOG"
+BATCH_ID="$(python3 "$SCRIPT_DIR/stages/coarse_filter/run.py" 2>> "$LOG" | tail -n 1)"
 if [ -z "$BATCH_ID" ]; then
   echo "[$(ts)] no batch opened; nothing to process" >> "$LOG"
   echo "[$(ts)] push-digest DONE" >> "$LOG"
@@ -49,7 +71,7 @@ export PARKIO_BATCH_ID="$BATCH_ID"
 echo "[$(ts)] batch=$PARKIO_BATCH_ID" >> "$LOG"
 
 PARKIO_SKIP_SEND="${PARKIO_SKIP_SEND:-1}"
-STAGES=(score.py build-digest.py check-quality.py archive-items.py finalize-local.py)
+STAGES=(build-digest.py stages/archive/run.py finalize-local.py)
 if [ "$PARKIO_SKIP_SEND" = "1" ]; then
   echo "[$(ts)] PARKIO_SKIP_SEND=1; skip Telegram send-artifacts.py; local sent already finalized" >> "$LOG"
 else

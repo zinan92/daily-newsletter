@@ -271,6 +271,44 @@ def clean_claude_blog_text(text: str) -> str:
     return text
 
 
+def clean_anthropic_title(title: str) -> str:
+    title = unescape(title or "").strip()
+    title = re.sub(r"\s*(?:\\|\|)\s*Anthropic\s*$", "", title).strip()
+    return title
+
+
+def clean_anthropic_article_text(text: str, title: str = "") -> str:
+    text = unescape(text or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    title = clean_anthropic_title(title)
+    if title:
+        title_idx = text.find(title)
+        if title_idx > 0:
+            text = text[title_idx:].strip()
+    # Drop common site chrome from anthropic.com article pages.
+    for marker in (
+        "Skip to main content Skip to footer",
+        "Research Economic Futures Commitments Learn News Try Claude",
+    ):
+        idx = text.find(marker)
+        if 0 < idx < 200:
+            text = text[idx + len(marker):].strip()
+        if text.startswith(marker):
+            text = text[len(marker):].strip()
+    if title and text.startswith(title):
+        text = text[len(title):].strip()
+    for marker in (
+        "Related posts",
+        "Explore more",
+        "Get started with Claude today",
+        "Try Claude",
+    ):
+        idx = text.find(marker)
+        if idx > 200:
+            text = text[:idx].strip()
+    return text
+
+
 def extract_anthropic_article(html):
     """Try Next.js JSON first; fallback to title regex + text strip."""
     data = extract_next_data(html)
@@ -283,7 +321,7 @@ def extract_anthropic_article(html):
             or page_props
         )
         if isinstance(post, dict):
-            title = post.get("title", "")
+            title = clean_anthropic_title(post.get("title", ""))
             published = post.get("publishedOn") or post.get("publishedAt") or post.get("date")
             author = ""
             a = post.get("author")
@@ -310,17 +348,17 @@ def extract_anthropic_article(html):
                     "title": title,
                     "author": author,
                     "published": published,
-                    "content": content[:5000] if content else _strip_to_text(html),
+                    "content": clean_anthropic_article_text(content or _strip_to_text(html), title)[:5000],
                 }
 
     # Fallback: <title> tag + stripped body
     m = re.search(r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE)
-    title = unescape(m.group(1).strip()) if m else ""
+    title = clean_anthropic_title(m.group(1).strip()) if m else ""
     return {
         "title": title,
         "author": "",
         "published": None,
-        "content": _strip_to_text(html),
+        "content": clean_anthropic_article_text(_strip_to_text(html), title)[:5000],
     }
 
 

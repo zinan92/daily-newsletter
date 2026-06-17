@@ -34,7 +34,20 @@ def one_line(text: str, limit: int = 220) -> str:
     text = re.sub(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]", "", text)
     if len(text) <= limit:
         return text
-    return text[:limit].rstrip("，。；：、,. ") + "。"
+    head = text[:limit]
+    # Prefer complete sentence/clause boundaries. Hard character cuts produced
+    # reader-facing fragments like "系统基于本地部署的A。", because the cut landed in
+    # the middle of "ASR"/"AI". If no good boundary exists, use an ellipsis and
+    # trim a dangling ASCII token instead of fabricating a full stop.
+    for marks in ("。！？!?", "；;"):
+        cut = max(head.rfind(mark) for mark in marks)
+        if cut >= max(24, int(limit * 0.45)):
+            return head[: cut + 1].strip()
+    cut = max(head.rfind(mark) for mark in "，、：:,")
+    if cut >= max(24, int(limit * 0.55)):
+        return head[:cut].rstrip("，。；：、,. ") + "。"
+    head = re.sub(r"[A-Za-z]{1,12}$", "", head.rstrip("，。；：、,. "))
+    return head.rstrip("，。；：、,. ") + "…"
 
 
 def clean_llm_text(text: str) -> str:
@@ -78,6 +91,9 @@ def strip_source_meta(text: str) -> str:
 def sanitize_product_text(text: str) -> str:
     text = clean_llm_text(text)
     text = strip_source_meta(text)
+    # LLMs sometimes preserve impossible colloquial dates from raw X posts. Do
+    # not publish a nonexistent calendar date as fact.
+    text = re.sub(r"\b6[./月-]?31\s*(?:号|日)?", "6月底（具体日期待核实）", text)
     text = text.replace("---", " ")
     text = re.sub(r"^根据你的要求[，,：:].*?(?:中文摘要|摘要)[：:]\s*", "", text)
     text = re.sub(r"^根据这条信息[，,，]*为您准备以下摘要[：:]\s*", "", text)
@@ -85,15 +101,21 @@ def sanitize_product_text(text: str) -> str:
     text = re.sub(r"^#\s*\d{4}年\d{1,2}月\d{1,2}日信息摘要\s*", "", text)
     text = re.sub(r"字数统计[：:].*$", "", text)
     text = re.sub(r"摘要直接陈述.*$", "", text)
+    text = re.sub(r"\bOriginal\s+[^。！？]{0,160}?在小说阅读器中沉浸阅读\s*", " ", text)
+    text = re.sub(r"在小说阅读器读本章\s+去阅读\s+在小说阅读器中沉浸阅读\s*", " ", text)
     text = re.sub(r"Codex（应该[^）]+）", "Codex", text)
     text = re.sub(r"Claude Code（应该[^）]+）", "Claude Code", text)
     text = text.replace("这条更新值得看，因为", "")
     text = text.replace("你可以把它当成今天的行动线索：", "")
     text = text.replace("这条更新很短，核心信息是：", "")
     text = text.replace("它本身不是完整新闻，但可以作为今天的信号来源，用来判断相关产品、工具或市场采用是否正在升温。", "")
+    text = re.sub(r"^(?:一篇|这篇)?公众号文章(?:指出|提出|写道|认为|显示|称)[，,：:]\s*", "", text)
+    text = re.sub(r"在AI高速发展时期，(?:一篇|这篇)?公众号文章(?:指出|提出|写道|认为|显示|称)[，,：:]\s*", "在 AI 高速发展时期，", text)
     text = re.sub(r"对这个产品产品线的影响[：:].*?(?=。|$)", "", text)
     text = re.sub(r"对我们(?:来说)?[，,：:].*?(?=。|$)", "", text)
     text = re.sub(r"可作为Line\s*\d+[^。]*", "", text)
+    text = re.sub(r"\bLine\s*\d+\s*类?", "内容", text, flags=re.I)
+    text = text.replace("ai_xiaomu", "黄小木")
     text = re.sub(r"(?:产品线|内容线|交易线)[^。]*(?:。|$)", "", text)
     text = re.sub(r"\s+", " ", text).strip(" 。")
     if text:

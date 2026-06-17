@@ -2,8 +2,8 @@
 """Build or refresh a profile baseline from recent source history.
 
 Daily fetch remains today-only. This script is the explicit onboarding path:
-look back across a profile's recent source history, write the context into
-library/profiles/<profile_id>/profile.md, and keep blockers visible.
+    look back across a profile's recent source history, write the context into
+    .system/source-profiles/<profile_id>/profile.md, and keep blockers visible.
 """
 import argparse
 import importlib.util
@@ -11,9 +11,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from lib import PROFILE_LIBRARY_DIR, ROOT, llm_call, load_sources, log, profile_id_for_source
+from lib import PROFILE_LIBRARY_DIR, ROOT, SOURCES_PATH, llm_call, load_sources, log, profile_id_for_source
 
-SOURCES_PATH = Path.home() / "park-io" / "sources.md"
 
 
 def load_module(filename: str, name: str):

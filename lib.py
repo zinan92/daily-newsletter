@@ -14,18 +14,20 @@ from typing import Tuple
 
 ROOT = Path(__file__).resolve().parent
 PARKIO = Path.home() / "park-io"
-SOURCES_PATH = PARKIO / "sources.md"
+SOURCE_MANAGEMENT_DIR = PARKIO / "_source management- james"
+SOURCES_PATH = SOURCE_MANAGEMENT_DIR / "sources.md"
 TRACKING_LIST = SOURCES_PATH
 STATE_PATH = ROOT / "state.json"
 LOGS = ROOT / "logs"
 PROMPTS = ROOT / "prompts"
-INBOX = PARKIO / "inbox"
+INBOX = PARKIO / "_inbox"
+RAW_DIR = INBOX / "raw"
 UNPROCESSED_DIR = INBOX / "unprocessed"
 PROCESSED_DIR = INBOX / "processed"
 SENT_DIR = INBOX / "sent"
 LIBRARY_DIR = PARKIO / "library"
-PROFILE_LIBRARY_DIR = LIBRARY_DIR / "profiles"
-INDEPENDENT_LINKS_DIR = LIBRARY_DIR / "独立链接"
+KNOWLEDGE_DIR = PARKIO / "knowledge"
+PROFILE_LIBRARY_DIR = PARKIO / ".system" / "source-profiles"
 
 # -----------------------------------------------------------------------------
 # Shared LLM client. Single definition — every script imports this instead of
@@ -141,12 +143,20 @@ def reset_usage() -> None:
         _USAGE[k] = 0
 
 
+def parkio_secret_path(secret_filename: str) -> Path:
+    """Prefer the underscore ops folder, while tolerating the legacy location."""
+    primary = PARKIO / "_secrets" / secret_filename
+    if primary.exists():
+        return primary
+    return PARKIO / "secrets" / secret_filename
+
+
 def _load_secret(env_name: str, secret_filename: str) -> str:
-    """Credential from env or ~/park-io/secrets/<file> — never hardcoded."""
+    """Credential from env or ~/park-io/_secrets/<file> — never hardcoded."""
     env = os.environ.get(env_name, "").strip()
     if env:
         return env
-    secret_file = PARKIO / "secrets" / secret_filename
+    secret_file = parkio_secret_path(secret_filename)
     if secret_file.exists():
         return secret_file.read_text(encoding="utf-8").strip()
     return ""
@@ -162,7 +172,7 @@ class LLMNonRetryable(RuntimeError):
 
 def send_telegram(text: str) -> bool:
     """Send a plain-text Telegram message (owner alerts). Token/chat from env or
-    ~/park-io/secrets/telegram-*. Returns True on success, never raises."""
+    ~/park-io/_secrets/telegram-*. Returns True on success, never raises."""
     token = _load_secret("PARKIO_TELEGRAM_BOT_TOKEN", "telegram-bot-token")
     chat = _load_secret("PARKIO_TELEGRAM_CHAT_ID", "telegram-chat-id")
     if not token or not chat:
@@ -183,7 +193,7 @@ def write_health_alert(summary: str, details: list[str] | None = None) -> bool:
     """Append a timestamped health entry to the local alerts file the owner reads.
 
     The owner consumes everything locally (no Telegram), so failures are recorded
-    to ~/park-io/inbox/health-alerts.md — newest first, scan-on-glance, trimmed to
+    to ~/park-io/_inbox/health-alerts.md — newest first, scan-on-glance, trimmed to
     the most recent entries. Never raises (alerting must not break the pipeline).
     """
     from datetime import datetime
@@ -420,6 +430,14 @@ def batch_artifact_paths(batch: str | None = None, prefix: bool = True) -> tuple
     return base / f"{stem}.md", base / f"{stem}.html", base / f"{stem}.png"
 
 
+def deep_artifact_paths(batch: str | None = None, prefix: bool = True) -> tuple[Path, Path, Path]:
+    batch = batch or batch_id()
+    label = batch_label(batch)
+    stem = f"deep-{label}"
+    base = processed_batch_dir(batch) if prefix else SENT_DIR
+    return base / f"{stem}.md", base / f"{stem}.html", base / f"{stem}.png"
+
+
 # -----------------------------------------------------------------------------
 # Source list (CSV) and state (JSON)
 # -----------------------------------------------------------------------------
@@ -494,6 +512,12 @@ def save_state(state: dict) -> None:
 
 def inbox_dir() -> Path:
     d = UNPROCESSED_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def raw_day_dir(day: str | None = None) -> Path:
+    d = RAW_DIR / (day or today())
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -721,10 +745,13 @@ def render_items_md(items: list, platform: str) -> str:
 # -----------------------------------------------------------------------------
 
 def write_source_output(source: dict, new_items: list) -> Path:
-    """Append fetched content units to one profile-day queue file.
+    """Write fetched content units as Stage 1 raw artifacts.
 
-    The queue is flat and profile-day based:
-        inbox/unprocessed/<YY-MM-DD-profile_id>.md
+    New production contract:
+        _inbox/raw/<YYYY-MM-DD>/<profile_id>/<item>.json
+
+    Set PARKIO_WRITE_LEGACY_UNPROCESSED=1 only when an old local workflow still
+    needs the pre-refactor aggregated markdown queue.
     """
     profile = profile_id_for_source(source)
     platform = source["platform"]
@@ -736,7 +763,31 @@ def write_source_output(source: dict, new_items: list) -> Path:
             continue
         valid_items.append(item)
     if not valid_items:
-        return inbox_dir() / profile_day_filename(source)
+        return raw_day_dir() / profile
+
+    raw_root = raw_day_dir() / profile
+    raw_root.mkdir(parents=True, exist_ok=True)
+    for item in valid_items:
+        enriched = {
+            **item,
+            "source": source["name"],
+            "source_name": source["name"],
+            "profile_id": profile,
+            "profile_name": source.get("profile_name") or source["name"],
+            "channel": channel,
+            "platform": platform,
+            "category": source["category"],
+            "content_type": platform,
+            "fetched_at": now_utc(),
+        }
+        item_id = str(item.get("id") or item.get("url") or item.get("title") or item.get("content") or "")
+        slug = item_slug(item)
+        suffix = hashlib.sha1(item_id.encode("utf-8")).hexdigest()[:10] if item_id else item_identity(item)
+        dest = raw_root / f"{today()}-{channel}-{slug}-{suffix}.json"
+        dest.write_text(json.dumps(enriched, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if os.environ.get("PARKIO_WRITE_LEGACY_UNPROCESSED", "") != "1":
+        return raw_root
 
     path = inbox_dir() / profile_day_filename(source)
     existing_fm: dict = {}

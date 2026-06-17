@@ -29,6 +29,7 @@ from lib import (
     PARKIO,
     PROFILE_LIBRARY_DIR,
     ROOT,
+    SOURCES_PATH,
     processed_batch_dir,
     llm_call,
     log,
@@ -37,16 +38,21 @@ from lib import (
     parse_frontmatter,
     parse_md_items,
 )
-from digest_config import media_source_names
-
 SCORES_PATH = ROOT / "scores.json"
-SOURCES_PATH = PARKIO / "sources.md"
 BATCH_SIZE = 10
 MIN_INTERVAL_SEC = 1.0
 RESCORE_CONTEXT = os.environ.get("PARKIO_RESCORE_CONTEXT") == "1"
-ALWAYS_INCLUDE_CATEGORIES = {"video-podcast"}
-ALWAYS_INCLUDE_SOURCES = {"我的 X 收藏"}
-ALWAYS_INCLUDE_PLATFORMS = {"wechat", "douyin"}
+GENERIC_DISCUSSION_TAGS = {
+    "ai",
+    "agent",
+    "agents",
+    "update",
+    "release",
+    "tool",
+    "tools",
+    "content",
+    "wechat-auto",
+}
 
 
 SCORING_PROMPT = """You are the first owner of Park-IO's daily intelligence product.
@@ -242,6 +248,85 @@ def write_scoring_health(total_batches: int, failed_batches: int, queued: int, s
         )
 
 
+def normalize_discussion_tag(tag: str) -> str:
+    tag = re.sub(r"[^a-z0-9\u4e00-\u9fff-]+", "-", str(tag or "").strip().lower())
+    tag = re.sub(r"-+", "-", tag).strip("-")
+    return tag
+
+
+def discussion_boost_for_items(scores: dict, items: list[dict]) -> dict[str, dict]:
+    """Return URL -> boost metadata when many items discuss the same scored tag."""
+    tag_rows: dict[str, dict] = {}
+    for item in items:
+        url = item.get("url", "")
+        row = scores.get(url) or {}
+        try:
+            base_score = int(row.get("base_score", row.get("score", 0)) or 0)
+        except (TypeError, ValueError):
+            base_score = 0
+        if base_score < 3:
+            continue
+        for raw_tag in row.get("tags", []) if isinstance(row.get("tags", []), list) else []:
+            tag = normalize_discussion_tag(raw_tag)
+            if not tag or tag in GENERIC_DISCUSSION_TAGS or len(tag) < 4:
+                continue
+            bucket = tag_rows.setdefault(tag, {"urls": set(), "sources": set()})
+            if url:
+                bucket["urls"].add(url)
+            source = item.get("source", "")
+            if source:
+                bucket["sources"].add(source)
+
+    url_boosts: dict[str, dict] = {}
+    for tag, bucket in tag_rows.items():
+        url_count = len(bucket["urls"])
+        source_count = len(bucket["sources"])
+        if url_count < 3 and source_count < 2:
+            continue
+        boost = 2 if url_count >= 5 and source_count >= 3 else 1
+        for url in bucket["urls"]:
+            current = url_boosts.get(url)
+            if not current or boost > current["boost"] or url_count > current["items"]:
+                url_boosts[url] = {
+                    "tag": tag,
+                    "boost": boost,
+                    "items": url_count,
+                    "sources": source_count,
+                }
+    return url_boosts
+
+
+def apply_discussion_boost(scores: dict, items: list[dict]) -> int:
+    """Boost scores for topics with repeated same-day discussion, idempotently."""
+    boosts = discussion_boost_for_items(scores, items)
+    changed = 0
+    for item in items:
+        url = item.get("url", "")
+        row = scores.get(url)
+        if not row:
+            continue
+        try:
+            base_score = int(row.get("base_score", row.get("score", 0)) or 0)
+        except (TypeError, ValueError):
+            continue
+        row["base_score"] = base_score
+        boost = boosts.get(url)
+        if not boost:
+            row.pop("discussion_boost", None)
+            row["score"] = base_score
+            continue
+        boosted_score = min(5, base_score + int(boost["boost"]))
+        if boosted_score != int(row.get("score", 0) or 0):
+            changed += 1
+        row["score"] = boosted_score
+        row["discussion_boost"] = boost
+        reason = str(row.get("reason", "")).strip()
+        suffix = f"多源讨论加权：同主题 {boost['items']} 条 / {boost['sources']} 个来源。"
+        if suffix not in reason:
+            row["reason"] = f"{reason} {suffix}".strip()
+    return changed
+
+
 def main() -> None:
     scores: dict = {}
     if SCORES_PATH.exists():
@@ -250,7 +335,7 @@ def main() -> None:
         except json.JSONDecodeError:
             scores = {}
 
-    inbox = processed_batch_dir() if os.environ.get("PARKIO_BATCH_ID") or os.environ.get("PARKIO_BATCH_DIR") else PARKIO / "inbox" / "unprocessed"
+    inbox = processed_batch_dir() if os.environ.get("PARKIO_BATCH_ID") or os.environ.get("PARKIO_BATCH_DIR") else PARKIO / "_inbox" / "unprocessed"
     if not inbox.exists():
         log("score", f"no input dir, nothing to score: {inbox}")
         return
@@ -259,6 +344,7 @@ def main() -> None:
     log("score", f"START — {len(md_files)} source files, {len(scores)} already scored")
 
     queue: list = []
+    scoreable_items: list = []
     for mf in md_files:
         try:
             text = mf.read_text(encoding="utf-8")
@@ -271,19 +357,12 @@ def main() -> None:
                     continue
                 source_name = it.get("source") or fm.get("source_name", mf.stem)
                 item_category = it.get("category") or category
-                if (
-                    platform in ALWAYS_INCLUDE_PLATFORMS
-                    or item_category in ALWAYS_INCLUDE_CATEGORIES
-                    or item_category.startswith("video-")
-                    or item_category.startswith("wechat-")
-                    or source_name in ALWAYS_INCLUDE_SOURCES
-                    or source_name in media_source_names()
-                ):
-                    continue
+                scored_item = {**it, "source": source_name, "category": item_category}
+                scoreable_items.append(scored_item)
                 existing = scores.get(it["url"])
                 if existing and not RESCORE_CONTEXT and existing.get("line_fit") is not None:
                     continue
-                queue.append({**it, "source": source_name, "category": item_category})
+                queue.append(scored_item)
         except Exception as ex:
             log("score", f"  {mf.name}: parse error {type(ex).__name__}: {ex}")
 
@@ -325,9 +404,12 @@ def main() -> None:
                 f"  batch {i // BATCH_SIZE + 1}: ERROR {type(ex).__name__}: {ex}",
             )
 
+    boosted_count = apply_discussion_boost(scores, scoreable_items)
     SCORES_PATH.write_text(
         json.dumps(scores, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+    if boosted_count:
+        log("score", f"  discussion boost applied to {boosted_count} same-day items")
     write_scoring_health(total_batches, failed_batches, len(queue), scored_count)
     from lib import get_usage
     u = get_usage()

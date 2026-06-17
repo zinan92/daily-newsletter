@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Pre-push quality checks for the Park-IO daily product."""
+import argparse
 import json
 import os
 import re
@@ -87,6 +88,9 @@ BAD_PATTERNS = (
     "Line 1",
     "Line 2",
     "Line 3",
+    "Line1",
+    "Line2",
+    "Line3",
     "内容策划",
     "对这个产品产品线",
     "我们的三条线",
@@ -94,6 +98,9 @@ BAD_PATTERNS = (
     "文章标题：",
     "WeChat ID：",
     "WeChat ID:",
+    "Original ",
+    "小说阅读器",
+    "去阅读",
     "公众号：",
     "作者：",
     "https://t.co/",
@@ -110,6 +117,11 @@ BAD_PATTERNS = (
     "有博主",
     "一位博主",
     "该用户",
+    "一篇公众号文章",
+    "公众号文章指出",
+    "公众号文章提到",
+    "公众号文章认为",
+    "公众号文章分享",
     # Media transcript/status leaking into the consumer body (gotcha #3).
     "no_transcript",
     "audio transcript",
@@ -224,6 +236,66 @@ def visible_html_text(text: str) -> str:
     return unescape(text)
 
 
+def markdown_section(text: str, heading: str) -> str:
+    marker = f"## {heading}"
+    if marker not in text:
+        return ""
+    tail = text.split(marker, 1)[1]
+    next_section = re.search(r"\n##\s+", tail)
+    if next_section:
+        tail = tail[:next_section.start()]
+    return tail
+
+
+def markdown_without_section(text: str, heading: str) -> str:
+    marker = f"## {heading}"
+    if marker not in text:
+        return text
+    before, tail = text.split(marker, 1)
+    next_section = re.search(r"\n##\s+", tail)
+    if not next_section:
+        return before
+    return before + tail[next_section.start():]
+
+
+SOURCE_HEALTH_ALLOWED_PATTERNS = (
+    "no_transcript",
+    "audio transcript",
+    "transcript too short",
+    "转录失败",
+)
+
+
+DEEP_READ_FIELDS = (
+    "**核心论点：**",
+    "**为什么值得读：**",
+    "**它改变了什么判断：**",
+    "**可迁移启发：**",
+)
+
+
+def deep_read_contract_issues(text: str) -> list[str]:
+    section = markdown_section(text, "今日深读")
+    if not section:
+        return ["missing 今日深读 body"]
+    issues: list[str] = []
+    forbidden = ("对你的判断价值", "建议动作", "Daily Inbox", "Park-IO", "summarize.py", "workflow")
+    for marker in forbidden:
+        if marker in section:
+            issues.append(f"project-specific or old deep-read field leaked: {marker}")
+    entries = [part for part in re.split(r"\n###\s+\d+\.\s+", section) if part.strip()]
+    if not entries:
+        issues.append("今日深读 has no numbered deep-read entries")
+    for idx, entry in enumerate(entries, 1):
+        for field in DEEP_READ_FIELDS:
+            if field not in entry:
+                issues.append(f"deep read #{idx} missing field: {field}")
+        title_line = entry.splitlines()[0].strip() if entry.splitlines() else ""
+        if re.search(r"Release[：:\s].*v?\d|v\d+\.\d+\.\d+", title_line, re.I):
+            issues.append(f"deep read #{idx} looks like a release note, not a deep read: {title_line}")
+    return issues
+
+
 def normalized_heading(value: str) -> str:
     value = re.sub(r"\[[^\]]+\]\([^)]+\)", "", value)
     value = re.sub(r"^[#\d.\s]+", "", value)
@@ -270,11 +342,17 @@ def raw_english_body_lines(visible_md: str) -> list[str]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--md")
+    parser.add_argument("--html")
+    args = parser.parse_args()
     date = today()
-    if os.environ.get("PARKIO_BATCH_ID") or os.environ.get("PARKIO_BATCH_DIR"):
+    if args.md and args.html:
+        md, html = Path(args.md).expanduser(), Path(args.html).expanduser()
+    elif os.environ.get("PARKIO_BATCH_ID") or os.environ.get("PARKIO_BATCH_DIR"):
         md, html, _ = batch_artifact_paths()
     else:
-        sent = PARKIO / "inbox" / "sent"
+        sent = PARKIO / "_inbox" / "sent"
         short_date = date[2:]
         candidates = sorted(
             [*sent.glob(f"{short_date}.md"), *sent.glob(f"{short_date}-*.md"), *sent.glob(f"{date}.md"), *sent.glob(f"{date}-*.md")],
@@ -299,7 +377,10 @@ def main() -> int:
     visible_md = visible_markdown(text)
     visible_html = visible_html_text(html_text)
 
+    visible_md_without_health = markdown_without_section(visible_md, "Source Health")
     for pattern in BAD_PATTERNS:
+        if pattern in SOURCE_HEALTH_ALLOWED_PATTERNS and pattern not in visible_md_without_health:
+            continue
         if pattern in visible_md or pattern in visible_html:
             fail(f"bad pattern found: {pattern}", failures)
     for pattern in METADATA_PATTERNS:
@@ -314,17 +395,38 @@ def main() -> int:
     if diverged:
         fail(f"Markdown headings missing from HTML (md/HTML divergence): {diverged[:3]}", failures)
 
-    required_sections = ("## 今日精选",)
+    required_sections = (
+        "## 短讯",
+        "## 今日深读",
+        "## Source Health",
+    )
     for section in required_sections:
         if section not in text:
             fail(f"missing section: {section}", failures)
 
-    has_media_updates = "## Podcast / YouTube / 抖音" in text
-    if "### 厂商动态" not in text and "### 应用层实践" not in text and "### 我的收藏" not in text and not has_media_updates:
-        warnings.append("missing product layer section")
+    forbidden_sections = (
+        "## 今日判断",
+        "## 30 秒短讯",
+        "## 30秒短讯",
+        "## 可行动机会",
+    )
+    for section in forbidden_sections:
+        if section in text:
+            fail(f"obsolete V2 section still present: {section}", failures)
+
+    for issue in deep_read_contract_issues(text):
+        fail(issue, failures)
+
+    has_brief_group = (
+        "### 底层变化" in text
+        or "### 工具工作流" in text
+        or "### 内容 / 分发 / 变现" in text
+    )
+    if not has_brief_group:
+        warnings.append("missing V2 brief group")
 
     headings = event_headings(text)
-    if not headings and not has_media_updates:
+    if not headings:
         warnings.append("no event headings found")
     normalized = [normalized_heading(h) for h in headings]
     duplicates = sorted({h for h in normalized if normalized.count(h) > 1 and h})

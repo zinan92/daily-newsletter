@@ -63,6 +63,29 @@ def test_media_panel_drops_unsummarized(monkeypatch=None):
     assert items == [], f"unsummarized media leaked into body: {items}"
 
 
+def test_media_summary_broken_truncation_is_removed():
+    assert summarize.clean_media_summary("系统基于本地部署的A。") == ""
+    assert summarize.clean_media_summary("这套流程可以适配A。") == ""
+
+
+def test_media_renderer_drops_summary_when_bullets_repeat_it():
+    items = [{
+        "source": "慢学 AI",
+        "title": "Anthropic 数据 Agent 95% 准确率背后② data agent的四层架构怎么把答案变准？ Anthropic 数据 Agent已经能实现95%场景的自助业务分析",
+        "url": "https://www.douyin.com/video/1",
+        "media_summary": "数据 Agent 通过四层架构提高分析准确率。 - 语义层负责统一业务指标。 - 查询层减少错误。 - 反馈层持续修正。",
+        "media_bullets": [
+            "语义层负责统一业务指标。",
+            "查询层减少错误。",
+            "反馈层持续修正。",
+        ],
+    }]
+    text = "\n".join(summarize.render_media_updates_md(items))
+    assert "Anthropic 数据 Agent 的四层架构" in text
+    assert text.count("语义层负责统一业务指标") == 1
+    assert " - " not in text
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):

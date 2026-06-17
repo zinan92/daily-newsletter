@@ -264,7 +264,6 @@ def source_names_for_group(group: str) -> set[str]:
             "数字生命卡兹克",
             "AGI Hunt",
             "卡尔的AI沃茨",
-            "海外独角兽",
             "嘉妍Kea",
             "峥嵘岁月AI",
             "深思SenseAI",

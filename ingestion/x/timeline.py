@@ -30,6 +30,8 @@ TWITTER_BIN = "/Users/wendy/.local/bin/twitter"
 TWITTER_AUTH_ENV = "/Users/wendy/work/input-to-park/twitter-auth.env"
 MAX_PER_HANDLE = 20
 REFETCH_TODAY = os.environ.get("PARKIO_REFETCH_TODAY") == "1"
+ARTICLE_TIMEOUT_SECONDS = int(os.environ.get("PARKIO_TWITTER_ARTICLE_TIMEOUT_SECONDS", "8"))
+SUCCESS_STATUSES = {"ok_new", "ok_no_new"}
 NESTED_TWEET_KEYS = (
     "retweetedStatus",
     "retweeted_status",
@@ -85,7 +87,7 @@ def fetch_article(tweet_id):
         [TWITTER_BIN, "article", str(tweet_id), "--json"],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=ARTICLE_TIMEOUT_SECONDS,
         env=os.environ.copy(),
     )
     if result.returncode != 0:
@@ -96,6 +98,10 @@ def fetch_article(tweet_id):
         return {}
     data = payload.get("data") if isinstance(payload, dict) else payload
     return data if isinstance(data, dict) else {}
+
+
+def is_rate_limited_error(message: str) -> bool:
+    return "Rate limited (429)" in message or " 429" in message
 
 
 def tweet_local_date(tweet):
@@ -307,7 +313,6 @@ def main():
             last_id = state.get(key, {}).get("last_id")
             new_items = []
             for t in tweets:
-                t = enrich_tweet(t)
                 tid = tweet_id(t)
                 if not tid:
                     continue
@@ -315,6 +320,7 @@ def main():
                     continue
                 if last_id and int(tid) <= int(last_id) and not REFETCH_TODAY:
                     continue
+                t = enrich_tweet(t)
                 metrics = tweet_metrics(t)
                 text = tweet_text(t)
                 if not text:
@@ -343,12 +349,43 @@ def main():
                         out.unlink()
                 write_source_output(src, new_items)
                 newest_id = max(int(t["id"]) for t in new_items)
-                state[key] = {"last_id": str(newest_id), "last_fetch": today()}
+                state[key] = {
+                    "last_id": str(newest_id),
+                    "last_fetch": today(),
+                    "status": "ok_new",
+                    "fetched_count": len(tweets),
+                    "new_count": len(new_items),
+                    "detail": f"timeline checked; {len(new_items)} new item(s) from {len(tweets)} fetched",
+                }
             else:
                 prev = state.get(key, {})
-                state[key] = {"last_id": prev.get("last_id", ""), "last_fetch": today()}
+                state[key] = {
+                    "last_id": prev.get("last_id", ""),
+                    "last_fetch": today(),
+                    "status": "ok_no_new",
+                    "fetched_count": len(tweets),
+                    "new_count": 0,
+                    "detail": f"timeline checked; 0 new item(s) from {len(tweets)} fetched",
+                }
+            save_state(state)
         except Exception as ex:
-            state[key] = {**state.get(key, {}), "last_fetch": today(), "status": "failed", "error": f"{type(ex).__name__}: {ex}"}
+            error = f"{type(ex).__name__}: {ex}"
+            prev = state.get(key, {})
+            if (
+                is_rate_limited_error(error)
+                and prev.get("last_fetch") == today()
+                and prev.get("status") in SUCCESS_STATUSES
+            ):
+                state[key] = {
+                    **prev,
+                    "last_warning": error,
+                    "detail": prev.get("detail") or "timeline checked earlier today; later retry was rate limited",
+                }
+                save_state(state)
+                log("fetch-twitter", f"  @{handle}: RATE LIMITED; preserved earlier successful state")
+                continue
+            state[key] = {**prev, "last_fetch": today(), "status": "failed", "error": error}
+            save_state(state)
             log("fetch-twitter", f"  @{handle}: ERROR {type(ex).__name__}: {ex}")
 
     save_state(state)

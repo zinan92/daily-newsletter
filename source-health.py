@@ -8,10 +8,10 @@ import json
 import sys
 from datetime import datetime, timedelta
 
-from lib import PARKIO, ROOT, load_sources, load_state, today
+from lib import SOURCE_MANAGEMENT_DIR, ROOT, load_sources, load_state, today
 
 HEALTH_JSON = ROOT / "source-health.json"
-HEALTH_MD = PARKIO / "source-health.md"
+HEALTH_MD = SOURCE_MANAGEMENT_DIR / "source-health.md"
 
 
 def source_key(src: dict) -> str:
@@ -40,6 +40,25 @@ def latest_error(component: str, needle: str = "") -> str:
             continue
         if "ERROR" in line or "Traceback" in line or "ModuleNotFoundError" in line or "exit=" in line:
             return line.strip()[:260]
+    return ""
+
+
+def latest_timeout(component: str, day: str) -> str:
+    paths = [
+        ROOT / "logs" / f"{component}.log",
+        ROOT / "logs" / "fetch.log",
+        ROOT / "logs" / "fetch-all.log",
+    ]
+    for path in paths:
+        if not path.exists():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in reversed(lines[-800:]):
+            if day in line and "timeout after" in line:
+                return line.strip()[:260]
     return ""
 
 
@@ -77,6 +96,9 @@ def classify_source(src: dict, st: dict, day: str) -> tuple[str, str]:
     ran_today = st.get("last_fetch") == day
     recorded_failure = st.get("status") == "failed" or bool(st.get("error"))
     if ran_today and not recorded_failure:
+        recorded_status = st.get("status")
+        if platform == "twitter" and recorded_status in {"ok_new", "ok_no_new"}:
+            return recorded_status, st.get("detail") or f"timeline checked; {st.get('new_count', 0)} new item(s)"
         if platform == "wechat-rss" or (platform == "wechat" and "rss_url " in src.get("notes", "")):
             return "ok", f"RSS/JSON bridge checked; {st.get('entries', 0)} entries, {st.get('imported', 0)} imported"
         if platform == "wechat":
@@ -88,6 +110,10 @@ def classify_source(src: dict, st: dict, day: str) -> tuple[str, str]:
             return "ok", detail
         return "ok", "fetch succeeded"
     component = fetch_component(src)
+    if platform == "twitter":
+        timeout = latest_timeout(component, day)
+        if timeout and not ran_today:
+            return "not_checked_due_timeout", f"X timeline fetch timed out before this source was checked: {timeout}"
     needle = f"@{src.get('url', '').rstrip('/').split('/')[-1]}" if platform == "twitter" else name
     detail = st.get("error") or latest_error(component, needle) or "no successful fetch today"
     return "failed", detail
@@ -199,7 +225,7 @@ def source_stats(data: dict, days: int = 7) -> dict[str, dict]:
         for name, row in sources.items():
             stat = stats.setdefault(name, {"ok": 0, "total": 0, "last_status": "", "last_detail": ""})
             stat["total"] += 1
-            if row.get("status") in {"ok", "ok_no_new"}:
+            if row.get("status") in {"ok", "ok_new", "ok_no_new"}:
                 stat["ok"] += 1
             stat["last_status"] = row.get("status", "")
             stat["last_detail"] = row.get("detail", "")

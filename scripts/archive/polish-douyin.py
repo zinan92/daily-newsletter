@@ -16,7 +16,7 @@ For each video subdirectory containing *.transcript.txt, this script:
 
 Usage:
   polish-douyin.py <root-dir>
-  polish-douyin.py ~/park-io/library/profiles/manxue-ai/items/
+  polish-douyin.py ~/park-io/.system/legacy-library/profiles-YYYYMMDD-HHMMSS/manxue-ai/items/
 
 Idempotent: a `.polished` marker file is written next to the .md;
 re-runs skip already-polished videos.

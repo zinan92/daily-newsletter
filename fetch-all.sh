@@ -59,7 +59,7 @@ trap 'rm -f "$LOCK"' EXIT
   echo "=========================================="
 } >> "$LOG"
 
-for stage in fetch.py; do
+for stage in stages/fetch/run.py; do
   echo "[$(ts)] >>> $stage" >> "$LOG"
   "$PYTHON_BIN" "$SCRIPT_DIR/$stage" >> "$LOG" 2>&1
   EXIT=$?

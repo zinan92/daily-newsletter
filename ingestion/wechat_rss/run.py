@@ -253,8 +253,11 @@ def main() -> None:
                 if identity in seen:
                     continue
                 seen.add(identity)
-                if item.get("published", "")[:10] == today():
-                    new_items.append(item)
+                # WeChat sources are high-signal and fragile: if the WeWe bridge
+                # is down for a few days, recovered unseen articles must be
+                # backfilled into the next newsletter instead of being silently
+                # archived just because their published date is older than today.
+                new_items.append(item)
             if new_items:
                 write_source_output({**src, "platform": "wechat-rss"}, new_items)
             state[key] = {

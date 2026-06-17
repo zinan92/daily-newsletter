@@ -11,11 +11,11 @@ from pathlib import Path
 
 from lib import SENT_DIR, _load_secret, batch_artifact_paths, batch_label
 
-# Telegram credentials load from env or ~/park-io/secrets/<file> — never
+# Telegram credentials load from env or ~/park-io/_secrets/<file> — never
 # hardcoded, so the (public) repo carries no bot token.
 BOT_TOKEN = _load_secret("PARKIO_TELEGRAM_BOT_TOKEN", "telegram-bot-token")
 CHAT_ID = _load_secret("PARKIO_TELEGRAM_CHAT_ID", "telegram-chat-id")
-INBOX = Path.home() / "park-io" / "inbox"
+INBOX = Path.home() / "park-io" / "_inbox"
 PROCESSED_MD = INBOX / "processed_md"
 PROCESSED_HTML = INBOX / "processed_html"
 PROCESSED_PNG = INBOX / "processed_png"
@@ -23,7 +23,7 @@ STATE_FILE = Path(__file__).parent / "tg-push-state.json"
 TG_LIMIT = 4000
 PUSH_RE = re.compile(r"<!-- parkio-push-items:(.*?) -->", re.S)
 PROCESSED_RE = re.compile(r"<!-- parkio-processed-items:(.*?) -->", re.S)
-PUSH_SECTIONS = ("今日结论", "今日精选", "Podcast / YouTube / 抖音")
+PUSH_SECTIONS = ("短讯", "今日深读", "Source Health")
 NUMBERED_EVENT_RE = re.compile(r"^\d+\.\s+(.+)$")
 BOLD_LINK_EVENT_RE = re.compile(r"^\*\*(?:[^：:]{1,12}[：:])?\[([^\]]+)\]\(([^)]+)\)\*\*$")
 BOLD_LINK_WITH_LABEL_RE = re.compile(r"^\*\*([^：:]{1,12})[：:]\[([^\]]+)\]\(([^)]+)\)\*\*$")
@@ -280,6 +280,8 @@ def mark_processed(state: dict, processed_items: list[str], pushed_items: list[s
 def compact_push_body(visible: str) -> str:
     lines = visible.splitlines()
     title = lines[0].strip() if lines else "# Park-IO Daily Summary"
+    if any(line.strip() == "## 短讯" for line in lines):
+        return compact_push_body_v2(visible)
     out = [title, ""]
 
     in_conclusion = False
@@ -396,6 +398,47 @@ def compact_push_body(visible: str) -> str:
             continue
 
     flush_event()
+    return "\n".join(out).strip()
+
+
+def compact_push_body_v2(visible: str) -> str:
+    """Telegram text for the V2 reader surface.
+
+    V2 is already scannable, so the safe compacting rule is structural: keep the
+    fixed reader-facing sections, cap each section by lines, and rely on the
+    HTML/PNG attachments for the full version.
+    """
+    lines = visible.splitlines()
+    title = lines[0].strip() if lines else "# Park-IO Daily Summary"
+    keep_sections = {"短讯", "今日深读", "Source Health"}
+    limits = {
+        "短讯": 28,
+        "今日深读": 32,
+        "Source Health": 8,
+    }
+    out = [title, ""]
+    current = None
+    count = 0
+    for raw in lines[1:]:
+        line = raw.rstrip()
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            section = stripped.removeprefix("## ").strip()
+            current = section if section in keep_sections else None
+            count = 0
+            if current:
+                out.extend(["", stripped])
+            continue
+        if current is None:
+            continue
+        if not stripped:
+            if out and out[-1] != "":
+                out.append("")
+            continue
+        if count >= limits.get(current, 12):
+            continue
+        out.append(line)
+        count += 1
     return "\n".join(out).strip()
 
 

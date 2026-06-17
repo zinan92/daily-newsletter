@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import summarize
+from digest_text import one_line
 
 
 def test_has_chinese():
@@ -80,6 +81,13 @@ def test_no_stale_template_map():
     title = summarize.event_title(event)
     assert "Fast Mode" not in title, f"stale template leaked: {title!r}"
     assert title == summarize.display_title(primary), f"unexpected: {title!r}"
+
+
+def test_one_line_does_not_fabricate_single_letter_sentence_endings():
+    text = "一人公司创始人开发了一款多 AI 语音 Agent 系统，系统基于本地部署的 ASR 和 Codex SDK 构建，支持任务调度和进度查看。"
+    out = one_line(text, limit=46)
+    assert "的A。" not in out
+    assert not out.endswith("A。")
 
 
 if __name__ == "__main__":
