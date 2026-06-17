@@ -29,6 +29,13 @@ WECHAT = {
     "url": "https://mp.weixin.qq.com/s/vTv0Vu4RgrMkmLbXGvnSug",
 }
 
+TWITTER = {
+    "name": "dontbesilent",
+    "platform": "twitter",
+    "notes": "",
+    "url": "https://x.com/dontbesilent",
+}
+
 
 def test_bridge_connection_refused_is_failed():
     """Ran today but the fetcher recorded a connection error → must be 'failed'."""
@@ -54,6 +61,30 @@ def test_no_fetch_today_is_failed():
     st = {"last_fetch": "2026-05-01", "status": "ok"}
     status, _ = sh.classify_source(WECHAT, st, DAY)
     assert status == "failed", f"no fetch today must be 'failed', got '{status}'"
+
+
+def test_twitter_checked_no_new_is_ok_no_new():
+    st = {
+        "last_fetch": DAY,
+        "status": "ok_no_new",
+        "fetched_count": 20,
+        "new_count": 0,
+        "detail": "timeline checked; 0 new item(s) from 20 fetched",
+    }
+    status, detail = sh.classify_source(TWITTER, st, DAY)
+    assert status == "ok_no_new", f"checked empty X timeline must be ok_no_new, got '{status}'"
+    assert "0 new" in detail
+
+
+def test_twitter_timeout_not_checked_is_distinct_from_failed():
+    old_latest_timeout = sh.latest_timeout
+    try:
+        sh.latest_timeout = lambda component, day: f"[{day}T00:00:00] !!! fetch-twitter.py timeout after 180s"
+        status, detail = sh.classify_source(TWITTER, {"last_fetch": "2026-05-01"}, DAY)
+    finally:
+        sh.latest_timeout = old_latest_timeout
+    assert status == "not_checked_due_timeout", f"timeout-skipped X source must be distinct, got '{status}'"
+    assert "timed out" in detail
 
 
 if __name__ == "__main__":

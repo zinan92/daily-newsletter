@@ -9,7 +9,7 @@ X ingestion owns Twitter/X account and saved-post collection.
 
 ## Inputs
 
-- Active Twitter source rows from `~/park-io/sources.md`.
+- Active Twitter source rows from `~/park-io/_source management- james/sources.md`.
 - X auth/session configuration outside git.
 
 ## Outputs

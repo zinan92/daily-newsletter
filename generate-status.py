@@ -13,9 +13,13 @@ from pathlib import Path
 
 from lib import PARKIO, ROOT, load_sources, parse_frontmatter, today
 import summarize
+from run_report import build_run_report, latest_run_report, media_failures_for_date, write_run_report
 
 PUSH_RE = re.compile(r"<!-- parkio-push-items:(.*?) -->", re.S)
 WECHAT_URL_RE = re.compile(r"https://mp\.weixin\.qq\.com/s/[A-Za-z0-9_-]+")
+WEWE_AUTH_ALERT = PARKIO / "_inbox" / "wewe-auth-alert.json"
+MANUAL_PUSH_SCRIPT = ROOT / "manual-push.command"
+BLOCKING_DEP_TOKENS = ("WeWe", "公众号", "YouTube")
 
 
 def latest_line(path: Path, needle: str) -> str:
@@ -44,9 +48,70 @@ def load_json(path: Path) -> dict:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
         return {}
+
+
+def load_wewe_auth_alert() -> dict:
+    data = load_json(WEWE_AUTH_ALERT)
+    return data if isinstance(data, dict) else {}
+
+
+def wewe_auth_problem(data: dict | None = None) -> dict | None:
+    data = data or load_wewe_auth_alert()
+    status = data.get("status")
+    if status == "invalid":
+        names = "、".join(row.get("name", "未知账号") for row in data.get("invalid_accounts", [])[:4])
+        return {
+            "name": "WeWe 读书账号",
+            "status": "failed",
+            "detail": f"{names or '读书账号'} 已失效；需要扫码重新登录",
+        }
+    if status == "failed":
+        return {
+            "name": "WeWe 读书账号",
+            "status": "failed",
+            "detail": f"账号状态检测失败：{data.get('error', '未知错误')}",
+        }
+    return None
+
+
+def render_wewe_auth_alert() -> str:
+    data = load_wewe_auth_alert()
+    problem = wewe_auth_problem(data)
+    if not problem:
+        return ""
+    login = data.get("login", {}) if isinstance(data.get("login"), dict) else {}
+    scan_url = login.get("scanUrl", "")
+    qr_path = Path(str(login.get("qr_path") or ""))
+    qr_html = ""
+    if qr_path.exists():
+        qr_html = "<img src='wewe-auth-qr.png' alt='WeWe RSS 登录二维码'>"
+    elif scan_url:
+        qr_html = f"<a class='auth-button' href='{escape(scan_url)}'>打开扫码链接</a>"
+    account_rows = "".join(
+        f"<li>{escape(str(row.get('name') or '未知账号'))}：{escape(str(row.get('status_label') or row.get('status') or '失效'))}</li>"
+        for row in data.get("accounts", [])
+    )
+    checked_at = escape(str(data.get("checked_at") or "未知"))
+    base_url = escape(str(data.get("base_url") or "http://localhost:4000"))
+    return f"""
+    <section class="auth-alert">
+      <div class="auth-copy">
+        <span class="alert-kicker">公众号登录态异常</span>
+        <h2>WeWe RSS 读书账号失效，需要扫码恢复</h2>
+        <p>检测时间：{checked_at}。恢复后，公众号 RSS 会按未见过的文章做 delta 回补，断更期间的新文章会进入下一次日报。</p>
+        <ul>{account_rows or "<li>账号状态未知</li>"}</ul>
+        <div class="pill-row">
+          <a class="auth-button" href="{base_url}/dash/accounts">打开 WeWe 账号页</a>
+          <span class="pill">二维码约 60 秒过期；若过期，等待下一次 fetch 自动刷新。</span>
+        </div>
+      </div>
+      <div class="auth-qr">{qr_html}</div>
+    </section>
+    """
 
 
 def check_command(cmd: list[str], timeout: int = 8) -> tuple[bool, str]:
@@ -82,9 +147,12 @@ def dependency_checks() -> list[dict]:
     checks.append({"name": "MLX Whisper", "status": "ok" if ok else "failed", "detail": detail})
 
     # WeWe RSS: reachable AND fresh (a frozen-but-reachable bridge is NOT healthy)
+    auth_issue = wewe_auth_problem()
     reachable, detail = check_command(["/usr/bin/curl", "-fsS", "http://localhost:4000/feeds/MP_WXS_3223096120.json"])
     frozen = [v["name"] for v in by_platform("wechat") if v.get("state") == "STALE"]
-    if not reachable:
+    if auth_issue:
+        checks.append(auth_issue)
+    elif not reachable:
         checks.append({"name": "WeWe RSS", "status": "failed", "detail": f"bridge 不可达：{detail}"})
     elif frozen:
         checks.append({"name": "WeWe RSS", "status": "stale", "detail": f"bridge 可达，但 {len(frozen)} 个公众号 feed 冻结（需重登微信读书）：{'、'.join(frozen[:4])}"})
@@ -119,7 +187,62 @@ def dependency_checks() -> list[dict]:
         checks.append({"name": "X 登录态", "status": "stale", "detail": f"{len(tw_down)} 个 X 账号抓取报错：{'、'.join(tw_down[:4])}"})
     else:
         checks.append({"name": "X 登录态", "status": "ok", "detail": "twitter-auth.env 可用，最近抓取正常"})
+
+    yt_failures = media_failures_for_date(today())
+    if yt_failures:
+        checks.append({
+            "name": "YouTube Cookie",
+            "status": "failed",
+            "detail": f"{len(yt_failures)} 条 YouTube/音视频转录失败；可能需要更新 youtube-cookies.txt",
+        })
     return checks
+
+
+def blocking_dependency_rows(deps: list[dict]) -> list[dict]:
+    rows = []
+    for row in deps:
+        name = str(row.get("name") or "")
+        if row.get("status") != "ok" and any(token in name for token in BLOCKING_DEP_TOKENS):
+            rows.append(row)
+    return rows
+
+
+def render_blocking_dependency_alert(rows: list[dict]) -> str:
+    if not rows:
+        return ""
+    items = "".join(
+        f"<li><strong>{escape(str(row.get('name') or '依赖'))}</strong>：{escape(str(row.get('detail') or row.get('status') or '异常'))}</li>"
+        for row in rows
+    )
+    script_url = "file://" + str(MANUAL_PUSH_SCRIPT)
+    notify_body = "；".join(str(row.get("name") or "依赖异常") for row in rows[:3])
+    return f"""
+    <section class="auth-alert manual-alert">
+      <div class="auth-copy">
+        <span class="alert-kicker">定时推送已暂停</span>
+        <h2>公众号或 YouTube 需要手动恢复</h2>
+        <p>9 点定时推送遇到可恢复依赖异常时会先暂停，避免发出缺内容的日报。恢复登录态或 cookies 后，点击下面的按钮手动跑完整流程。</p>
+        <ul>{items}</ul>
+        <div class="pill-row">
+          <a class="auth-button" href="{escape(script_url)}">手动推送</a>
+          <span class="pill">脚本位置：{escape(str(MANUAL_PUSH_SCRIPT))}</span>
+        </div>
+      </div>
+      <div class="auth-qr auth-action">
+        <strong>Manual Push</strong>
+        <span>fetch → process → newsletter</span>
+      </div>
+    </section>
+    <script>
+    (function() {{
+      var body = {json.dumps(notify_body, ensure_ascii=False)};
+      if (!("Notification" in window)) return;
+      function send() {{ try {{ new Notification("Daily Inbox 需要维护", {{ body: body }}); }} catch (e) {{}} }}
+      if (Notification.permission === "granted") send();
+      else if (Notification.permission !== "denied") Notification.requestPermission().then(function(p) {{ if (p === "granted") send(); }});
+    }})();
+    </script>
+    """
 
 
 def status_label(status: str) -> str:
@@ -129,6 +252,7 @@ def status_label(status: str) -> str:
         "filtered_out": "抓到但过滤",
         "stale": "上游冻结",
         "failed": "抓取失败",
+        "not_checked_due_timeout": "超时未检查",
         "not_configured": "未配置",
         "unsupported": "暂不支持",
     }.get(status, status or "未知")
@@ -146,12 +270,14 @@ def status_bucket(row: dict) -> str:
         return "上游 feed 冻结"
     if status == "failed":
         return "抓取失败"
+    if status == "not_checked_due_timeout":
+        return "超时未检查"
     return "其他状态"
 
 
 def manual_links_summary() -> dict:
     state = load_json(ROOT / "state.json").get("manual-links", {})
-    manual_file = PARKIO / "inbox" / "manual-links.md"
+    manual_file = PARKIO / "_inbox" / "manual-links.md"
     pending = 0
     if manual_file.exists():
         text = manual_file.read_text(encoding="utf-8", errors="replace")
@@ -215,7 +341,7 @@ def item_frontmatter(path: Path) -> tuple[dict, str]:
 
 def pushed_urls_by_day() -> dict[str, set[str]]:
     out: dict[str, set[str]] = {}
-    sent_dir = PARKIO / "inbox" / "sent"
+    sent_dir = PARKIO / "_inbox" / "sent"
     for path in sorted(sent_dir.glob("*.md")):
         text = path.read_text(encoding="utf-8", errors="replace")
         match = PUSH_RE.search(text)
@@ -231,7 +357,7 @@ def pushed_urls_by_day() -> dict[str, set[str]]:
 
 def sent_digest_summary(day: str) -> dict:
     short_day = day[2:]
-    path = PARKIO / "inbox" / "sent" / f"{short_day}.md"
+    path = PARKIO / "_inbox" / "sent" / f"{short_day}.md"
     if not path.exists():
         return {"path": path, "exists": False, "pushed": 0, "sections": []}
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -253,43 +379,62 @@ def sent_digest_summary(day: str) -> dict:
 
 def library_profile_stats() -> list[dict]:
     pushed = set().union(*pushed_urls_by_day().values()) if pushed_urls_by_day() else set()
-    root = PARKIO / "library" / "profiles"
-    rows = []
+    root = PARKIO / "library"
+    by_source: dict[str, dict] = {}
     if not root.exists():
-        return rows
-    for profile in sorted(p for p in root.iterdir() if p.is_dir()):
-        article_paths = sorted((profile / "items").glob("*/article.md"))
-        channel_counts: Counter[str] = Counter()
-        selected = 0
-        latest_mtime = 0.0
-        latest_title = ""
-        for article in article_paths:
-            fm, _body = item_frontmatter(article)
-            url = str(fm.get("url", ""))
-            channel_counts[channel_for_url(url)] += 1
-            if url and url in pushed:
-                selected += 1
-            mtime = article.stat().st_mtime
-            if mtime > latest_mtime:
-                latest_mtime = mtime
-                latest_title = title_from_article(article)
-        total = len(article_paths)
+        return []
+
+    article_paths = [
+        path
+        for path in root.rglob("*.md")
+        if path.is_file() and "profiles" not in path.parts and path.name != "profile.md"
+    ]
+    # Migration window: keep old profile archives visible if they still exist.
+    article_paths.extend((root / "profiles").glob("*/items/*.md"))
+    article_paths.extend((root / "profiles").glob("*/items/*/article.md"))
+
+    for article in article_paths:
+        fm, _body = item_frontmatter(article)
+        source = str(fm.get("source_name") or fm.get("profile_name") or fm.get("profile_id") or "library")
+        row = by_source.setdefault(
+            source,
+            {"profile": source, "total": 0, "selected": 0, "channels": Counter(), "latest": "", "latest_time": "-"},
+        )
+        url = str(fm.get("url", ""))
+        row["total"] += 1
+        row["channels"][str(fm.get("channel") or fm.get("platform") or channel_for_url(url))] += 1
+        if url and url in pushed:
+            row["selected"] += 1
+        mtime = article.stat().st_mtime
+        current_latest = row.get("_latest_mtime", 0.0)
+        if mtime > current_latest:
+            row["_latest_mtime"] = mtime
+            row["latest"] = title_from_article(article)
+            row["latest_time"] = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+
+    rows = []
+    for row in by_source.values():
+        total = row["total"]
         rows.append(
             {
-                "profile": profile.name,
+                "profile": row["profile"],
                 "total": total,
-                "selected": selected,
-                "rate": (selected / total * 100) if total else 0,
-                "channels": dict(channel_counts),
-                "latest": latest_title,
-                "latest_time": datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d") if latest_mtime else "-",
+                "selected": row["selected"],
+                "rate": (row["selected"] / total * 100) if total else 0,
+                "channels": dict(row["channels"]),
+                "latest": row["latest"],
+                "latest_time": row["latest_time"],
             }
         )
-    return rows
+    return sorted(rows, key=lambda item: item["total"], reverse=True)
 
 
 def independent_link_count() -> int:
-    return len(list((PARKIO / "library" / "独立链接").glob("*/article.md")))
+    return sum(
+        1
+        for path in (PARKIO / "library").glob("*/*/*.md")
+        if path.is_file() and "profile_id: x-saved" in path.read_text(encoding="utf-8", errors="replace")[:500]
+    )
 
 
 def today_funnel(sources_today: list) -> dict:
@@ -681,6 +826,11 @@ def render() -> str:
     scores = summarize.load_scores()
     sources_today, _ = summarize.read_today_items(date, scores)
     health = summarize.source_health(sources_today, date)
+    active_report = build_run_report(sources_today, health, date)
+    if active_report.get("mode") == "batch":
+        write_run_report(active_report)
+    digest_report = active_report if active_report.get("mode") == "batch" else latest_run_report(date)
+    report_for_header = digest_report or active_report
     configured = load_sources()
     funnel = today_funnel(sources_today)
     sent = sent_digest_summary(date)
@@ -691,6 +841,9 @@ def render() -> str:
     profile_total = sum(row["total"] for row in profile_stats)
     selected_total = sum(row["selected"] for row in profile_stats)
     independent_total = independent_link_count()
+    report_health = report_for_header.get("health", {})
+    report_totals = report_for_header.get("totals", {})
+    report_problem_count = int(report_health.get("needs_attention", 0) or 0)
     failed = [row for row in health if row["status"] == "failed"]
     intake_buckets = build_intake_buckets(sources_today, health)
 
@@ -730,10 +883,27 @@ def render() -> str:
             f"<tr><td>{escape(row['name'])}</td><td>{escape(row['platform'])}</td><td><span class='status {escape(row['status'])}'>{escape(status_label(row['status']))}</span></td><td>{escape(row['detail'])}</td></tr>"
         )
 
+    deps = dependency_checks()
+    blocking_deps = blocking_dependency_rows(deps)
     dependency_rows = []
-    for row in dependency_checks():
+    for row in deps:
         dependency_rows.append(
             f"<tr><td>{escape(row['name'])}</td><td><span class='status {escape(row['status'])}'>{'正常' if row['status'] == 'ok' else '异常'}</span></td><td>{escape(row['detail'])}</td></tr>"
+        )
+
+    report_problem_rows = []
+    for row in report_health.get("source_problems", []):
+        report_problem_rows.append(
+            f"<tr><td>来源异常</td><td>{escape(row.get('name', ''))}</td><td>{escape(row.get('detail', row.get('status', '')))}</td></tr>"
+        )
+    for row in report_health.get("media_failures", []):
+        report_problem_rows.append(
+            f"<tr><td>音视频转录</td><td>{escape(row.get('source', ''))}：{escape(row.get('title', ''))}</td><td>{escape(row.get('error', ''))}</td></tr>"
+        )
+    if report_health.get("scoring"):
+        scoring = report_health["scoring"]
+        report_problem_rows.append(
+            f"<tr><td>打分服务</td><td>{escape(str(scoring.get('status', '')))}</td><td>{escape(str(scoring.get('message', '')))}</td></tr>"
         )
 
     profile_rows = []
@@ -745,12 +915,21 @@ def render() -> str:
 
     sections = "、".join(sent["sections"]) if sent["sections"] else "尚未生成今日推送"
     today_verdict = "今日推送已完成" if sent["exists"] else "今日尚未推送"
-    if failed:
-        today_verdict += f"；{len(failed)} 个来源需要维护"
+    if report_problem_count:
+        today_verdict += f"；{report_problem_count} 个问题需要维护"
     elif funnel["total"] == 0:
         today_verdict += "；暂无新增 raw input"
     else:
         today_verdict += "；来源健康无阻塞"
+    digest_label = report_for_header.get("batch_label", "尚无日报 batch")
+    digest_items = int(report_totals.get("items", 0) or 0)
+    digest_kept = int(report_totals.get("kept", 0) or 0)
+    digest_filtered = int(report_totals.get("filtered", 0) or 0)
+    mode_note = (
+        f"当前页面基于最新日报 batch {digest_label}；下方另列当前 unprocessed 下一批。"
+        if active_report.get("mode") != "batch" and digest_report
+        else f"当前页面基于正在处理的 batch {active_report.get('batch_label')}。"
+    )
     page = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -854,9 +1033,20 @@ def render() -> str:
     .ok, .ok_new, .ok_no_new {{ color: var(--good); border-color: #95d3c9; background: #edf8f5; }}
     .filtered_out, .not_configured, .unsupported {{ color: var(--warn); border-color: #efcd94; background: #fff8e8; }}
     .failed {{ color: var(--bad); border-color: #f0aaa3; background: #fff1ef; }}
+    .auth-alert {{ display: grid; grid-template-columns: 1fr 210px; gap: 20px; align-items: center; background: #fff4ed; border: 1px solid #ffb892; border-left: 5px solid #c2410c; border-radius: 10px; padding: 18px; margin: 0 0 18px; }}
+    .auth-alert h2 {{ margin: 4px 0 8px; color: #8a2c0b; font-size: 22px; }}
+    .auth-alert p {{ color: #684234; }}
+    .auth-alert ul {{ margin: 10px 0 0; padding-left: 18px; color: #4a2e24; }}
+    .alert-kicker {{ color: #b42318; font-weight: 800; font-size: 12px; letter-spacing: .08em; }}
+    .auth-button {{ display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 6px 12px; border-radius: 999px; background: #8a2c0b; color: #fff; text-decoration: none; font-weight: 700; font-size: 13px; }}
+    .auth-qr {{ display: grid; place-items: center; min-height: 180px; background: #fff; border: 1px solid #f6c7ad; border-radius: 8px; }}
+    .auth-qr img {{ width: 168px; height: 168px; object-fit: contain; }}
+    .auth-action strong, .auth-action span {{ display: block; text-align: center; }}
+    .auth-action strong {{ color: #8a2c0b; font-size: 18px; }}
+    .auth-action span {{ color: #684234; font-size: 12px; margin-top: 4px; }}
     .pill-row {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }}
     .pill {{ border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; background: #fafaf6; color: #46554e; font-size: 12px; }}
-    @media (max-width: 980px) {{ .hero, .visual-grid, .grid, .grid.two, .workflow, .intake-row {{ grid-template-columns: 1fr; }} .flow-arrow {{ display: none; }} main {{ width: min(100% - 20px, 1180px); }} .donut-wrap {{ grid-template-columns: 1fr; }} .funnel-slice {{ width: 100% !important; min-width: 0; }} .sub-grid {{ grid-template-columns: 1fr; }} .section-head {{ display: block; }} .output-badge {{ margin-top: 10px; text-align: left; }} }}
+    @media (max-width: 980px) {{ .hero, .visual-grid, .grid, .grid.two, .workflow, .intake-row, .auth-alert {{ grid-template-columns: 1fr; }} .flow-arrow {{ display: none; }} main {{ width: min(100% - 20px, 1180px); }} .donut-wrap {{ grid-template-columns: 1fr; }} .funnel-slice {{ width: 100% !important; min-width: 0; }} .sub-grid {{ grid-template-columns: 1fr; }} .section-head {{ display: block; }} .output-badge {{ margin-top: 10px; text-align: left; }} }}
   </style>
 </head>
 <body>
@@ -866,14 +1056,17 @@ def render() -> str:
       <p>生成时间：{escape(generated)} · 日期：{escape(date)} · 这个页面面向维护者，用来检查抓取、筛选、推送和长期资料库。</p>
     </header>
 
+    {render_wewe_auth_alert()}
+    {render_blocking_dependency_alert(blocking_deps)}
+
     <section class="hero">
       <div class="hero-summary">
         <h2>{escape(today_verdict)}</h2>
-        <p>今天系统抓到 {funnel['total']} 条内容，{funnel['kept']} 条进入正文，{funnel['filtered']} 条被过滤；Telegram 推送链接 {pushed_count} 条。先看三大入口漏斗，再展开表格排查细节。</p>
+        <p>最新日报 batch 抓到 {digest_items} 条内容，{digest_kept} 条进入正文，{digest_filtered} 条被过滤；Telegram 推送链接 {pushed_count} 条。{escape(mode_note)}</p>
         <div class="pill-row">
           <span class="pill">下一次推送 {escape(next_push_text())}</span>
           <span class="pill">手动链接待导入 {manual['pending']}</span>
-          <span class="pill">失败来源 {len(failed)}</span>
+          <span class="pill">需维护 {report_problem_count}</span>
         </div>
       </div>
       {render_donut("今日内容去向", today_parts, max(funnel["total"], 0), "条原始内容")}
@@ -883,9 +1076,10 @@ def render() -> str:
 
     <section class="grid">
       {render_metric("活跃来源", len(configured), "来源清单中启用的来源")}
-      {render_metric("今日待处理", funnel["total"], f"进入正文 {funnel['kept']} · 过滤 {funnel['filtered']}")}
+      {render_metric("最新日报 Batch", digest_items, f"进入正文 {digest_kept} · 过滤 {digest_filtered}")}
+      {render_metric("当前待处理（下一批）", funnel["total"], f"进入正文 {funnel['kept']} · 过滤 {funnel['filtered']}")}
       {render_metric("今日已推送", pushed_count, "Telegram 推送链接数")}
-      {render_metric("失败来源", len(failed), "需要维护者查看来源健康")}
+      {render_metric("需要维护", report_problem_count, "来自最新日报 batch 的 health report")}
     </section>
 
     {render_intake_funnel(intake_buckets, pushed_count)}
@@ -897,6 +1091,14 @@ def render() -> str:
       {render_funnel(funnel["total"], funnel["kept"], funnel["filtered"], pushed_count)}
       {render_donut("来源健康分布", health_parts, len(health), "个来源")}
     </section>
+
+    <details open>
+      <summary>最新日报 Health Report</summary>
+      <table>
+        <thead><tr><th>类型</th><th>对象</th><th>说明</th></tr></thead>
+        <tbody>{render_rows(report_problem_rows)}</tbody>
+      </table>
+    </details>
 
     <section class="panel">
       <h3>今日流程图</h3>
@@ -991,7 +1193,7 @@ def render() -> str:
 
 
 def main() -> int:
-    out = PARKIO / "inbox" / "status.html"
+    out = PARKIO / "_inbox" / "status.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render(), encoding="utf-8")
     print(out)

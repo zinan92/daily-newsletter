@@ -8,13 +8,13 @@ RSS ingestion owns generic RSS/Atom sources that behave like ordinary article fe
 
 ## Inputs
 
-- Active `platform=rss` source rows from `~/park-io/sources.md`.
+- Active `platform=rss` source rows from `~/park-io/_source management- james/sources.md`.
 - Feed URLs for official blogs, podcasts, YouTube feeds, and other RSS-compatible sources.
 
 ## Outputs
 
 - Standard ingestion artifacts with `channel=rss`.
-- Existing compatibility output remains `~/park-io/inbox/unprocessed/<date>-<profile>.md` until later phases move writers.
+- Existing compatibility output remains `~/park-io/_inbox/unprocessed/<date>-<profile>.md` until later phases move writers.
 
 ## Boundary
 

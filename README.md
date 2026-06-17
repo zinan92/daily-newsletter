@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![Tests](https://img.shields.io/badge/tests-all%20suites-green.svg)](tests/)
-[![Pipeline](https://img.shields.io/badge/pipeline-deterministic-0f766e.svg)](inbox-workflow.yaml)
+[![Pipeline](https://img.shields.io/badge/pipeline-5--stage%20AI--first-0f766e.svg)](inbox-workflow.yaml)
 [![License](https://img.shields.io/badge/license-private-lightgrey.svg)](#license)
 
 </div>
@@ -18,66 +18,92 @@ in   官方渠道 (Anthropic/OpenAI/Claude/Codex) + X 关注账号 + 播客/YouT
 out  一份中文日报 (Markdown + HTML + 长图) → `inbox/processed/<YY-MM-DD>/`，每天 08:30
 
 fail LLM 端点 502/SSL    → DeepSeek 重试 3 次；仍失败则自动转 CLIProxy/Sonnet；配置错误不兜底
-fail 评分服务中断        → 写 scoring-health.json + 状态页红色横幅（不静默）
-fail 正文含英文/元数据   → 质量门拦截推送，绝不发出英文堆砌或 "公众号:/作者:" 泄漏
+fail AI 结构化输出失败   → 写 processed/<YY-MM-DD>/ai/error.json + raw-response.md，直接停止，不 fallback
+fail 最终 Markdown 缺栏目 → build-digest 失败，不生成假成功产物
 fail 某来源抓取失败      → 跳过并在状态页标记，不影响其他来源
 ```
 
-路由是确定性的（source → profile → section）。AI 只在**节点内部**工作：打分、写摘要、质检。
+生产链路现在是 5-stage：`fetch -> to_md -> coarse_filter -> ai_process -> archive`。脚本只负责下载、转写、粗筛、保存和推送；内容判断、合并、打分、分类、快讯全集/深读子集选择全部交给 AI system prompt。
 
 ## 示例输出
 
-一份日报固定四个 section，每条都是内容衍生的中文标题 + 摘要 + 原文链接：
+Daily Inbox 现在拆成两个读者产品，共用同一个 signal universe：
+
+- `000-YY-MM-DD.md/html/png` 是默认**快讯**产品，回答“今天有哪些新信号值得知道”。
+- `deep-YY-MM-DD.md/html/png` 是可选**深读**产品，只在当天有 `deep_candidates` 时生成，回答“哪些内容值得花 10-30 分钟理解”。
+
+深读必须是快讯全集的子集，并通过 `parent_brief_event_id` 可追踪。`Source Health` 留在状态页和 run-report，不进入读者正文。
 
 ```markdown
-# Park-IO Daily Summary — 2026-05-30
+# Daily Inbox 快讯 — 2026-06-10
 
-## 今日精选
+## 快讯
+### 底层工具
+- **Claude Code Release** | [Claude Code Release：v2.1.170](https://github.com/...)
+  版本更新说明，适合快速知道工具变化。
 
-### AI 官方与代码源
-#### Anthropic / Claude
-1. [Claude Code Release：v2.1.157](https://github.com/anthropics/claude-code/releases/...)
-   Claude Code v2.1.157 简化了插件系统：插件可直接放进 .claude/skills 自动加载，
-   新增 claude plugin init 命令快速生成骨架……
-   **对你的价值：**
-   - 插件直接放目录自动加载，不用再折腾 marketplace，本地调试更快
-2. [Claude Devs：Opus 4.8 支持对话中途添加系统指令且不破坏提示缓存](https://x.com/ClaudeDevs/...)
+### 工作流
+- **X / 向阳乔木** | [一句话操作浏览器](https://x.com/...)
+  浏览器 Agent 正在进入真实内容/运营工作流。
 
-### Twitter / X 应用层
-### Podcast / YouTube / 抖音
-### 我的收藏 / Manual Links
+### 内容
+- **X / Yenita_Su** | [小红书创作窗口解析](https://x.com/...)
+  平台扶持方向变化，适合做机会扫描。
+```
+
+```markdown
+# Daily Inbox 深读 — 2026-06-10
+## 深读
+### 1. [Claude Fable 5 and Claude Mythos 5](https://www.anthropic.com/news/...)
+
+来源：Anthropic News
+
+**核心论点：**
+模型能力正在按开放层级、安全边界和使用权限重新分层。
+
+**为什么值得读：**
+它提供了一个观察 AI 平台竞争的新角度。
+
+**它改变了什么判断：**
+选择 AI 工具时，不能只看 benchmark，还要看开放稳定性、权限和成本结构。
+
+**可迁移启发：**
+可迁移到 AI 产品分层、企业自动化架构和开发者工具设计。
+
 ```
 
 > 终端运行时每个阶段都会打印进度，例如：
 > ```
-> [score] DONE — total scored: 2412
+> [ai-process] item_understanding START — 148 items
+> [ai-process] selection START — 41 events
 > [summarize] DONE — wrote .../000-26-05-30.md and .../000-26-05-30.html
-> [quality-check] PASS 2026-05-30: 13 events, 10 push URLs
 > ```
 
-## 架构：四条独立路径
+## 架构：5-stage AI-first
 
-每条路径从抓取入口一路走到自己的 newsletter section，互不污染。路由确定，AI 只在节点内。
+抓取入口仍按来源拆分，但生产边界按 stage folder 固化。最终正文只输出 `短讯` 和 `深读`。
 
 ```
-                  ┌──────────────── 官方/代码源 ──────────────┐
-  Anthropic/      │ fetch → score(AI) → brief(AI) → cluster   │──▶ Section 1  AI 官方与代码源
-  OpenAI/Claude   └───────────────────────────────────────────┘
-                  ┌──────────────── X 关注账号 ───────────────┐
-  黄小木/归藏/...  │ fetch → score(AI) → brief(AI) → thread合并 │──▶ Section 2  Twitter / X 应用层
-                  └───────────────────────────────────────────┘
-                  ┌──────────────── 音视频 ───────────────────┐
-  Podcast/YT/抖音  │ fetch → MLX Whisper转录 → 修ASR(AI) → brief│──▶ Section 3  Podcast/YouTube/抖音
-                  └───────────────────────────────────────────┘
-                  ┌──────────────── 收藏/手动 ────────────────┐
-  manual-links/   │ fetch → bypass score → brief(AI)          │──▶ Section 4  我的收藏/Manual Links
-  X收藏/公众号     └───────────────────────────────────────────┘
-                                                                      │
-              四个 section 汇聚 ──▶ 质量门(确定性 + AI二审) ──▶ processed/ 08:30
+fetch → raw/<YYYY-MM-DD>
+      → to_md → unprocessed/<YYYY-MM-DD>/items/*.md
+      → coarse_filter → processed/<YY-MM-DD>/items/*.md + coarse-rejects.jsonl
+      → ai_process → ai/01-item-cards.json → ai/02-events.json → ai/03-selection.json
+                   → 000-YY-MM-DD.md/html/png + optional deep-YY-MM-DD.md/html/png
+      → archive → library selected items + sent artifacts
 ```
 
-节点类型：`script`（确定性）· `ai`（带 system prompt）· `local_model`（MLX Whisper，本地）· `human`（手动输入）· `sink`（section）。
-图的 reader-facing 真源是 `/Users/wendy/park-io/inbox/inbox-workflow.yaml`（v12）。渲染和校验工具放在本工作区的 `workflow/diagram/`，不要放回 Obsidian vault。
+实现入口固定在 `stages/`，根目录脚本只是兼容 wrapper：
+
+```text
+stages/fetch/run.py
+stages/to_md/run.py
+stages/coarse_filter/run.py
+stages/ai_process/run.py
+stages/archive/run.py
+```
+
+节点类型：`script`（抓取/转写/粗筛/保存/推送）· `ai`（理解/合并/选择/写作）· `local_model`（MLX Whisper，本地转录）· `human`（手动输入）· `sink`（artifact）。
+图的 reader-facing 真源是 `/Users/wendy/park-io/_inbox/inbox-workflow.yaml`（v13）。渲染和校验工具放在本工作区的 `workflow/diagram/`，不要放回 Obsidian vault。
 
 ## 快速开始
 
@@ -87,42 +113,41 @@ git clone https://github.com/zinan92/daily-newsletter
 cd daily-newsletter
 
 # 2. 配置 LLM（默认 DeepSeek）— key 存到本地 secret 文件，不进 env 历史
-mkdir -p ~/park-io/secrets
-printf "YOUR_DEEPSEEK_KEY" > ~/park-io/secrets/deepseek-key && chmod 600 ~/park-io/secrets/deepseek-key
+mkdir -p ~/park-io/_secrets
+printf "YOUR_DEEPSEEK_KEY" > ~/park-io/_secrets/deepseek-key && chmod 600 ~/park-io/_secrets/deepseek-key
 # 或者临时用 env：export PARKIO_DEEPSEEK_KEY="..."
 
 # 3. 跑测试，确认环境
 for t in tests/test_*.py; do python3 "$t"; done
 
 # 4. 手动跑一遍当天 pipeline
-./fetch-all.sh                                    # 抓取（cron 每 4h）
-BATCH=$(python3 open-batch.py | tail -1)
-PARKIO_BATCH_ID=$BATCH python3 score.py           # 打分
-PARKIO_BATCH_ID=$BATCH python3 build-digest.py    # 生成 md/html/png
-PARKIO_BATCH_ID=$BATCH python3 check-quality.py   # 质量门
-PARKIO_BATCH_ID=$BATCH python3 archive-items.py
-PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.{md,html,png}
+./fetch-all.sh                                    # Stage 1: 抓取 raw/legacy input
+python3 stages/to_md/run.py                       # Stage 2: raw → one-item markdown + media transcript
+BATCH=$(python3 stages/coarse_filter/run.py | tail -1) # Stage 3: coarse filter → processed
+PARKIO_BATCH_ID=$BATCH python3 build-digest.py    # Stage 4: AI → 快讯 artifact + optional 深读 artifact
+PARKIO_BATCH_ID=$BATCH python3 stages/archive/run.py
+PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # Stage 5: 写 sent/YY-MM-DD.* 和 optional sent/deep-YY-MM-DD.*
 # Telegram 当前临时关闭：默认生成 processed/ 并写本地 sent/。
 # 恢复 Telegram 后再手动执行：
 # PARKIO_BATCH_ID=$BATCH PARKIO_FORCE_PUSH=1 python3 send-artifacts.py
 ```
 
-日常由 launchd 驱动：`fetch-all.sh` 每 4 小时抓取，`push-digest.sh` 每天 08:30 构建并保存到 `processed/`，同时写入本地定稿 `sent/YY-MM-DD.{md,html,png}`。Telegram token 修复前，`push-digest.sh` 默认跳过发送；恢复发送时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
+日常由 launchd 驱动：`fetch-all.sh` 每小时只抓取 raw/source data 并刷新状态健康；`push-digest.sh` 每天 08:30 依次执行 `to-md -> open-batch -> build-digest -> archive -> finalize`，保存到 `processed/` 并写入本地定稿 `sent/YY-MM-DD.{md,html,png}`；如果当天有深读候选，同时写 `sent/deep-YY-MM-DD.{md,html,png}`。Telegram token 修复前，`push-digest.sh` 默认跳过发送；恢复发送时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
 
 ## Pipeline 阶段
 
 | 阶段 | 脚本 | Handler | 说明 |
 |------|------|---------|------|
-| 抓取 | `fetch.py` / `fetch-*.py` | script | RSS/scrape/X/微信/抖音；写入 `inbox/unprocessed` |
-| 转录 | `fetch-media-transcripts.py` | local_model + ai | MLX Whisper 本地转录 → AI 修 ASR 错字 + 中文摘要 |
-| 开批 | `open-batch.py` | script | 把 pending 移入 `processed/<YY-MM-DD>` |
-| 打分 | `score.py` → `score-items.py` | ai | Sonnet 评分；官方/手动/媒体 bypass；失败写 `scoring-health.json` |
-| 摘要 | `build-digest.py` → `summarize.py` | ai | 内容衍生中文标题 + 摘要 + 四 section 组装 + 长图 |
-| 质检 | `check-quality.py` → `quality-check.py` | script + ai | 确定性红线门（硬拦）+ AI 二审（非阻塞） |
-| 归档 | `archive-items.py` | script | 写 `library/profiles/<id>/items/`，长期留存 |
-| 本地定稿 | `finalize-local.py` | script | 不依赖 Telegram，写 `sent/YY-MM-DD.{md,html,png}` |
+| Fetch | `stages/fetch/run.py` | script | 只下载 raw data；公共 writer 默认写 `inbox/raw/<YYYY-MM-DD>/`，少数直接写入的旧 fetcher 仍兼容迁移 |
+| To MD | `stages/to_md/run.py` | script + local_model | raw artifact 统一成 `inbox/unprocessed/<YYYY-MM-DD>/items/*.md`，一个 item 一个 markdown；视频/音频转录在这里完成 |
+| Coarse Filter | `stages/coarse_filter/run.py` | script | 只删明显垃圾，写 `processed/<YY-MM-DD>/coarse-rejects.jsonl`；不打分、不合并、不做产品判断 |
+| 选题工作台 | `build-topics.py` | script | 手动/独立读取 `inbox/unprocessed`，生成 `topics.html` / `topics.md`；不参与生产 digest |
+| AI Process | `stages/ai_process/run.py` | ai | AI：item cards → events → selection → 快讯写作 + optional 深读写作；失败直接停止，不 fallback |
+| 运行报告 | `run_report.py` | script | 为同一个 batch 生成 `run-report.json`；日报、status、health alert 共用这一份健康事实 |
+| 归档 | `stages/archive/run.py` | script | 按 `ai/03-selection.json` 归档 `brief_universe` / `deep_candidates`；discard 只保留 decision log |
+| 本地定稿 | `finalize-local.py` | script | 不依赖 Telegram，写 `sent/YY-MM-DD.{md,html,png}` 和 optional `sent/deep-YY-MM-DD.{md,html,png}` |
 | 推送 | `send-artifacts.py` → `push-telegram.py` | script | 当前默认跳过；恢复后发送 Telegram |
-| 状态 | `generate-status.py` | script | 维护者状态页 `status.html`（抓取/评分/健康） |
+| 状态 | `generate-status.py` | script | 维护者状态页 `status.html`（抓取/依赖/健康） |
 | 渠道健康 | `channel-health.py` | script | 按 fetch 日志真值 + feed 新鲜度，分 DOWN/STALE/QUIET/NEW |
 
 ## 渠道健康与可观测性
@@ -134,56 +159,57 @@ PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # 写 sent/YY-MM-DD.{md,html,p
   - **STALE**：抓取成功但上游 feed 冻结（如 wewe-rss 的微信读书登录过期，feed 多日不更新）
   - **QUIET**：抓取成功、feed 新鲜、确实没有新内容
   - **NEW**：有新内容入库
-  - **FILTERED**（状态页「抓到但过滤」）：抓到了新内容，但 0 条进入当天正文（被评分/dedup/质检丢掉）
-- `status.html` 的逐源健康与依赖检查都走 `channel-health` 真值；依赖检查是**功能型**（cookie/登录态按真实抓取结果判定、wewe-rss 检查 feed 新鲜度而非仅可达）。
-- 每日 digest 顶部带**渠道告警条**：哪些渠道挂了 / 冻结一眼可见，不用去翻状态页。
+  - **FILTERED**（状态页「抓到但过滤」）：抓到了新内容，但 0 条进入当天正文（被 coarse filter 或 AI selection 丢掉）
+- `status.html` 的逐源健康与依赖检查都走 `channel-health` 真值；依赖检查是**功能型**（cookie/登录态按真实抓取结果判定、wewe-rss 检查 feed 新鲜度而非仅可达）。`wewe-auth-monitor.py` 每次 fetch 都会查询 WeWe RSS 的 `account.list`；读书账号失效时写 `~/park-io/_inbox/wewe-auth-alert.json` 和 `wewe-auth-qr.png`，并在 `status.html` 顶部显示扫码恢复入口。
+- `processed/<YY-MM-DD>/run-report.json` 是日报、`status.html`、`health-alerts.md` 的共享事实源：同一个 batch 的抓取数、入选数、过滤数、source 异常、音视频转录失败必须从这里读，不能各自重新计算。
+- 状态页带**渠道告警条**：哪些渠道挂了 / 冻结 / 音视频转录失败一眼可见；最终 newsletter 正文不展示 RuntimeError、cookie 文件名等内部报错。
+- `status.html` 允许被 hourly fetch 刷新，但必须区分“最新日报 batch”和“当前 unprocessed 下一批”，不能把二者混成同一个“今日待处理”数字。
 
 ### 运行时依赖（外部，需留意）
 
 | 依赖 | 服务谁 | 风险 |
 |------|--------|------|
-| `wewe-rss`（Colima/Docker，`localhost:4000`） | 8 个公众号的 RSS | 微信读书登录会过期 → feed 冻结；需偶尔重新扫码。**冻结会在 digest/status 红字告警。** |
+| `wewe-rss`（Colima/Docker，`localhost:4000`） | 8 个公众号的 RSS | 微信读书登录会过期 → feed 冻结；需偶尔重新扫码。**失效会在 digest/status 红字告警；status 顶部会显示扫码二维码。** |
 | `content-toolkit`（`~/content-toolkit/capabilities/download`） | `fetch-douyin` / `fetch-media-transcripts` 的抖音抓取 | 该 repo 已 archive，但仍是运行时依赖 |
 | `twitter-auth.env` | 20 个 X 账号 | 登录态过期会导致全部 X 抓取失败 |
-| `~/park-io/secrets/youtube-cookies.txt`（Netscape 格式，权限 600，仓库外） | YouTube/播客视频的 yt-dlp 下载+转录 | cookie 过期会触发 "Sign in to confirm you're not a bot" → 视频下不下来。**换法**：浏览器装 cookies.txt 扩展导出 youtube.com cookie，覆盖该文件即可（可用 `PARKIO_YTDLP_COOKIES_FILE` 改路径）。失效会在 status/digest 告警。 |
+| `~/park-io/_secrets/youtube-cookies.txt`（Netscape 格式，权限 600，仓库外） | YouTube/播客视频的 yt-dlp 下载+转录 | cookie 过期会触发 "Sign in to confirm you're not a bot" → 视频下不下来。**换法**：浏览器装 cookies.txt 扩展导出 youtube.com cookie，覆盖该文件即可（可用 `PARKIO_YTDLP_COOKIES_FILE` 改路径）。失效会在 status/digest 告警。 |
 
-> 微信公众号没有官方开放 feed，任何方案都得借「微信读书登录」这类会过期的中介——所以策略是：**保留 wewe-rss 作主力 + 冻结即告警 + 最在乎的号用 `manual-links.md` 兜底**。
+> 微信公众号没有官方开放 feed，任何方案都得借「微信读书登录」这类会过期的中介——所以策略是：**保留 wewe-rss 作主力 + 登录失效即告警/显示二维码 + RSS 恢复后按 `seen_urls` 回补所有未见过的文章 + 最在乎的号用 `manual-links.md` 兜底**。公众号 RSS 不按“今天日期”截断；桥恢复后，断更期间的 7/8/9 号文章只要之前没记录过，就会进入下一次 newsletter。
 
 ## 回归不变量（GOTCHAS）
 
-这个项目的核心是一套硬规则——哪些内容必须出、哪些绝不能进正文。全部记录在 [`GOTCHAS.md`](GOTCHAS.md)，并由 `tests/test_*.py` + 确定性质量门锁死。改 `summarize.py` / `digest_events.py` / `quality-check.py` / `fetch-*.py` 前先对照。重点：
+这个项目的核心是一套硬规则——哪些内容必须被 AI 判断、哪些绝不能由脚本偷偷代替判断。全部记录在 [`GOTCHAS.md`](GOTCHAS.md)，并由 `tests/test_*.py` + AI output structural checks 锁死。改 `summarize.py` / `aggregation/digest/ai_process.py` / `open-batch.py` / `fetch-*.py` 前先对照。重点：
 
-- **官方/手动/媒体 bypass 评分**——评分服务挂了，官方区也不能消失。
-- **正文必须是中文摘要**——英文原文、`公众号:/作者:`、`t.co`、内部元数据一律被门拦截。
-- **标题来自当前内容**——不复用跨天的硬编码模板标题。
-- **同 thread 合并、空内容剔除**——X thread 回复合并成一个事件；纯链接的空推不进正文。
-- **去重只看当天 batch**——`state.json` 只管抓取去重，不决定今天展示什么。
+- **脚本不做产品判断**——除了 coarse filter 的明显垃圾，merge / score / selection / writing 都在 AI process。
+- **失败不 fallback**——AI JSON 错、结构错、最终 Markdown 缺栏目，直接写 `ai/error.json` 并停止。
+- **双产品同一事实源**——`brief_universe` 生成默认快讯，`deep_candidates` 必须是快讯子集并生成 optional 深读。
+- **读者正文不放 Source Health**——渠道健康只进 `status.html`、`run-report.json` 和 health alerts。
+- **归档以 AI selection 为准**——`brief_universe` / `deep_candidates` 进 library，`discard` 只保留 decision log。
 
 ## 配置
 
-LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 SSL/429/5xx 这类临时故障时，默认自动转 **CLIProxy/Sonnet**；401/400 等配置错误不兜底，直接暴露。Key 从 env 或 `~/park-io/secrets/<name>` 读取，**不进代码、不进 git**。
+LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 SSL/429/5xx 这类临时故障时，默认自动转 **CLIProxy/Sonnet**；401/400 等配置错误不兜底，直接暴露。Key 从 env 或 `~/park-io/_secrets/<name>` 读取，**不进代码、不进 git**。
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PARKIO_LLM_PROVIDER` | LLM 提供方：`deepseek` 或 `anthropic` | `deepseek` |
 | `PARKIO_LLM_FALLBACK_PROVIDER` | 主 LLM 临时故障时的备用 provider；设为 `none` 可关闭 | `anthropic` |
-| `PARKIO_DEEPSEEK_KEY` | DeepSeek API key（或写入 `~/park-io/secrets/deepseek-key`） | 无（必填） |
+| `PARKIO_DEEPSEEK_KEY` | DeepSeek API key（或写入 `~/park-io/_secrets/deepseek-key`） | 无（必填） |
 | `PARKIO_DEEPSEEK_MODEL` | DeepSeek 模型 | `deepseek-v4-flash` |
 | `PARKIO_DEEPSEEK_ENDPOINT` | DeepSeek 端点 | `https://api.deepseek.com/v1/chat/completions` |
-| `PARKIO_CLIPROXY_KEY` | Anthropic/备用模式的本地代理密钥；或 `~/park-io/secrets/cliproxy-key` | 无 |
+| `PARKIO_CLIPROXY_KEY` | Anthropic/备用模式的本地代理密钥；或 `~/park-io/_secrets/cliproxy-key` | 无 |
 | `PARKIO_CLIPROXY_MODEL` | Anthropic/备用模式模型 | `claude-sonnet-4-5-20250929` |
 | `PARKIO_BATCH_ID` | 指定批次（手动跑某天） | 当天 |
-| `PARKIO_STRICT_AI_QUALITY` | 让 AI 质检变成硬门 | 未设（非阻塞） |
 | `PARKIO_PYTHON` | fetch 阶段的 Python 3.11+ 解释器 | 自动探测 |
 
-`sources.md`（在 `~/park-io/`）是来源清单、用户画像、评分标定的单一真源。
+`sources.md`（在 `~/park-io/_source management- james/`）是来源清单和用户画像的单一真源；评分标定已经迁移到 `prompts/ai-process/03-selection.md`。
 
 ## 项目结构
 
 ```
 daily-newsletter/
 ├── fetch*.py / fetch-all.sh   # public 抓取入口（兼容 wrapper）
-├── score*.py                  # public 打分入口（兼容 wrapper）
+├── to-md.py                   # raw artifact → one-item markdown
 ├── build-digest.py            # public 构建入口（兼容 wrapper）
 ├── summarize.py               # public summarize import/CLI（兼容 wrapper）
 ├── ingestion/                 # channel-owned ingestion implementations
@@ -194,20 +220,28 @@ daily-newsletter/
 │   ├── wechat_rss/            # WeWe RSS + exporter bridge
 │   └── manual_links/          # manual links + seeded WeChat parser
 ├── enrichment/media/          # transcript + media summary enrichment
-├── aggregation/digest/        # score/build/summarize/quality/archive/finalize
+├── aggregation/digest/        # ai_process/build/summarize/archive/finalize
+├── stages/                    # 5-stage physical boundary; root scripts wrap these
+│   ├── fetch/
+│   ├── to_md/
+│   ├── coarse_filter/
+│   ├── ai_process/
+│   └── archive/
+├── prompts/ai-process/        # four-pass AI system prompts
 ├── contracts/                 # standard ingestion artifact schema
 ├── workflow/                  # n8n-ready workflow-as-code map
 ├── digest_events.py           # 事件聚类 + thread 合并
 ├── digest_text.py             # 文本清洗（strip_source_meta 等）
 ├── push-telegram.py           # Telegram 投递
 ├── generate-status.py         # 维护者状态页
+├── run_report.py              # batch 健康事实源：digest/status/health alert 共用
 ├── lib.py                     # 共享：路径、解析、llm_call(带重试)
 ├── GOTCHAS.md                 # 回归不变量清单
 ├── tests/                     # 回归测试套件
 └── AGENTS.md                  # 给 AI agent 的编辑规则
 ```
 
-数据目录在 `~/park-io/`：`inbox/`（unprocessed/processed/sent）、`library/profiles/<id>/items/`（长期归档）、`status.html`（维护者面板）。
+数据目录在 `~/park-io/`：`_inbox/`（raw/unprocessed/processed/sent）、`library/`（长期 intake 归档，item 直接平铺）、`knowledge/`（Wendy 自己的输出资产）、`_inbox/status.html`（维护者面板）。
 
 ## Agent-Claimable Task Graph
 
@@ -273,17 +307,17 @@ capability:
   out: inbox/processed/YY-MM-DD/000-YY-MM-DD.{md,html,png}
   fail:
     - "LLM 502/SSL → retry DeepSeek 3x then fail over to CLIProxy/Sonnet; config errors fail fast"
-    - "raw English or meta in body → quality-check.py blocks the push"
-  handlers: [script (deterministic routing), ai (scoring/summary/QC), local_model (MLX Whisper)]
+    - "AI JSON/Markdown structure failure → write ai/error.json + raw-response.md and stop"
+  handlers: [script (fetch/to_md/coarse_filter/archive/push), ai (understand/merge/select/write), local_model (MLX Whisper)]
 entrypoints:
-  fetch:   ./fetch-all.sh                 # every 4h
-  digest:  ./push-digest.sh               # daily 08:30 (open-batch→score→build→quality→archive; send skipped by default)
+  fetch:   ./fetch-all.sh                 # hourly; fetch raw/source data and refresh health only
+  digest:  ./push-digest.sh               # daily 08:30 (to-md→open-batch→build→archive→finalize; send skipped by default)
 verify:    for t in tests/test_*.py; do python3 "$t"; done
-invariants: GOTCHAS.md            # 24 regression rules, status-tagged
-  contract:   /Users/wendy/park-io/inbox/inbox-workflow.yaml   # v12, four independent paths; validated by workflow/diagram/validate-workflow.py
+invariants: GOTCHAS.md
+contract:   /Users/wendy/park-io/_inbox/inbox-workflow.yaml
 ```
 
-修改的安全流程：先跑 `tests/`，改完再跑一次；任何 reader-facing 改动都要让 `quality-check.py` 通过；编辑工作流图前跑 `python3 workflow/diagram/validate-workflow.py /Users/wendy/park-io/inbox/inbox-workflow.yaml`。
+修改的安全流程：先跑 `tests/`，改完再跑一次；任何 reader-facing 改动都要让 AI structural checks 通过；编辑工作流图前跑 `python3 workflow/diagram/validate-workflow.py /Users/wendy/park-io/_inbox/inbox-workflow.yaml`。
 
 ## License
 

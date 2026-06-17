@@ -11,6 +11,7 @@ from aggregation.digest import finalize_local as _impl
 
 SENT_DIR = _impl.SENT_DIR
 batch_artifact_paths = _impl.batch_artifact_paths
+deep_artifact_paths = _impl.deep_artifact_paths
 batch_label = _impl.batch_label
 _finalize = _impl._finalize
 
@@ -18,6 +19,7 @@ _finalize = _impl._finalize
 def main() -> int:
     _impl.SENT_DIR = SENT_DIR
     _impl.batch_artifact_paths = batch_artifact_paths
+    _impl.deep_artifact_paths = deep_artifact_paths
     _impl.batch_label = batch_label
     return _impl.main()
 

@@ -8,7 +8,7 @@ Release feed ingestion owns product/code release sources, especially GitHub rele
 
 ## Inputs
 
-- Release-oriented RSS/Atom/GitHub feed rows from `~/park-io/sources.md`.
+- Release-oriented RSS/Atom/GitHub feed rows from `~/park-io/_source management- james/sources.md`.
 
 ## Outputs
 

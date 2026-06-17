@@ -260,10 +260,10 @@ def render_html(data: dict) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default="/Users/wendy/park-io/inbox/inbox-workflow.yaml")
-    parser.add_argument("--html", default="/Users/wendy/park-io/inbox/inbox-workflow.html")
-    parser.add_argument("--png", default="/Users/wendy/park-io/inbox/inbox-workflow.png")
-    parser.add_argument("--json", default="/Users/wendy/park-io/inbox/inbox-workflow.json")
+    parser.add_argument("--input", default="/Users/wendy/park-io/_inbox/inbox-workflow.yaml")
+    parser.add_argument("--html", default="/Users/wendy/park-io/_inbox/inbox-workflow.html")
+    parser.add_argument("--png", default="/Users/wendy/park-io/_inbox/inbox-workflow.png")
+    parser.add_argument("--json", default="/Users/wendy/park-io/_inbox/inbox-workflow.json")
     args = parser.parse_args()
 
     validator = Path(__file__).with_name("validate-workflow.py")

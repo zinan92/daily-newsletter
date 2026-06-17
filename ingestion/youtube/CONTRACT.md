@@ -9,7 +9,7 @@ YouTube ingestion owns video feed discovery and metadata normalization.
 
 ## Inputs
 
-- YouTube RSS/feed source rows from `~/park-io/sources.md`.
+- YouTube RSS/feed source rows from `~/park-io/_source management- james/sources.md`.
 - YouTube cookie/runtime dependencies outside git when media download is needed.
 
 ## Outputs

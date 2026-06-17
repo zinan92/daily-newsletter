@@ -12,8 +12,8 @@ pushed to `github.com/zinan92/daily-newsletter`.
   DeepSeek → Anthropic/Sonnet (`PARKIO_LLM_FALLBACK_PROVIDER`). Do NOT add
   fallbacks elsewhere — if something breaks, surface it loudly, don't degrade
   silently.
-- **No Telegram.** Owner reads locally. Digest -> `~/park-io/inbox/sent/<date>.{md,html,png}`.
-  Failure alerts -> `~/park-io/inbox/health-alerts.md` (newest first).
+- **No Telegram.** Owner reads locally. Digest -> `~/park-io/_inbox/sent/<date>.{md,html,png}`.
+  Failure alerts -> `~/park-io/_inbox/health-alerts.md` (newest first).
 - **Curated Douyin/podcast video sources are valuable by default** — they bypass
   the X-style score filter; they enter the body only if transcribed+summarized.
 
@@ -40,7 +40,7 @@ pushed to `github.com/zinan92/daily-newsletter`.
 - **Phase 5 - End-to-end daily proof:** complete after the 2026-06-04 controlled
   batch regeneration and local finalize proof.
 - **Post-proof source fix:** `克劳德猎手` WeWe RSS is now configured as
-  `http://localhost:4000/feeds/MP_WXS_3935644082.json` in `~/park-io/sources.md`
+  `http://localhost:4000/feeds/MP_WXS_3935644082.json` in `~/park-io/_source management- james/sources.md`
   and fetches successfully.
 - **Phase 6 - Source ingestion contracts and skeleton:** complete. Standard
   contracts, folder skeleton, JSON schema, and workflow map are committed.
@@ -188,10 +188,10 @@ the diff command is for drift detection and does not overwrite
 Controlled proof on **2026-06-04 19:32-19:36 Asia/Shanghai** after
 folderization:
 - `PARKIO_BATCH_ID=20260604 python3 build-digest.py` completed.
-- Output: `~/park-io/inbox/processed/26-06-04/000-26-06-04.{md,html,png}`.
+- Output: `~/park-io/_inbox/processed/26-06-04/000-26-06-04.{md,html,png}`.
 - LLM usage: 33,227 tokens over 65 calls, reasoning tokens 0.
 - `PARKIO_BATCH_ID=20260604 python3 finalize-local.py` wrote
-  `~/park-io/inbox/sent/26-06-04.{md,html,png}`.
+  `~/park-io/_inbox/sent/26-06-04.{md,html,png}`.
 - `PARKIO_BATCH_ID=20260604 PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py`
   passed: 19 events, 10 push URLs. It warned about one duplicate visible URL
   (`https://x.com/ClaudeDevs/status/2062274312363770064`) but did not fail.
@@ -203,7 +203,7 @@ folderization:
 ```bash
 python3 -m py_compile summarize.py digest_config.py lib.py quality-check.py fetch-douyin.py
 for t in tests/test_*.py; do python3 "$t"; done
-# regenerate a batch (writes ~/park-io/inbox/processed/<date>/000-<date>.{md,html,png}):
+# regenerate a batch (writes ~/park-io/_inbox/processed/<date>/000-<date>.{md,html,png}):
 PARKIO_BATCH_ID=20260604 python3 build-digest.py              # → processed/<date>/000-<date>.{md,html,png}
 PARKIO_BATCH_ID=20260604 python3 finalize-local.py            # → sent/<date>.{md,html,png}
 PARKIO_BATCH_ID=20260604 PARKIO_SKIP_AI_QUALITY=1 python3 check-quality.py

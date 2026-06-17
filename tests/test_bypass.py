@@ -1,10 +1,7 @@
-"""Regression tests for score-bypass (gotcha #1/#2/#3/#21).
+"""Regression tests for unified score gating.
 
-When the scoring service is down (502), curated inputs get score=0. They must
-still appear: official channels, code releases, key people, media, user-saved,
-and WeChat bypass the score threshold. Only ordinary feed items are gated.
-
-This is the exact failure that suppressed official content during an outage.
+Every source type must be scored before entering the reader product. Source
+identity can inform the score reason, but it must not bypass scoring.
 
 Run: python3 tests/test_bypass.py
 """
@@ -25,32 +22,44 @@ def _one(group):
 
 def test_official_survives_outage():
     item = {"source": _one("official"), "score": OUTAGE}
-    assert summarize.bypasses_score(item), "official must bypass score on outage"
+    assert not summarize.bypasses_score(item), "official must be score-gated"
 
 
 def test_code_release_survives_outage():
     item = {"source": _one("code"), "score": OUTAGE}
-    assert summarize.bypasses_score(item)
+    assert not summarize.bypasses_score(item)
 
 
 def test_key_people_survive_outage():
     item = {"source": _one("people"), "score": OUTAGE}
-    assert summarize.bypasses_score(item)
+    assert not summarize.bypasses_score(item)
 
 
 def test_saved_survives_outage():
     item = {"source": _one("saved"), "score": OUTAGE}
-    assert summarize.bypasses_score(item)
+    assert not summarize.bypasses_score(item)
 
 
 def test_media_platform_survives_outage():
-    # douyin/wechat platform items bypass regardless of source name
-    assert summarize.bypasses_score({"source": "x", "score": OUTAGE}, platform="douyin")
-    assert summarize.bypasses_score({"source": "x", "score": OUTAGE}, platform="wechat")
+    assert not summarize.bypasses_score({"source": "x", "score": OUTAGE}, platform="douyin")
+
+
+def test_auto_wechat_rss_is_score_gated():
+    assert not summarize.bypasses_score(
+        {"source": "数字生命卡兹克", "score": OUTAGE, "category": "wechat-ai"},
+        platform="wechat",
+    )
+
+
+def test_manual_wechat_link_survives_outage():
+    assert not summarize.bypasses_score(
+        {"source": "手动公众号文章", "score": OUTAGE, "category": "wechat-manual"},
+        platform="wechat",
+    )
 
 
 def test_video_category_survives_outage():
-    assert summarize.bypasses_score({"source": "x", "score": OUTAGE, "category": "video-podcast"})
+    assert not summarize.bypasses_score({"source": "x", "score": OUTAGE, "category": "video-podcast"})
 
 
 def test_ordinary_feed_is_gated():

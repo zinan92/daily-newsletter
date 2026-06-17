@@ -26,7 +26,7 @@
         260,
         360
       ],
-      "notes": "{\"graph_id\": \"manual_links\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/inbox/manual-links.md\"], \"outputs\": [\"channel_artifact\"]}"
+      "notes": "{\"graph_id\": \"manual_links\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/_inbox/manual-links.md\"], \"outputs\": [\"channel_artifact\"]}"
     },
     {
       "parameters": {
@@ -40,7 +40,7 @@
         260,
         540
       ],
-      "notes": "{\"graph_id\": \"rss\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\", \"media_candidate_artifact\"]}"
+      "notes": "{\"graph_id\": \"rss\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/_source management- james/sources.md\"], \"outputs\": [\"channel_artifact\", \"media_candidate_artifact\"]}"
     },
     {
       "parameters": {
@@ -54,7 +54,7 @@
         260,
         720
       ],
-      "notes": "{\"graph_id\": \"x_timeline\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
+      "notes": "{\"graph_id\": \"x_timeline\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/_source management- james/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
     },
     {
       "parameters": {
@@ -82,7 +82,7 @@
         540,
         180
       ],
-      "notes": "{\"graph_id\": \"web_scrape\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
+      "notes": "{\"graph_id\": \"web_scrape\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/_source management- james/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
     },
     {
       "parameters": {
@@ -96,7 +96,7 @@
         540,
         360
       ],
-      "notes": "{\"graph_id\": \"wechat_seed\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
+      "notes": "{\"graph_id\": \"wechat_seed\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/_source management- james/sources.md\"], \"outputs\": [\"channel_artifact\"]}"
     },
     {
       "parameters": {
@@ -110,7 +110,7 @@
         540,
         540
       ],
-      "notes": "{\"graph_id\": \"wechat_rss\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\", \"wewe-rss\"], \"outputs\": [\"channel_artifact\"]}"
+      "notes": "{\"graph_id\": \"wechat_rss\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/_source management- james/sources.md\", \"wewe-rss\"], \"outputs\": [\"channel_artifact\"]}"
     },
     {
       "parameters": {
@@ -138,7 +138,7 @@
         540,
         900
       ],
-      "notes": "{\"graph_id\": \"douyin\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/sources.md\", \"douyin cookies\"], \"outputs\": [\"media_candidate_artifact\", \"channel_artifact\"]}"
+      "notes": "{\"graph_id\": \"douyin\", \"graph_type\": \"command\", \"inputs\": [\"fetch_window\", \"~/park-io/_source management- james/sources.md\", \"douyin cookies\"], \"outputs\": [\"media_candidate_artifact\", \"channel_artifact\"]}"
     },
     {
       "parameters": {
@@ -182,7 +182,7 @@
         820,
         540
       ],
-      "notes": "{\"graph_id\": \"status_after_fetch\", \"graph_type\": \"status\", \"inputs\": [\"source-health.json\", \"fetch_logs\"], \"outputs\": [\"~/park-io/inbox/status.html\"]}"
+      "notes": "{\"graph_id\": \"status_after_fetch\", \"graph_type\": \"status\", \"inputs\": [\"source-health.json\", \"fetch_logs\"], \"outputs\": [\"~/park-io/_inbox/status.html\"]}"
     },
     {
       "parameters": {},
@@ -279,7 +279,7 @@
         1100,
         900
       ],
-      "notes": "{\"graph_id\": \"finalize_local\", \"graph_type\": \"artifact\", \"inputs\": [\"quality_pass\", \"markdown\", \"html\", \"png\"], \"outputs\": [\"~/park-io/inbox/sent/<date>.md\", \"~/park-io/inbox/sent/<date>.html\", \"~/park-io/inbox/sent/<date>.png\"]}"
+      "notes": "{\"graph_id\": \"finalize_local\", \"graph_type\": \"artifact\", \"inputs\": [\"quality_pass\", \"markdown\", \"html\", \"png\"], \"outputs\": [\"~/park-io/_inbox/sent/<date>.md\", \"~/park-io/_inbox/sent/<date>.html\", \"~/park-io/_inbox/sent/<date>.png\"]}"
     },
     {
       "parameters": {
@@ -294,7 +294,7 @@
         1380,
         180
       ],
-      "notes": "{\"graph_id\": \"status_after_digest\", \"graph_type\": \"status\", \"inputs\": [\"quality_pass\", \"source-health.json\", \"scoring-health.json\"], \"outputs\": [\"~/park-io/inbox/status.html\"]}"
+      "notes": "{\"graph_id\": \"status_after_digest\", \"graph_type\": \"status\", \"inputs\": [\"quality_pass\", \"source-health.json\", \"scoring-health.json\"], \"outputs\": [\"~/park-io/_inbox/status.html\"]}"
     },
     {
       "parameters": {
@@ -308,7 +308,7 @@
         1380,
         360
       ],
-      "notes": "{\"graph_id\": \"health_alert\", \"graph_type\": \"notification\", \"inputs\": [\"failure_event\", \"source-health.json\", \"scoring-health.json\"], \"outputs\": [\"~/park-io/inbox/health-alerts.md\"]}"
+      "notes": "{\"graph_id\": \"health_alert\", \"graph_type\": \"notification\", \"inputs\": [\"failure_event\", \"source-health.json\", \"scoring-health.json\"], \"outputs\": [\"~/park-io/_inbox/health-alerts.md\"]}"
     }
   ],
   "connections": {

@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import PARKIO, ROOT, is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, today
+from lib import PARKIO, ROOT, is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, parkio_secret_path, today
 from summarize import (
     one_line,
 )
@@ -30,7 +30,7 @@ from summarize import (
 MEDIA_SUMMARIES_PATH = ROOT / "media-summaries.json"
 MEDIA_QUEUE_PATH = ROOT / "media-queue.json"
 DOWNLOAD_CAPABILITY = Path.home() / "content-toolkit/capabilities/download"
-DOUYIN_COOKIE_FILE = Path.home() / "park-io/secrets/content-ops/douyin-cookies.json"
+DOUYIN_COOKIE_FILE = parkio_secret_path("douyin-cookies.json")
 # Lowered from 1200: a YouTube Short / brief clip's full transcript can be
 # 400-1000 chars and still summarize fine. 1200 silently dropped Shorts to
 # title-only (e.g. the No Priors "Claude Code can destroy your database" Short
@@ -39,6 +39,11 @@ TRANSCRIPT_MIN_CHARS = int(os.environ.get("PARKIO_TRANSCRIPT_MIN_CHARS", "400"))
 MAX_TRANSCRIPT_CHARS = 22000
 DEFAULT_LIMIT = 4
 MAX_ASR_SECONDS = int(os.environ.get("PARKIO_MEDIA_MAX_ASR_SECONDS", "5400"))
+YOUTUBE_HARD_MAX_ASR_SECONDS = int(os.environ.get("PARKIO_YOUTUBE_HARD_MAX_ASR_SECONDS", "14400"))
+YOUTUBE_SEGMENT_SECONDS = int(os.environ.get("PARKIO_YOUTUBE_SEGMENT_SECONDS", "1800"))
+YOUTUBE_DOWNLOAD_RETRIES = int(os.environ.get("PARKIO_YOUTUBE_DOWNLOAD_RETRIES", "2"))
+YOUTUBE_DOWNLOAD_TIMEOUT_SECONDS = int(os.environ.get("PARKIO_YOUTUBE_DOWNLOAD_TIMEOUT_SECONDS", "90"))
+YOUTUBE_TRANSCRIBE_RETRIES = int(os.environ.get("PARKIO_YOUTUBE_TRANSCRIBE_RETRIES", "2"))
 MLX_WHISPER_MODEL = os.environ.get("PARKIO_MLX_WHISPER_MODEL", "mlx-community/whisper-small-mlx")
 
 if DOWNLOAD_CAPABILITY.exists():
@@ -93,23 +98,48 @@ def media_record(item: dict, status: str, **extra) -> dict:
     }
 
 
-def read_today_media_items() -> list[dict]:
-    inbox = PARKIO / "inbox" / "unprocessed"
+def read_today_media_items(date: str | None = None, inbox_root: Path | None = None) -> list[dict]:
+    date = date or today()
+    inbox = PARKIO / "_inbox" / "unprocessed"
+    roots = [inbox_root] if inbox_root is not None else [inbox / date / "items"]
     if not inbox.exists():
         return []
     items = []
-    for path in sorted(inbox.rglob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        fm, body = parse_frontmatter(text)
-        for item in parse_md_items(body):
-            if item.get("published") and item["published"] != today():
+    for root in roots:
+        if root is None or not root.exists():
+            continue
+        paths = sorted(root.rglob("*.md")) if root.is_dir() else [root]
+        for path in paths:
+            if not path.is_file():
                 continue
-            url = item.get("url", "")
-            if not is_youtube_url(url) and not is_douyin_url(url):
-                continue
-            item["source"] = item.get("source") or fm.get("source_name", path.stem)
-            item["_path"] = str(path)
-            items.append(item)
+            text = path.read_text(encoding="utf-8")
+            fm, body = parse_frontmatter(text)
+            parsed = parse_md_items(body)
+            if not parsed:
+                title = str(fm.get("title") or path.stem)
+                for line in body.splitlines():
+                    if line.startswith("# "):
+                        title = line.removeprefix("# ").strip()
+                        break
+                parsed = [
+                    {
+                        "title": title,
+                        "url": str(fm.get("url") or ""),
+                        "content": body.strip(),
+                        "published": str(fm.get("published_at") or fm.get("published") or ""),
+                        "source": str(fm.get("source") or fm.get("source_name") or ""),
+                        "duration": str(fm.get("duration") or ""),
+                    }
+                ]
+            for item in parsed:
+                if item.get("published") and item["published"] != date:
+                    continue
+                url = item.get("url", "")
+                if not is_youtube_url(url) and not is_douyin_url(url):
+                    continue
+                item["source"] = item.get("source") or fm.get("source_name", path.stem)
+                item["_path"] = str(path)
+                items.append(item)
     return dedupe_items(items)
 
 
@@ -252,7 +282,7 @@ def ytdlp_cookie_sources() -> list[str]:
 def ytdlp_cookies_file() -> str:
     return os.environ.get(
         "PARKIO_YTDLP_COOKIES_FILE",
-        str(Path.home() / "park-io/secrets/youtube-cookies.txt"),
+        str(parkio_secret_path("youtube-cookies.txt")),
     ).strip()
 
 
@@ -365,9 +395,6 @@ def local_media_duration_seconds(path: Path) -> int:
 
 def fetch_youtube_audio_transcript(url: str) -> str:
     ensure_mlx_whisper()
-    duration = video_duration_seconds(url)
-    if duration and duration > MAX_ASR_SECONDS:
-        raise RuntimeError(f"audio ASR skipped: duration {duration}s exceeds {MAX_ASR_SECONDS}s")
     with tempfile.TemporaryDirectory(prefix="parkio-audio.") as tmp:
         tmp_path = Path(tmp)
         outtmpl = str(tmp_path / "%(id)s.%(ext)s")
@@ -383,18 +410,117 @@ def fetch_youtube_audio_transcript(url: str) -> str:
             outtmpl,
             url,
         ]
-        result = run_with_optional_cookies(download_cmd, timeout=300)
+        result = run_ytdlp_with_retries(
+            download_cmd,
+            timeout=YOUTUBE_DOWNLOAD_TIMEOUT_SECONDS,
+            retries=YOUTUBE_DOWNLOAD_RETRIES,
+        )
         if result.returncode != 0:
             raise RuntimeError((result.stderr or result.stdout or "audio download failed").strip()[:500])
         audio_files = sorted(tmp_path.glob("*.mp3")) or sorted(tmp_path.glob("*"))
         audio = next((p for p in audio_files if p.is_file()), None)
         if not audio:
             raise RuntimeError("audio download produced no file")
-        transcript = mlx_transcribe_audio(audio)
+        duration = local_media_duration_seconds(audio) or video_duration_seconds(url)
+        if duration and YOUTUBE_HARD_MAX_ASR_SECONDS > 0 and duration > YOUTUBE_HARD_MAX_ASR_SECONDS:
+            raise RuntimeError(f"youtube audio ASR skipped: duration {duration}s exceeds hard cap {YOUTUBE_HARD_MAX_ASR_SECONDS}s")
+        if duration and duration > MAX_ASR_SECONDS:
+            transcript = transcribe_long_youtube_audio(audio, duration)
+        else:
+            transcript = mlx_transcribe_audio_with_retry(audio)
         transcript = re.sub(r"\s+", " ", transcript).strip()
         if len(transcript) < TRANSCRIPT_MIN_CHARS:
             raise RuntimeError(f"audio transcript too short: {len(transcript)} chars")
         return transcript[:MAX_TRANSCRIPT_CHARS]
+
+
+def run_ytdlp_with_retries(cmd: list[str], timeout: int, retries: int) -> subprocess.CompletedProcess:
+    last = None
+    for attempt in range(1, max(1, retries) + 1):
+        last = run_with_optional_cookies(cmd, timeout=timeout)
+        if last.returncode == 0:
+            return last
+        if attempt < retries:
+            time_sleep = min(2 ** attempt, 8)
+            log("fetch-media-transcripts", f"  yt-dlp retry {attempt}/{retries} after {time_sleep}s")
+            import time
+
+            time.sleep(time_sleep)
+    return last or subprocess.CompletedProcess(cmd, 1, stdout="", stderr="yt-dlp failed")
+
+
+def ffmpeg_executable() -> str:
+    if Path("/opt/homebrew/bin/ffmpeg").exists():
+        return "/opt/homebrew/bin/ffmpeg"
+    if shutil.which("ffmpeg"):
+        return "ffmpeg"
+    raise RuntimeError("ffmpeg not found")
+
+
+def split_audio_segments(audio: Path, segment_seconds: int = YOUTUBE_SEGMENT_SECONDS) -> list[Path]:
+    segment_seconds = max(300, int(segment_seconds or 1800))
+    out_dir = audio.parent / "segments"
+    out_dir.mkdir(exist_ok=True)
+    pattern = str(out_dir / "segment-%03d.mp3")
+    base_cmd = [
+        ffmpeg_executable(),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(audio),
+        "-f",
+        "segment",
+        "-segment_time",
+        str(segment_seconds),
+        "-reset_timestamps",
+        "1",
+    ]
+    commands = [
+        base_cmd + ["-c", "copy", pattern],
+        base_cmd + ["-vn", "-acodec", "libmp3lame", "-q:a", "7", pattern],
+    ]
+    errors = []
+    for cmd in commands:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        segments = sorted(out_dir.glob("segment-*.mp3"))
+        if result.returncode == 0 and segments:
+            return segments
+        errors.append((result.stderr or result.stdout or "ffmpeg split failed").strip())
+        for path in segments:
+            path.unlink(missing_ok=True)
+    raise RuntimeError("; ".join(errors)[-500:])
+
+
+def mlx_transcribe_audio_with_retry(audio: Path, retries: int = YOUTUBE_TRANSCRIBE_RETRIES) -> str:
+    last_error = ""
+    for attempt in range(1, max(1, retries) + 1):
+        try:
+            return mlx_transcribe_audio(audio)
+        except Exception as ex:
+            last_error = f"{type(ex).__name__}: {ex}"
+            if attempt < retries:
+                log("fetch-media-transcripts", f"  mlx retry {attempt}/{retries}: {audio.name}")
+    raise RuntimeError(last_error or "mlx_whisper failed")
+
+
+def transcribe_long_youtube_audio(audio: Path, duration: int) -> str:
+    segments = split_audio_segments(audio)
+    log(
+        "fetch-media-transcripts",
+        f"  long YouTube audio: {duration}s split into {len(segments)} segment(s)",
+    )
+    parts = []
+    for idx, segment in enumerate(segments, 1):
+        text = mlx_transcribe_audio_with_retry(segment)
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            parts.append(text)
+        log("fetch-media-transcripts", f"  transcribed segment {idx}/{len(segments)}")
+    joined = "\n\n".join(parts).strip()
+    if len(joined) < TRANSCRIPT_MIN_CHARS:
+        raise RuntimeError(f"segmented transcript too short: {len(joined)} chars")
+    return joined
 
 
 def ensure_mlx_whisper() -> None:
@@ -508,6 +634,12 @@ def write_transcript_to_markdown(path: Path, url: str, transcript: str) -> None:
     marker = f"[link]({url})"
     start = text.find(marker)
     if start < 0:
+        transcript_block = "\n\n### Transcript\n\n" + transcript.strip() + "\n"
+        if "### Transcript" in text:
+            text = re.sub(r"\n\n### Transcript\n\n.*?\n(?=\n## |\Z)", transcript_block, text, flags=re.S)
+        else:
+            text = text.rstrip() + transcript_block
+        path.write_text(text, encoding="utf-8")
         return
     heading = text.rfind("\n## ", 0, start)
     if heading < 0:
@@ -594,12 +726,14 @@ def should_retry(record: dict) -> bool:
     return datetime.now() - dt > timedelta(hours=18)
 
 
-def main() -> None:
+def main(date: str | None = None, include_retry_failed: bool = True) -> None:
+    date = date or today()
     cache = load_cache()
     queue = load_queue()
     # Today's items first (priority), then transient failures from the last few
     # days so a one-off ReadTimeout is retried instead of silently sticking.
-    items = dedupe_items(read_today_media_items() + retryable_failed_items(cache))
+    retry_items = retryable_failed_items(cache) if include_retry_failed else []
+    items = dedupe_items(read_today_media_items(date) + retry_items)
     limit = DEFAULT_LIMIT
     processed = 0
     log("fetch-media-transcripts", f"START — {len(items)} media items")
