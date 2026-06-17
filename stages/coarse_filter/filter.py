@@ -52,9 +52,9 @@ LOW_VALUE_PATTERNS = (
     ("life_philosophy", re.compile(r"(人生|人性|人品|自洽|主线任务|走上人生巅峰|痛苦|理解与翻译|意义系统|高塔早已崩塌)")),
     ("relationship_or_lowbrow", re.compile(r"(女朋友|女生|男生|打炮|situationship|ship|泡妞|追女生|黄色|低俗)")),
     ("political_or_society_meme", re.compile(r"(特朗普|Trump|政治笑话|赢麻了|阴阳人|王朔|民族自豪|德国人.*诺贝尔)")),
-    ("consumer_chatter", re.compile(r"(iPhone\\s*17|iPhone\\s*18|iphone\\s*17|iphone\\s*18|上 iPhone|等 iPhone|换手机)")),
+    ("consumer_chatter", re.compile(r"(iPhone\s*17|iPhone\s*18|iphone\s*17|iphone\s*18|上 iPhone|等 iPhone|换手机)")),
     ("food_or_lifestyle", re.compile(r"(海底捞|捞币|小嗨杯|山姆|Costco|沃尔玛|外卖|消费性价比)")),
-    ("empty_reaction", re.compile(r"^(笑死|牛逼|卧槽|卧龙附近必有凤雏|感觉是个好主意|妈的|又赢麻了|绷不住|哈哈哈|转发|mark|收藏了)[！!。…\\s]*(?:https?://\\S+)?$")),
+    ("empty_reaction", re.compile(r"^(笑死|牛逼|卧槽|卧龙附近必有凤雏|感觉是个好主意|妈的|又赢麻了|绷不住|哈哈哈|转发|mark|收藏了)[！!。…\s]*(?:https?://\S+)?$")),
 )
 
 AI_OR_PRODUCT_TERMS = (
@@ -115,8 +115,8 @@ def has_domain_signal(text: str) -> bool:
 
 
 def compact_content_without_urls(text: str) -> str:
-    text = re.sub(r"https?://\\S+", "", text)
-    text = re.sub(r"\\s+", " ", text).strip()
+    text = re.sub(r"https?://\S+", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 

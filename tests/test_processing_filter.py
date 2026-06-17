@@ -58,6 +58,42 @@ def test_domain_signal_is_kept_for_scoring():
     assert reason == "kept"
 
 
+def test_consumer_chatter_iphone_regex_path_is_rejected():
+    # Regression: the `iPhone\\s*17` alternative was double-escaped (`\\\\s`),
+    # so a space-separated "iPhone 17" only got caught by the literal `上/等`
+    # alternatives. This case has no 上/等 prefix and >90 chars (so the length
+    # gate cannot fire), proving the regex alternative itself now matches.
+    keep, reason = processing_filter.should_keep_item(
+        {"platform": "twitter", "category": "ai-personal"},
+        item(
+            "iPhone 17 拍照续航闲聊",
+            "聊聊 iPhone 17 这次的拍照和续航，整体体验比上代提升了一些，但价格确实不便宜，"
+            "纠结了好久到底要不要换，身边朋友有的说值有的说不值，真的拿不定主意啊到底买不买呢",
+        ),
+    )
+    assert not keep
+    assert reason == "consumer_chatter"
+
+
+def test_bare_url_noise_is_dropped_after_url_strip():
+    # Regression: compact_content_without_urls used `\\\\S`/`\\\\s` (double-escaped),
+    # so URLs were never stripped and a bare-link post stayed long enough to slip
+    # past the length gates. After the fix the URL is stripped and the post is
+    # correctly rejected as too short / no domain signal.
+    keep, reason = processing_filter.should_keep_item(
+        {"platform": "twitter", "category": "ai-personal"},
+        {
+            "title": "看",
+            "content": "看 https://example.com/some/very/long/path/that/used/to/inflate/length/aaaaaaaaaaaaaaaaaaaa",
+            "source": "普通 X",
+            "url": "https://x.com/a/1",
+            "meta": "source: 普通 X · [link](https://x.com/a/1)",
+        },
+    )
+    assert not keep
+    assert reason in {"too_short_without_domain_signal", "no_domain_signal_short_social_post"}
+
+
 def test_filter_markdown_items_rewrites_file_with_only_kept_items():
     body = """## 上 iPhone 17 还是等 iPhone 18
 source: 普通 X · [link](https://x.com/a/status/1)

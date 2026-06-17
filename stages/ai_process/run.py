@@ -101,7 +101,7 @@ def collect_processed_items(batch_dir: Path | None = None) -> list[dict]:
     rows: list[dict] = []
     for path in sorted(root.rglob("*.md")):
         rel_parts = path.relative_to(root).parts
-        if path.name.startswith("000-") or path.name.startswith("deep-") or any(part.startswith("ai") for part in rel_parts):
+        if path.name.startswith("000-") or path.name.startswith("deep-") or (bool(rel_parts) and (rel_parts[0] == "ai" or rel_parts[0].startswith("ai."))):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         fm, body = parse_frontmatter(text)

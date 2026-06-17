@@ -790,6 +790,30 @@ def test_collect_processed_items_ignores_ai_debug_dirs():
     assert rows[0]["url"] == "https://example.com/1"
 
 
+def test_collect_processed_items_keeps_ai_prefixed_profile_dir():
+    # Regression: the skip used `any(part.startswith("ai") ...)`, which also
+    # dropped legitimate items whose profile_id starts with "ai" (e.g. a source
+    # named "AI Engineering" -> profile_id "ai-engineering"). The artifact dir
+    # `ai/` and debug dirs `ai.backup-*` must still be skipped, but `ai-*`
+    # profile dirs must be collected.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        profile_dir = root / "ai-engineering"
+        profile_dir.mkdir()
+        write_item(profile_dir / "25-06-17.md", 1, "AI item", "AI agent 工具", "https://example.com/keep")
+        artifact_dir = root / "ai"
+        artifact_dir.mkdir()
+        write_item(artifact_dir / "raw-response.md", 2, "artifact", "debug", "https://example.com/artifact")
+        debug_dir = root / "ai.backup-20260612"
+        debug_dir.mkdir()
+        write_item(debug_dir / "raw-response.md", 3, "debug", "debug", "https://example.com/debug")
+
+        rows = ai_process.collect_processed_items(root)
+
+    assert len(rows) == 1
+    assert rows[0]["url"] == "https://example.com/keep"
+
+
 def test_collect_processed_items_ignores_final_output_markdown():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
