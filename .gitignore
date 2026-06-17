@@ -23,3 +23,6 @@ __pycache__/
 *.pyc
 .DS_Store
 *.sonnet-backup
+
+# Loop runtime handoff artifacts.
+.loop/daily-focus/
