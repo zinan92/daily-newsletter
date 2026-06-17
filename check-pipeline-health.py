@@ -13,6 +13,7 @@ Silent success (fetched OK, no new items) is normal and does NOT alert.
 """
 import json
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -25,6 +26,42 @@ PUSH_LOG = ROOT / "logs" / "push-digest.log"
 MEDIA_SUMMARIES = ROOT / "media-summaries.json"
 SCORING_HEALTH = ROOT / "scoring-health.json"
 WEWE_AUTH_ALERT = PARKIO / "_inbox" / "wewe-auth-alert.json"
+
+
+def channel_health_rows() -> list[dict]:
+    """Current per-source truth from fetch logs.
+
+    James must not infer health from status.html or stale SLA rollups. The
+    source of truth is the latest channel-health classification, which separates
+    DOWN/STALE from a healthy QUIET source.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("channel_health", ROOT / "channel-health.py")
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load channel-health.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.channel_rows()
+
+
+def refresh_wewe_auth_state() -> None:
+    """Refresh WeWe account state before judging it.
+
+    The status page and wewe-auth-alert.json are render artifacts. A health check
+    should probe the bridge/account directly first, then read the sidecar.
+    """
+    script = ROOT / "wewe-auth-monitor.py"
+    if not script.exists():
+        return
+    subprocess.run(
+        [sys.executable, str(script)],
+        cwd=str(ROOT),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=20,
+        check=False,
+    )
 
 
 def failed_transcriptions() -> list[str]:
@@ -120,22 +157,25 @@ def _line_ts(line: str):
 
 
 def broken_sources() -> list[str]:
-    """Sources that failed today or haven't succeeded in 7 days."""
-    import summarize  # imported lazily; heavy module
+    """Sources that are currently DOWN/STALE/UNKNOWN.
 
-    scores = summarize.load_scores()
-    sources, _ = summarize.read_today_items(today(), scores)
+    Older versions also used source-health's 7-day SLA counters. Those counters
+    can go stale or disagree with today's fetch logs, producing false alarms like
+    "X source has not succeeded in 7 days" while channel-health shows it fetched
+    today. Current truth wins.
+    """
     problems = []
-    for row in summarize.source_health(sources, today()):
+    for row in channel_health_rows():
         name = row.get("name", "?")
-        if row.get("status") == "failed":
-            problems.append(f"{name}（今日抓取失败）")
-        elif row.get("status") == "stale":
-            # Bridge answers but the upstream feed is frozen (e.g. wewe-rss stopped
-            # updating this account). It LOOKS green but silently stops delivering.
-            problems.append(f"{name}（{row.get('detail', '上游 feed 冻结')}）")
-        elif row.get("success_total_7d", 0) >= 3 and row.get("success_ok_7d", 0) == 0:
-            problems.append(f"{name}（7 天未成功抓取，可能已坏）")
+        state = row.get("state")
+        if state == "DOWN":
+            problems.append(f"{name}（今日抓取失败：{row.get('error') or 'fetch 报错'}）")
+        elif state == "STALE":
+            age = row.get("feed_age_days")
+            detail = f"上游 feed 冻结（最新 {age}d 前）" if age and age != 9999 else "上游 feed 空/冻结"
+            problems.append(f"{name}（{detail}）")
+        elif state == "UNKNOWN":
+            problems.append(f"{name}（最近一轮 fetch 未出现）")
     return problems
 
 
@@ -170,6 +210,10 @@ def wechat_bridge_down() -> str | None:
 
 def main() -> int:
     problems: list[str] = []
+    try:
+        refresh_wewe_auth_state()
+    except Exception as exc:
+        problems.append(f"公众号登录态检测刷新失败（{type(exc).__name__}: {exc}）")
     report = latest_run_report(today())
 
     if not digest_sent_today():

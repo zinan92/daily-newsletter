@@ -97,6 +97,52 @@ def test_write_health_alert_local_file():
         os.unlink(path)
 
 
+def test_broken_sources_uses_current_channel_health_not_stale_sla():
+    old_channel_health_rows = ph.channel_health_rows
+    try:
+        ph.channel_health_rows = lambda: [
+            {"name": "OpenAI X", "platform": "twitter", "state": "QUIET", "error": None},
+            {"name": "Claude YouTube", "platform": "rss", "state": "DOWN", "error": "SSL EOF"},
+            {"name": "海外独角兽", "platform": "wechat", "state": "STALE", "feed_age_days": 30},
+        ]
+
+        problems = ph.broken_sources()
+    finally:
+        ph.channel_health_rows = old_channel_health_rows
+
+    assert not any("OpenAI X" in problem for problem in problems)
+    assert any("Claude YouTube" in problem and "SSL EOF" in problem for problem in problems)
+    assert any("海外独角兽" in problem and "30d" in problem for problem in problems)
+
+
+def test_main_refreshes_wewe_auth_before_reading_sidecar():
+    calls = []
+    old_refresh = ph.refresh_wewe_auth_state
+    old_latest_report = ph.latest_run_report
+    old_digest_sent = ph.digest_sent_today
+    old_problem_lines = ph.problem_lines
+    old_wewe_auth_issue = ph.wewe_auth_issue
+    old_write_health_alert = ph.write_health_alert
+    try:
+        ph.refresh_wewe_auth_state = lambda: calls.append("refresh")
+        ph.latest_run_report = lambda date: {"date": date}
+        ph.digest_sent_today = lambda: True
+        ph.problem_lines = lambda report: []
+        ph.wewe_auth_issue = lambda: None
+        ph.write_health_alert = lambda *args, **kwargs: True
+
+        assert ph.main() == 0
+    finally:
+        ph.refresh_wewe_auth_state = old_refresh
+        ph.latest_run_report = old_latest_report
+        ph.digest_sent_today = old_digest_sent
+        ph.problem_lines = old_problem_lines
+        ph.wewe_auth_issue = old_wewe_auth_issue
+        ph.write_health_alert = old_write_health_alert
+
+    assert calls == ["refresh"]
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):

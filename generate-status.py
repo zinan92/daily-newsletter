@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
-from lib import PARKIO, ROOT, load_sources, parse_frontmatter, today
+from lib import PARKIO, ROOT, load_sources, parkio_secret_path, parse_frontmatter, today
 import summarize
 from run_report import build_run_report, latest_run_report, media_failures_for_date, write_run_report
 
@@ -130,7 +130,7 @@ def dependency_checks() -> list[dict]:
     outcomes via channel-health, so an expired cookie or frozen bridge shows red, not green."""
     import summarize
     twitter_auth = ROOT / "twitter-auth.env"
-    cookie = PARKIO / "secrets" / "content-ops" / "douyin-cookies.json"
+    cookie = parkio_secret_path("douyin-cookies.json")
     try:
         ch = summarize._channel_health_states()
     except Exception:
