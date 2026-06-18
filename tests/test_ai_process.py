@@ -276,7 +276,22 @@ def test_extract_json_accepts_fenced_json_and_rejects_bad_text():
         raise AssertionError("expected AIProcessError")
 
 
-def test_call_json_stage_repairs_invalid_json_response():
+def test_extract_json_repairs_unescaped_inner_quotes_in_strings():
+    raw = '''```json
+[
+  {
+    "id": "one",
+    "key_facts": [
+      "新功能名为"调度任务"(Scheduled tasks)。"
+    ]
+  }
+]
+```'''
+    data = ai_process.extract_json(raw)
+    assert data[0]["key_facts"][0] == '新功能名为"调度任务"(Scheduled tasks)。'
+
+
+def test_call_json_stage_repairs_inner_quotes_without_llm_retry():
     with tempfile.TemporaryDirectory() as td:
         ai_dir = Path(td) / "ai"
         calls = []
@@ -284,8 +299,6 @@ def test_call_json_stage_repairs_invalid_json_response():
 
         def fake_llm(prompt, *args, **kwargs):
             calls.append(prompt)
-            if "BROKEN JSON-LIKE RESPONSE" in prompt:
-                return '[{"title":"极简版的\\"AI时代知识维基标准\\""}]'
             return '[{"title":"极简版的"AI时代知识维基标准""}]'
 
         try:
@@ -295,7 +308,7 @@ def test_call_json_stage_repairs_invalid_json_response():
             ai_process.llm_call = original_llm
 
         assert data == [{"title": '极简版的"AI时代知识维基标准"'}]
-        assert len(calls) == 2
+        assert len(calls) == 1
         assert not (ai_dir / "error.json").exists()
 
 

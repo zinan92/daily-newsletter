@@ -49,24 +49,72 @@ def json_payload(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
+def escape_probable_inner_quotes(value: str) -> str:
+    """Best-effort repair for common LLM JSON mistakes.
+
+    The most frequent failure is a JSON string containing natural-language
+    quotes, e.g. `"新功能名为"调度任务""`. A double quote inside a string is only a
+    legal closing quote when the next non-space character is a JSON structural
+    delimiter. Otherwise, escape it and preserve the text.
+    """
+    out: list[str] = []
+    in_string = False
+    escaped = False
+    length = len(value)
+    for idx, char in enumerate(value):
+        if escaped:
+            out.append(char)
+            escaped = False
+            continue
+        if char == "\\":
+            out.append(char)
+            if in_string:
+                escaped = True
+            continue
+        if char == '"':
+            if not in_string:
+                in_string = True
+                out.append(char)
+                continue
+            next_idx = idx + 1
+            while next_idx < length and value[next_idx].isspace():
+                next_idx += 1
+            next_char = value[next_idx] if next_idx < length else ""
+            if next_char in {":", ",", "]", "}"} or not next_char:
+                in_string = False
+                out.append(char)
+            else:
+                out.append('\\"')
+            continue
+        out.append(char)
+    return "".join(out)
+
+
+def loads_json_lenient(value: str) -> Any:
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return json.loads(escape_probable_inner_quotes(value))
+
+
 def extract_json(text: str) -> Any:
     raw = (text or "").strip()
     if not raw:
         raise AIProcessError("empty AI response")
     try:
-        return json.loads(raw)
+        return loads_json_lenient(raw)
     except json.JSONDecodeError:
         pass
     fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
     if fenced:
         try:
-            return json.loads(fenced.group(1).strip())
+            return loads_json_lenient(fenced.group(1).strip())
         except json.JSONDecodeError:
             pass
     bracket = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", raw)
     if bracket:
         try:
-            return json.loads(bracket.group(1))
+            return loads_json_lenient(bracket.group(1))
         except json.JSONDecodeError:
             pass
     raise AIProcessError("AI response did not contain valid JSON")
