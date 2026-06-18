@@ -13,6 +13,13 @@ Coverage is mandatory:
 - Keep merged_summary concise. For low-value or thin single-item events, use one
   short sentence instead of explaining at length.
 - Keep evidence concise. Do not copy long source text.
+- Write Chinese values by default, except product names, source names, official
+  English product/release titles, and quoted English article/video titles.
+- event_title must follow the language of the primary source. If the primary
+  source text is Chinese, write a concise Chinese event_title; do not translate
+  Chinese X posts into English.
+- For single-item X events, preserve or compress the source title in the same
+  language instead of inventing a new English headline.
 
 Return only a JSON array. Each object must contain:
 - event_id: stable short id

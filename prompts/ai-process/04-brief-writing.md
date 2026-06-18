@@ -31,6 +31,10 @@ Rules:
   mention the supporting sources naturally inside the same summary when useful.
 - Prefer the event_title or a concise synthesized title over raw tweet/thread
   fragment titles when multiple sources are merged.
+- Reader-facing titles should be Chinese when the primary event/source text is
+  Chinese. Do not keep an English event_title for a Chinese X post; synthesize a
+  concise Chinese title instead. Preserve official English article, video,
+  product, and release titles when those are the original titles.
 - Preferred item format:
   - **Source / Author** | [Title](url)
     Summary in one concise paragraph.

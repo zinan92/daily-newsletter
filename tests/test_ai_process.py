@@ -903,6 +903,15 @@ def test_ai_footer_appends_source_health_and_contact():
         assert "测试渠道" in text
 
 
+def test_ai_process_prompts_keep_chinese_x_titles_chinese():
+    event_prompt = (ROOT / "prompts" / "ai-process" / "02-event-merge.md").read_text(encoding="utf-8")
+    brief_prompt = (ROOT / "prompts" / "ai-process" / "04-brief-writing.md").read_text(encoding="utf-8")
+
+    assert "do not translate" in event_prompt.lower()
+    assert "Chinese X posts into English" in event_prompt
+    assert "Do not keep an English event_title for a Chinese X post" in brief_prompt
+
+
 def test_summarize_main_writes_brief_and_deep_artifact_families():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
