@@ -116,7 +116,7 @@ fi
 
 echo "[$(ts)] >>> build-daily-bundle.py" >> "$LOG"
 BUNDLE_ARGS=(--date "$RUN_DATE")
-for warning in "${PREFLIGHT_WARNINGS[@]}"; do
+for warning in ${PREFLIGHT_WARNINGS[@]+"${PREFLIGHT_WARNINGS[@]}"}; do
   BUNDLE_ARGS+=(--warning "$warning")
 done
 python3 "$SCRIPT_DIR/build-daily-bundle.py" "${BUNDLE_ARGS[@]}" >> "$LOG" 2>&1
