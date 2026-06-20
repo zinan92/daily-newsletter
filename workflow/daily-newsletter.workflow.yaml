@@ -84,6 +84,8 @@ aggregation:
     - ai-quality-check.py
     - archive-items.py
     - finalize-local.py
+    - build-product-radar.py
+    - build-daily-bundle.py
     - html-to-long-image.py
   implementation:
     score_stage: aggregation/digest/score_stage.py
@@ -103,11 +105,21 @@ aggregation:
     - deep_summary
     - publishable_flag
   outputs:
-    - markdown
-    - html
-    - png
+    - brief_markdown
+    - brief_html
+    - brief_png
+    - deep_markdown
+    - deep_html
+    - deep_png
+    - product_radar_markdown
+    - product_radar_html
+    - product_radar_png
+    - daily_bundle_markdown
+    - daily_bundle_html
+    - daily_bundle_png
 
 compatibility:
   root_entrypoints_remain_public: true
   wrappers_allowed: true
-  daily_output_must_remain_unchanged: true
+  daily_reader_bundle_includes_three_products: true
+  recoverable_source_auth_is_non_blocking: true

@@ -22,6 +22,8 @@ WRAPPERS = {
     "score.py": ["main"],
     "score-items.py": ["main", "score_batch", "write_scoring_health"],
     "build-digest.py": ["main"],
+    "build-daily-bundle.py": ["main"],
+    "build-product-radar.py": ["main"],
     "summarize.py": ["main", "load_scores", "source_health"],
     "check-quality.py": ["main"],
     "quality-check.py": ["main", "raw_english_body_lines", "heading_divergence"],

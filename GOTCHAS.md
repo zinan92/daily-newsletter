@@ -44,9 +44,11 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 25 | Source health must not mention disabled sources | 🟡 | `digest_config.py` / `sources.md`; e.g. disabled `海外独角兽` must not leak into health |
 | 26 | Dependency health should hide personal account names in consumer output | 🔵 | `run_report.py`; show "WeWe 读书账号失效", not the login account name |
 | 27 | Automatic and manual WeChat items must pass the same AI selection path before inclusion | 🧪🔵 | `aggregation/digest/ai_process.py` · `tests/test_ai_process.py` |
-| 28 | Reader surface is two products: default 快讯 plus optional 深读; deep_candidates must be a traceable subset of brief_universe and preserve article-level substance | 🟢🧪 | `prompts/ai-process/03-selection.md` · `prompts/ai-process/05-deep-writing.md` · `validate_selection_references()` |
-| 29 | Unprocessed raw is not the library boundary: obvious low-value social noise is rejected before `processed/`; selected AI brief_universe/deep_candidates items archive, discard does not | 🧪🔵 | `processing_filter.py` · `open-batch.py` · `aggregation/digest/archive.py` |
-| 30 | The five pipeline stages have physical folders; root scripts are compatibility wrappers only | 🧪🔵 | `stages/*/run.py` · `tests/test_ai_process.py` |
+| 28 | Reader surface has default 快讯 plus optional 深读; deep_candidates must be a traceable subset of brief_universe and preserve article-level substance | 🟢🧪 | `prompts/ai-process/03-selection.md` · `prompts/ai-process/05-deep-writing.md` · `validate_selection_references()` |
+| 29 | Daily Newsletter umbrella ships three products: 快讯, 深读, 产品雷达; `daily-YY-MM-DD.*` links them without rewriting their bodies | 🧪🔵 | `build-daily-bundle.py` · `daily_bundle.py` · `tests/test_daily_bundle.py` |
+| 30 | Recoverable source auth is non-blocking by default; WeChat / YouTube problems are health warnings, not reasons to skip daily artifact generation | 🧪🔵 | `push-digest.sh` · `tests/test_daily_routine_contract.py` |
+| 31 | Unprocessed raw is not the library boundary: obvious low-value social noise is rejected before `processed/`; selected AI brief_universe/deep_candidates items archive, discard does not | 🧪🔵 | `processing_filter.py` · `open-batch.py` · `aggregation/digest/archive.py` |
+| 32 | The five pipeline stages have physical folders; root scripts are compatibility wrappers only | 🧪🔵 | `stages/*/run.py` · `tests/test_ai_process.py` |
 
 ---
 
@@ -70,6 +72,14 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
   subset of that universe, reserved for official explainers, long-form cases,
   platform-mechanism analysis, media summaries with real transcripts, and
   curated long articles that can justify 10-30 minutes of reader attention.
+- **#29 Daily Newsletter umbrella contract** — the daily reader routine now
+  ships three products: 快讯, 深读, 产品雷达. Product Radar stays outside the
+  快讯/深读 AI selection universe and is linked by `daily-YY-MM-DD.*`; do not
+  merge Product Hunt / HN / TrustMRR rows into the main signal selection.
+- **#30 Recoverable source auth is non-blocking** — WeChat / YouTube cookie or
+  QR/login problems must be surfaced in status/run-report/daily bundle, but the
+  scheduled daily artifact still generates from available sources by default.
+  Use `PARKIO_PREFLIGHT_BLOCK=1` only for an explicit debugging run.
 
 ---
 

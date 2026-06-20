@@ -12,6 +12,15 @@ FETCH_LOCK="$SCRIPT_DIR/logs/fetch.lock"
 mkdir -p logs
 
 ts() { date '+%F %T'; }
+run_date_from_batch() {
+  local batch="$1"
+  local head="${batch:0:8}"
+  if [[ "$head" =~ ^[0-9]{8}$ ]]; then
+    echo "${head:0:4}-${head:4:2}-${head:6:2}"
+  else
+    date '+%F'
+  fi
+}
 
 {
   echo ""
@@ -38,14 +47,20 @@ if [ -e "$FETCH_LOCK" ]; then
   exit 0
 fi
 
+PREFLIGHT_WARNINGS=()
 if [ "${PARKIO_IGNORE_BLOCKING_DEPS:-0}" != "1" ]; then
   echo "[$(ts)] >>> morning-preflight.py" >> "$LOG"
-  python3 "$SCRIPT_DIR/morning-preflight.py" >> "$LOG" 2>&1
+  PREFLIGHT_OUTPUT="$(python3 "$SCRIPT_DIR/morning-preflight.py" 2>&1)"
   EXIT=$?
+  printf '%s\n' "$PREFLIGHT_OUTPUT" >> "$LOG"
   if [ "$EXIT" -eq 2 ]; then
-    echo "[$(ts)] recoverable source auth/cookie problem; generate status page and skip scheduled push" >> "$LOG"
+    echo "[$(ts)] recoverable source auth/cookie problem; continue scheduled push with degraded source health" >> "$LOG"
     python3 "$SCRIPT_DIR/generate-status.py" >> "$LOG" 2>&1 || true
-    exit 0
+    PREFLIGHT_WARNINGS+=("recoverable source auth/cookie problem; generated available-source digest anyway")
+    if [ "${PARKIO_PREFLIGHT_BLOCK:-0}" = "1" ]; then
+      echo "[$(ts)] PARKIO_PREFLIGHT_BLOCK=1; skip scheduled push" >> "$LOG"
+      exit 0
+    fi
   elif [ "$EXIT" -ne 0 ]; then
     echo "[$(ts)] !!! morning-preflight.py exit=$EXIT" >> "$LOG"
     exit "$EXIT"
@@ -68,7 +83,9 @@ if [ -z "$BATCH_ID" ]; then
   exit 0
 fi
 export PARKIO_BATCH_ID="$BATCH_ID"
+RUN_DATE="$(run_date_from_batch "$PARKIO_BATCH_ID")"
 echo "[$(ts)] batch=$PARKIO_BATCH_ID" >> "$LOG"
+echo "[$(ts)] run_date=$RUN_DATE" >> "$LOG"
 
 PARKIO_SKIP_SEND="${PARKIO_SKIP_SEND:-1}"
 STAGES=(build-digest.py stages/archive/run.py finalize-local.py)
@@ -88,6 +105,27 @@ for stage in "${STAGES[@]}"; do
     exit "$EXIT"
   fi
 done
+
+echo "[$(ts)] >>> build-product-radar.py" >> "$LOG"
+python3 "$SCRIPT_DIR/build-product-radar.py" --date "$RUN_DATE" >> "$LOG" 2>&1
+EXIT=$?
+if [ "$EXIT" -ne 0 ]; then
+  echo "[$(ts)] !!! build-product-radar.py exit=$EXIT; continue with degraded daily bundle" >> "$LOG"
+  PREFLIGHT_WARNINGS+=("Product Radar 生成失败：build-product-radar.py exit=$EXIT")
+fi
+
+echo "[$(ts)] >>> build-daily-bundle.py" >> "$LOG"
+BUNDLE_ARGS=(--date "$RUN_DATE")
+for warning in "${PREFLIGHT_WARNINGS[@]}"; do
+  BUNDLE_ARGS+=(--warning "$warning")
+done
+python3 "$SCRIPT_DIR/build-daily-bundle.py" "${BUNDLE_ARGS[@]}" >> "$LOG" 2>&1
+EXIT=$?
+if [ "$EXIT" -ne 0 ]; then
+  echo "[$(ts)] !!! build-daily-bundle.py exit=$EXIT" >> "$LOG"
+  echo "[$(ts)] push-digest STOPPED at build-daily-bundle.py" >> "$LOG"
+  exit "$EXIT"
+fi
 
 echo "[$(ts)] >>> generate-status.py" >> "$LOG"
 python3 "$SCRIPT_DIR/generate-status.py" >> "$LOG" 2>&1
