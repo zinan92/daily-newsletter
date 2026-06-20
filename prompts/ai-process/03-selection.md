@@ -9,6 +9,9 @@ Input is merged events. Build a signal-first selection for two products:
      brief_universe as a concise signal.
    - Classify each signal into exactly one subsection:
      底层工具, 工作流, 内容.
+   - Never use discard, deep_read, brief, or any English/category-control word as
+     subsection. If an event should be discarded, put it only in the top-level
+     discard array, not in brief_universe.
 
 2. deep_candidates
    - A subset of brief_universe.
@@ -21,6 +24,7 @@ Input is merged events. Build a signal-first selection for two products:
 
 3. discard
    - Events that should not enter either product.
+   - Discard is a top-level array, not a subsection.
 
 Criteria for brief_universe:
 - New information worth knowing.

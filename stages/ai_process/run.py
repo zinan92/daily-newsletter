@@ -239,6 +239,27 @@ def repair_brief_markdown(raw: str, final_payload: dict, expected_item_count: in
     return llm_call(prompt, max_tokens=12000, timeout=240)
 
 
+def validate_brief_markdown_with_repair(
+    raw: str,
+    final_payload: dict,
+    expected_item_count: int,
+    max_attempts: int = 3,
+) -> str:
+    current = raw
+    last_exc: AIProcessError | None = None
+    for attempt in range(0, max_attempts + 1):
+        try:
+            return validate_brief_markdown(current, expected_item_count)
+        except AIProcessError as exc:
+            last_exc = exc
+            if attempt >= max_attempts:
+                break
+            log("ai-process", f"brief_writing: {exc}; retrying structural repair {attempt + 1}/{max_attempts}")
+            current = repair_brief_markdown(current, final_payload, expected_item_count)
+    assert last_exc is not None
+    raise last_exc
+
+
 def missing_event_cards(cards: list[dict], events: list[dict]) -> list[dict]:
     assigned = {
         str(item_id or "").strip()
@@ -272,6 +293,90 @@ def repair_event_merge(cards: list[dict], events: list[dict]) -> list[dict]:
     if not isinstance(repaired, list):
         raise AIProcessError("event_merge repair must return a JSON array")
     return repaired
+
+
+def force_cover_missing_event_cards(cards: list[dict], events: list[dict]) -> list[dict]:
+    card_by_id = {str(card.get("id") or ""): card for card in cards}
+    used: set[str] = set()
+    cleaned: list[dict] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        valid_ids: list[str] = []
+        for raw_item_id in event.get("item_ids") or []:
+            item_id = str(raw_item_id or "").strip()
+            if item_id not in card_by_id or item_id in used:
+                continue
+            valid_ids.append(item_id)
+            used.add(item_id)
+        if not valid_ids:
+            continue
+        copy = dict(event)
+        copy["item_ids"] = valid_ids
+        cleaned.append(copy)
+
+    missing = [card for card in cards if str(card.get("id") or "") not in used]
+    for idx, card in enumerate(missing, 1):
+        card_id = str(card.get("id") or f"missing-{idx}")
+        title = str(card.get("title") or card.get("main_claim") or card_id)
+        cleaned.append(
+            {
+                "event_id": f"unmerged_{idx}_{card_id}"[:80],
+                "event_title": title,
+                "sources": [
+                    {
+                        "source": card.get("source") or "",
+                        "author": card.get("author") or "",
+                        "title": card.get("title") or title,
+                        "url": card.get("url") or "",
+                    }
+                ],
+                "item_ids": [card_id],
+                "merged_summary": card.get("main_claim") or card.get("novelty") or title,
+                "evidence": "AI event_merge did not cover this item; preserved as a single-item event for selection.",
+                "discussion_level": "single",
+            }
+        )
+    return cleaned
+
+
+def validate_event_coverage_with_repair(
+    ai_dir: Path,
+    cards: list[dict],
+    events: list[dict],
+    max_attempts: int = 3,
+) -> list[dict]:
+    try:
+        validate_event_coverage(ai_dir, cards, events)
+        return events
+    except AIProcessError as exc:
+        if "event_merge omitted" not in str(exc):
+            raise
+        last_exc = exc
+
+    current = events
+    for attempt in range(1, max_attempts + 1):
+        log("ai-process", f"event_merge: {last_exc}; retrying coverage repair {attempt}/{max_attempts}")
+        current = repair_event_merge(cards, current)
+        clear_stale_error(ai_dir)
+        try:
+            validate_event_coverage(ai_dir, cards, current)
+            return current
+        except AIProcessError as exc:
+            if "event_merge omitted" not in str(exc):
+                if "references unknown item_id" in str(exc):
+                    log("ai-process", f"event_merge: {exc}; forcing single-item coverage for missing cards")
+                    current = force_cover_missing_event_cards(cards, current)
+                    clear_stale_error(ai_dir)
+                    validate_event_coverage(ai_dir, cards, current)
+                    return current
+                raise
+            last_exc = exc
+    log("ai-process", f"event_merge: {last_exc}; forcing single-item coverage for missing cards")
+    current = force_cover_missing_event_cards(cards, current)
+    clear_stale_error(ai_dir)
+    validate_event_coverage(ai_dir, cards, current)
+    return current
 
 
 def item_content_size(item: dict) -> int:
@@ -492,6 +597,21 @@ def row_event_id(row: dict) -> str:
     return str(row.get("event_id") or row.get("parent_brief_event_id") or "")
 
 
+def normalize_selection_subsection(value: Any) -> str:
+    subsection = str(value or "").strip()
+    aliases = {
+        "工具": "底层工具",
+        "底层": "底层工具",
+        "基础工具": "底层工具",
+        "workflow": "工作流",
+        "Workflow": "工作流",
+        "工作流程": "工作流",
+        "内容创作": "内容",
+        "内容分发": "内容",
+    }
+    return aliases.get(subsection, subsection)
+
+
 def validate_selection_references(events: list[dict], selection: dict) -> dict:
     lookup = event_lookup(events)
     if not selection.get("brief_universe"):
@@ -505,7 +625,8 @@ def validate_selection_references(events: list[dict], selection: dict) -> dict:
         if event_id not in lookup:
             raise AIProcessError(f"brief_universe references unknown event_id: {event_id}")
         brief_ids.add(event_id)
-        subsection = str(row.get("subsection") or "")
+        subsection = normalize_selection_subsection(row.get("subsection"))
+        row["subsection"] = subsection
         if subsection not in {"底层工具", "工作流", "内容"}:
             raise AIProcessError(f"brief_universe[{idx}] invalid subsection: {subsection}")
 
@@ -697,15 +818,7 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     if not isinstance(events, list):
         fail_schema(ai_dir, "event_merge", "event_merge must return a JSON array")
     write_json(ai_dir / "02-events.json", events)
-    try:
-        validate_event_coverage(ai_dir, cards, events)
-    except AIProcessError as exc:
-        if "event_merge omitted" not in str(exc):
-            raise
-        log("ai-process", f"event_merge: {exc}; retrying coverage repair")
-        events = repair_event_merge(cards, events)
-        clear_stale_error(ai_dir)
-        validate_event_coverage(ai_dir, cards, events)
+    events = validate_event_coverage_with_repair(ai_dir, cards, events)
     write_json(ai_dir / "02-events.json", events)
 
     log("ai-process", f"selection START — {len(events)} events")
@@ -729,12 +842,7 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     expected_brief_count = len(selection.get("brief_universe", []))
     try:
         raw = llm_call(final_prompt + "\n\nINPUT JSON:\n" + json_payload(final_payload), max_tokens=9000, timeout=240)
-        try:
-            markdown = validate_brief_markdown(raw, expected_brief_count)
-        except AIProcessError as exc:
-            log("ai-process", f"brief_writing: {exc}; retrying structural repair")
-            raw = repair_brief_markdown(raw, final_payload, expected_brief_count)
-            markdown = validate_brief_markdown(raw, expected_brief_count)
+        markdown = validate_brief_markdown_with_repair(raw, final_payload, expected_brief_count)
     except Exception as exc:
         write_error(ai_dir, "brief_writing", raw, f"{type(exc).__name__}: {exc}")
         raise

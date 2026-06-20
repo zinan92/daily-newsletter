@@ -556,6 +556,24 @@ def test_selection_must_cover_every_event_as_brief_or_discard():
         raise AssertionError("expected AIProcessError")
 
 
+def test_selection_subsection_aliases_are_normalized():
+    events = [{"event_id": "e1"}, {"event_id": "e2"}]
+    selection = {
+        "brief_universe": [{
+            "event_id": "e1",
+            "subsection": "工具",
+            "decision_reason": "ok",
+            "summary": "ok",
+        }],
+        "deep_candidates": [],
+        "discard": [{"event_id": "e2", "decision_reason": "low signal"}],
+    }
+
+    normalized = ai_process.validate_selection_references(events, selection)
+
+    assert normalized["brief_universe"][0]["subsection"] == "底层工具"
+
+
 def test_brief_markdown_requires_one_bullet_per_selected_event():
     markdown = """# Daily Inbox 快讯 — 2026-06-11
 
@@ -582,6 +600,34 @@ def test_brief_markdown_requires_one_bullet_per_selected_event():
         assert "brief markdown rendered 2 bullet item(s) for 1 selected event(s)" in str(exc)
     else:
         raise AssertionError("expected AIProcessError")
+
+
+def test_brief_markdown_structural_repair_can_run_multiple_rounds():
+    final_payload = {"date": "2026-06-11", "events": [], "selection": {"brief_universe": [{}, {}]}}
+    repaired_rounds = [
+        "# Daily Inbox 快讯 — 2026-06-11\n\n### 底层工具\n\n- **Source** | [one](https://example.com/1)\n  summary\n",
+        "# Daily Inbox 快讯 — 2026-06-11\n\n## 快讯\n\n### 底层工具\n\n- **Source** | [one](https://example.com/1)\n  summary\n- **Source** | [two](https://example.com/2)\n  summary\n\n### 工作流\n\n*(今日无内容)*\n\n### 内容\n\n*(今日无内容)*\n",
+    ]
+    calls = []
+    old_repair = ai_process.repair_brief_markdown
+
+    def fake_repair(raw, payload, expected_item_count):
+        calls.append((raw, expected_item_count))
+        return repaired_rounds.pop(0)
+
+    try:
+        ai_process.repair_brief_markdown = fake_repair
+        markdown = ai_process.validate_brief_markdown_with_repair(
+            "# broken\n\n## 快讯\n\n### 底层工具\n\n- **Source** | [one](https://example.com/1)\n  summary\n",
+            final_payload,
+            expected_item_count=2,
+            max_attempts=3,
+        )
+    finally:
+        ai_process.repair_brief_markdown = old_repair
+
+    assert len(calls) == 2
+    assert "[two](https://example.com/2)" in markdown
 
 
 def test_event_merge_must_cover_every_item_card():
@@ -701,6 +747,101 @@ def test_repair_event_merge_can_cover_missing_item_cards():
 
     assert [event["event_id"] for event in repaired] == ["e1", "e2"]
     assert ai_process.missing_event_cards(cards, repaired) == []
+
+
+def test_event_merge_coverage_repair_can_run_multiple_rounds():
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td) / "ai"
+        cards = [
+            {"id": "item-1", "title": "one"},
+            {"id": "item-2", "title": "two"},
+            {"id": "item-3", "title": "three"},
+        ]
+        events = [{
+            "event_id": "e1",
+            "event_title": "one",
+            "sources": [],
+            "item_ids": ["item-1"],
+            "merged_summary": "one",
+            "evidence": "one",
+            "discussion_level": "single",
+        }]
+        repaired_rounds = [
+            [
+                {**events[0]},
+                {
+                    "event_id": "e2",
+                    "event_title": "two",
+                    "sources": [],
+                    "item_ids": ["item-2"],
+                    "merged_summary": "two",
+                    "evidence": "two",
+                    "discussion_level": "single",
+                },
+            ],
+            [
+                {**events[0]},
+                {
+                    "event_id": "e2",
+                    "event_title": "two",
+                    "sources": [],
+                    "item_ids": ["item-2"],
+                    "merged_summary": "two",
+                    "evidence": "two",
+                    "discussion_level": "single",
+                },
+                {
+                    "event_id": "e3",
+                    "event_title": "three",
+                    "sources": [],
+                    "item_ids": ["item-3"],
+                    "merged_summary": "three",
+                    "evidence": "three",
+                    "discussion_level": "single",
+                },
+            ],
+        ]
+        calls = []
+        old_repair = ai_process.repair_event_merge
+
+        def fake_repair(cards_arg, events_arg):
+            calls.append([event["event_id"] for event in events_arg])
+            return repaired_rounds.pop(0)
+
+        try:
+            ai_process.repair_event_merge = fake_repair
+            repaired = ai_process.validate_event_coverage_with_repair(ai_dir, cards, events, max_attempts=3)
+        finally:
+            ai_process.repair_event_merge = old_repair
+
+        assert len(calls) == 2
+        assert ai_process.missing_event_cards(cards, repaired) == []
+        assert not (ai_dir / "error.json").exists()
+
+
+def test_event_merge_force_cover_removes_unknown_and_appends_missing_cards():
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td) / "ai"
+        cards = [
+            {"id": "item-1", "source": "X", "author": "A", "title": "one", "url": "u1", "main_claim": "one claim"},
+            {"id": "item-2", "source": "X", "author": "B", "title": "two", "url": "u2", "main_claim": "two claim"},
+        ]
+        events = [{
+            "event_id": "e1",
+            "event_title": "one",
+            "sources": [],
+            "item_ids": ["item-1", "unknown-id"],
+            "merged_summary": "one",
+            "evidence": "one",
+            "discussion_level": "single",
+        }]
+
+        covered = ai_process.force_cover_missing_event_cards(cards, events)
+        ai_process.validate_event_coverage(ai_dir, cards, covered)
+
+        assert ai_process.missing_event_cards(cards, covered) == []
+        assert all("unknown-id" not in event["item_ids"] for event in covered)
+        assert any(event["item_ids"] == ["item-2"] for event in covered)
 
 
 def test_empty_deep_candidates_write_empty_state_not_fake_deep_markdown():
@@ -910,6 +1051,13 @@ def test_ai_process_prompts_keep_chinese_x_titles_chinese():
     assert "do not translate" in event_prompt.lower()
     assert "Chinese X posts into English" in event_prompt
     assert "Do not keep an English event_title for a Chinese X post" in brief_prompt
+
+
+def test_selection_prompt_forbids_discard_as_subsection():
+    selection_prompt = (ROOT / "prompts" / "ai-process" / "03-selection.md").read_text(encoding="utf-8")
+
+    assert "Never use discard" in selection_prompt
+    assert "Discard is a top-level array, not a subsection." in selection_prompt
 
 
 def test_summarize_main_writes_brief_and_deep_artifact_families():
