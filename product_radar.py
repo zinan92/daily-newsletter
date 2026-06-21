@@ -21,7 +21,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from lib import INBOX, SENT_DIR
@@ -530,7 +530,14 @@ def data_quality_lines(meta: list[dict]) -> list[str]:
     return lines
 
 
-def render_markdown(signals: list[Signal], meta: list[dict], run_date: str) -> str:
+def render_markdown(
+    signals: list[Signal],
+    meta: list[dict],
+    run_date: str,
+    *,
+    total_signals: int | None = None,
+    repeated_signals: int = 0,
+) -> str:
     counts = group_tag_counts(signals)
     top_tags = "、".join(tag_label(tag) for tag, _ in counts[:3]) or "暂无稳定主题"
     ph = top_signals(signals, "Product Hunt", 8)
@@ -543,17 +550,21 @@ def render_markdown(signals: list[Signal], meta: list[dict], run_date: str) -> s
         f"# 产品雷达 — {run_date}",
         "",
         "## 今日判断",
-        f"- 今天的产品信号集中在 **{top_tags}**。Product Hunt 负责发现“新供给”，Hacker News 负责暴露“真实需求和争议”，TrustMRR 负责验证“哪些小产品真的在收钱”。",
+        f"- 今天的新增产品信号集中在 **{top_tags}**。Product Hunt 负责发现“新供给”，Hacker News 负责暴露“真实需求和争议”，TrustMRR 负责验证“哪些小产品真的在收钱”。",
         "- 读法不是追热点，而是回答一个问题：**我们现在应该考虑造什么，为什么这个方向可能有人付钱。**",
         "",
         "## 可行动机会",
     ]
 
-    for idx, opp in enumerate(opportunities, 1):
-        lines.append(f"### {idx}. {opp['title']}")
-        evidence = "；".join(f"{e.source} 的 [{e.title}]({e.url})" for e in opp["evidence"])
-        lines.append(f"- **证据**：{evidence}。")
-        lines.append(f"- **切入方式**：{opp['action']}")
+    if opportunities:
+        for idx, opp in enumerate(opportunities, 1):
+            lines.append(f"### {idx}. {opp['title']}")
+            evidence = "；".join(f"{e.source} 的 [{e.title}]({e.url})" for e in opp["evidence"])
+            lines.append(f"- **证据**：{evidence}。")
+            lines.append(f"- **切入方式**：{opp['action']}")
+            lines.append("")
+    else:
+        lines.append("- 今天没有足够新的产品/需求/收入信号形成可行动机会。")
         lines.append("")
 
     lines.extend([
@@ -562,7 +573,7 @@ def render_markdown(signals: list[Signal], meta: list[dict], run_date: str) -> s
     ])
     lines.extend(source_item_line(sig) for sig in ph)
     if not ph:
-        lines.append("- Product Hunt feed 本次没有解析出产品。")
+        lines.append("- Product Hunt feed 本次没有新增产品；重复出现的滚动榜单条目已从读者版隐藏。")
 
     lines.extend([
         "",
@@ -571,7 +582,7 @@ def render_markdown(signals: list[Signal], meta: list[dict], run_date: str) -> s
     ])
     lines.extend(source_item_line(sig) for sig in tmrr)
     if not tmrr:
-        lines.append("- TrustMRR 页面本次没有解析出产品；需要关注页面结构或配置 API key。")
+        lines.append("- TrustMRR 本次没有新增收入信号；重复出现的在售项目已从读者版隐藏。")
 
     lines.extend([
         "",
@@ -580,7 +591,7 @@ def render_markdown(signals: list[Signal], meta: list[dict], run_date: str) -> s
     ])
     lines.extend(source_item_line(sig) for sig in hn)
     if not hn:
-        lines.append("- Hacker News API 本次没有解析出可用条目。")
+        lines.append("- Hacker News API 本次没有新增可用条目。")
 
     lines.extend([
         "",
@@ -597,6 +608,7 @@ def render_markdown(signals: list[Signal], meta: list[dict], run_date: str) -> s
         "## 数据质量",
         "",
         *data_quality_lines(meta),
+        f"- 读者版新增信号：{len(signals)} 条；完整抓取快照：{total_signals if total_signals is not None else len(signals)} 条；隐藏近期重复：{repeated_signals} 条。",
         f"- 生成时间：{generated}。",
         "",
     ])
@@ -705,6 +717,50 @@ def dedupe_signals(signals: list[Signal]) -> list[Signal]:
     return out
 
 
+def signal_key(signal: Signal | dict) -> str:
+    if isinstance(signal, dict):
+        url = str(signal.get("url") or "").strip().rstrip("/")
+        source = str(signal.get("source") or "")
+        title = str(signal.get("title") or "")
+    else:
+        url = signal.url.strip().rstrip("/")
+        source = signal.source
+        title = signal.title
+    return url or f"{source}:{title}".lower()
+
+
+def previous_signal_keys(run_date: str, *, lookback_days: int = 14) -> set[str]:
+    try:
+        current = datetime.strptime(run_date, "%Y-%m-%d").date()
+    except ValueError:
+        return set()
+    since = current - timedelta(days=lookback_days)
+    keys: set[str] = set()
+    raw_root = INBOX / "raw"
+    if not raw_root.exists():
+        return keys
+    for path in raw_root.glob("*/product-radar.json"):
+        try:
+            date = datetime.strptime(path.parent.name, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if not (since <= date < current):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for row in data.get("signals", []):
+            key = signal_key(row)
+            if key:
+                keys.add(key)
+    return keys
+
+
+def new_signals_only(signals: list[Signal], previous_keys: set[str]) -> list[Signal]:
+    return [sig for sig in signals if signal_key(sig) not in previous_keys]
+
+
 def write_snapshot(signals: list[Signal], meta: list[dict], run_date: str) -> Path:
     raw_dir = INBOX / "raw" / run_date
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -729,7 +785,15 @@ def product_radar_paths(run_date: str) -> tuple[Path, Path, Path]:
 
 def build_product_radar(run_date: str, *, with_png: bool = True) -> dict:
     signals, meta = collect_signals()
-    markdown = render_markdown(signals, meta, run_date)
+    previous_keys = previous_signal_keys(run_date)
+    reader_signals = new_signals_only(signals, previous_keys)
+    markdown = render_markdown(
+        reader_signals,
+        meta,
+        run_date,
+        total_signals=len(signals),
+        repeated_signals=len(signals) - len(reader_signals),
+    )
     SENT_DIR.mkdir(parents=True, exist_ok=True)
     md_path, html_path, png_path = product_radar_paths(run_date)
     md_path.write_text(markdown, encoding="utf-8")
@@ -742,6 +806,8 @@ def build_product_radar(run_date: str, *, with_png: bool = True) -> dict:
         "png": str(png_path) if png_ok else "",
         "raw": str(raw_path),
         "signals": len(signals),
+        "reader_signals": len(reader_signals),
+        "repeated_signals": len(signals) - len(reader_signals),
         "meta": meta,
     }
 

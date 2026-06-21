@@ -202,3 +202,77 @@ def test_collect_signals_degrades_when_one_fetcher_fails(monkeypatch):
     assert failed
     assert failed[0]["fetched"] == 0
     assert failed[0]["errors"] == ["RuntimeError: fixture PH outage"]
+
+
+def test_previous_signal_keys_filter_recent_duplicates(tmp_path, monkeypatch):
+    raw_dir = tmp_path / "raw" / "2026-06-20"
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "product-radar.json").write_text(
+        """{
+  "signals": [
+    {"source": "Product Hunt", "title": "Repeated Tool", "url": "https://example.com/repeated/"},
+    {"source": "TrustMRR", "title": "Revenue Tool", "url": "https://trustmrr.com/startup/revenue-tool"}
+  ]
+}""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(product_radar, "INBOX", tmp_path)
+
+    repeated = product_radar.score_signal(product_radar.Signal(
+        source="Product Hunt",
+        title="Repeated Tool",
+        url="https://example.com/repeated",
+        summary="Old rolling feed item",
+    ))
+    fresh = product_radar.score_signal(product_radar.Signal(
+        source="Hacker News",
+        title="Fresh HN Demand",
+        url="https://news.ycombinator.com/item?id=100",
+        summary="New demand signal",
+    ))
+
+    previous = product_radar.previous_signal_keys("2026-06-21")
+    assert "https://example.com/repeated" in previous
+    assert product_radar.new_signals_only([repeated, fresh], previous) == [fresh]
+
+
+def test_build_product_radar_renders_only_new_signals_but_snapshots_all(tmp_path, monkeypatch):
+    (tmp_path / "raw" / "2026-06-20").mkdir(parents=True)
+    (tmp_path / "raw" / "2026-06-20" / "product-radar.json").write_text(
+        '{"signals":[{"source":"Product Hunt","title":"Old Tool","url":"https://example.com/old"}]}',
+        encoding="utf-8",
+    )
+    sent = tmp_path / "sent"
+    monkeypatch.setattr(product_radar, "INBOX", tmp_path)
+    monkeypatch.setattr(product_radar, "SENT_DIR", sent)
+    old = product_radar.score_signal(product_radar.Signal(
+        source="Product Hunt",
+        title="Old Tool",
+        url="https://example.com/old",
+        summary="Repeated rolling item",
+    ))
+    fresh = product_radar.score_signal(product_radar.Signal(
+        source="Hacker News",
+        title="Fresh Pain",
+        url="https://news.ycombinator.com/item?id=200",
+        summary="Fresh user pain",
+        metric="55 points · 20 comments · topstories",
+    ))
+    monkeypatch.setattr(
+        product_radar,
+        "collect_signals",
+        lambda: ([old, fresh], [{"source": "fixture", "method": "mock", "fetched": 2}]),
+    )
+
+    result = product_radar.build_product_radar("2026-06-21", with_png=False)
+    markdown = Path(result["markdown"]).read_text(encoding="utf-8")
+    raw = Path(result["raw"]).read_text(encoding="utf-8")
+
+    assert result["signals"] == 2
+    assert result["reader_signals"] == 1
+    assert result["repeated_signals"] == 1
+    assert "Fresh Pain" in markdown
+    assert "Old Tool" not in markdown
+    assert "读者版新增信号：1 条；完整抓取快照：2 条；隐藏近期重复：1 条" in markdown
+    assert "Old Tool" in raw
+    assert "Fresh Pain" in raw
