@@ -25,7 +25,7 @@ RAW_DIR = INBOX / "raw"
 UNPROCESSED_DIR = INBOX / "unprocessed"
 PROCESSED_DIR = INBOX / "processed"
 SENT_DIR = INBOX / "sent"
-LIBRARY_DIR = PARKIO / "library"
+LIBRARY_DIR = PARKIO / "references"
 KNOWLEDGE_DIR = PARKIO / "knowledge"
 PROFILE_LIBRARY_DIR = PARKIO / ".system" / "source-profiles"
 
@@ -97,7 +97,7 @@ def _deepseek_thinking_on(model: str) -> bool:
     return False
 
 
-YOUTUBE_MIN_SECONDS = int(os.environ.get("PARKIO_YOUTUBE_MIN_SECONDS", "90"))
+YOUTUBE_MIN_SECONDS = int(os.environ.get("PARKIO_YOUTUBE_MIN_SECONDS", "300"))
 
 
 def is_youtube_short(url: str = "", duration=None) -> bool:

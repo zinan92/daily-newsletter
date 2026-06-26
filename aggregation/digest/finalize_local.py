@@ -20,6 +20,18 @@ def _finalize(src, dst) -> None:
     tmp.replace(dst)
 
 
+def _finalize_reader_markdown(src, dst) -> None:
+    """Copy Markdown into sent/ without machine-only tracking comments."""
+    import re
+
+    text = src.read_text(encoding="utf-8")
+    text = re.sub(r"\n?<!--\s*parkio-(?:push|processed)-items:[\s\S]*?-->\s*", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).rstrip() + "\n"
+    tmp = dst.with_suffix(dst.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(dst)
+
+
 def _rewrite_html_for_sent(html_text: str) -> str:
     """Adjust paths when moving HTML from inbox/processed/<date>/ to inbox/sent/."""
     return html_text.replace("../../../_contact/", "../../_contact/")
@@ -34,7 +46,7 @@ def main() -> int:
 
     SENT_DIR.mkdir(parents=True, exist_ok=True)
     md_dst = SENT_DIR / f"{label}.md"
-    _finalize(panel, md_dst)
+    _finalize_reader_markdown(panel, md_dst)
     print(f"[finalize-local] wrote {md_dst}")
     html_dst = SENT_DIR / f"{label}.html"
     if html.exists():
@@ -51,7 +63,7 @@ def main() -> int:
     deep_md, deep_html, deep_png = deep_artifact_paths()
     if deep_md.exists():
         deep_md_dst = SENT_DIR / f"deep-{label}.md"
-        _finalize(deep_md, deep_md_dst)
+        _finalize_reader_markdown(deep_md, deep_md_dst)
         print(f"[finalize-local] wrote {deep_md_dst}")
         if deep_html.exists():
             deep_html_dst = SENT_DIR / f"deep-{label}.html"

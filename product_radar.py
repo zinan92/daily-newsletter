@@ -156,9 +156,15 @@ def tag_signal(text: str) -> list[str]:
     lower = text.lower()
     tags: list[str] = []
     for key, (_, patterns) in TAG_PATTERNS.items():
-        if any(p in lower for p in patterns):
+        if any(pattern_matches(lower, p) for p in patterns):
             tags.append(key)
     return tags
+
+
+def pattern_matches(text: str, pattern: str) -> bool:
+    if re.fullmatch(r"[a-z0-9_+-]+", pattern):
+        return re.search(rf"(?<![a-z0-9]){re.escape(pattern)}(?![a-z0-9])", text) is not None
+    return pattern in text
 
 
 def score_signal(signal: Signal) -> Signal:
@@ -469,7 +475,45 @@ def opportunity_action(tag: str) -> str:
     }.get(tag, "先做一个小闭环验证付费意愿，再扩大源和自动化。")
 
 
-def build_opportunities(signals: list[Signal], limit: int = 4) -> list[dict]:
+def product_to_build(tag: str) -> str:
+    return {
+        "ai_agents": "一个能接管具体业务流程的垂直 Agent，而不是通用聊天助手。",
+        "devtools": "AI coding 后链路基础设施：运行、测试、权限、日志、部署或回滚。",
+        "growth_sales": "面向单一行业的获客/线索/内容转化工作台。",
+        "revenue_saas": "一个解决小而硬付费问题的微 SaaS，可从已有收入项目反推需求。",
+        "consumer_productivity": "一个低摩擦、每日会打开的个人效率入口。",
+        "security_privacy": "围绕 AI 生成代码和自动化操作的可信执行、隔离和审计产品。",
+        "data_research": "一个把公开数据变化变成产品/市场决策的监控雷达。",
+    }.get(tag, f"围绕{tag_label(tag)}做一个小闭环产品。")
+
+
+def opportunity_reason(tag: str) -> str:
+    return {
+        "ai_agents": "新产品供给、开发者讨论和企业部署都在把 AI 从“生成内容”推向“完成工作”。",
+        "devtools": "AI 写代码的速度已经上来，新的瓶颈变成生成后能否安全运行、测试和上线。",
+        "growth_sales": "获客和转化仍然是愿意付费的刚需，AI 可以把人工销售动作产品化。",
+        "revenue_saas": "TrustMRR 上已有小产品持续收钱，说明微小但明确的工作流问题仍有购买力。",
+        "consumer_productivity": "用户不缺新系统，缺的是能嵌入日常入口、减少切换成本的工具。",
+        "security_privacy": "Agent 和 AI coding 普及后，权限、隔离、审计会从边缘问题变成默认需求。",
+        "data_research": "产品机会越来越分散，能持续监控新供给、讨论热度和收入信号本身就是工作流入口。",
+    }.get(tag, "今天的多源信号显示这个方向同时有供给变化和需求讨论。")
+
+
+def evidence_line(sig: Signal) -> str:
+    summary = sig.summary.strip()
+    if sig.source == "TrustMRR" and sig.metric:
+        summary = sig.kind or "收入已验证项目"
+    if len(summary) > 96:
+        summary = summary[:93].rstrip() + "..."
+    metric = format_metric(sig)
+    detail = summary or sig.kind or "相关信号"
+    if metric and metric not in detail:
+        detail += f"；{metric}"
+    return f"  - **{sig.source}**：[{sig.title}]({sig.url}) — {detail}"
+
+
+def build_opportunities(signals: list[Signal], limit: int = 5, suppress_titles: set[str] | None = None) -> list[dict]:
+    suppress_titles = suppress_titles or set()
     by_tag: dict[str, list[Signal]] = {}
     for sig in signals:
         for tag in sig.tags:
@@ -483,7 +527,10 @@ def build_opportunities(signals: list[Signal], limit: int = 4) -> list[dict]:
 
     out = []
     used_urls: set[str] = set()
-    for _, tag, rows in ranked[:limit]:
+    for _, tag, rows in ranked:
+        title = opportunity_title(tag)
+        if title in suppress_titles:
+            continue
         rows.sort(key=lambda s: s.score, reverse=True)
         evidence = []
         used_sources = set()
@@ -509,11 +556,13 @@ def build_opportunities(signals: list[Signal], limit: int = 4) -> list[dict]:
         used_urls.update(e.url for e in evidence)
         out.append({
             "tag": tag,
-            "title": opportunity_title(tag),
+            "title": title,
             "action": opportunity_action(tag),
             "evidence": evidence[:3],
             "sources": sorted(used_sources),
         })
+        if len(out) >= limit:
+            break
     return out
 
 
@@ -537,71 +586,52 @@ def render_markdown(
     *,
     total_signals: int | None = None,
     repeated_signals: int = 0,
+    recent_opportunity_titles: set[str] | None = None,
 ) -> str:
-    counts = group_tag_counts(signals)
-    top_tags = "、".join(tag_label(tag) for tag, _ in counts[:3]) or "暂无稳定主题"
-    ph = top_signals(signals, "Product Hunt", 8)
-    tmrr = top_signals(signals, "TrustMRR", 8)
-    hn = top_signals(signals, "Hacker News", 10)
-    opportunities = build_opportunities(signals)
+    recent_opportunity_titles = recent_opportunity_titles or set()
+    all_opportunities = build_opportunities(signals, limit=5)
+    opportunities = build_opportunities(signals, limit=5, suppress_titles=recent_opportunity_titles)
+    repeated_opportunities = max(0, len(all_opportunities) - len(opportunities))
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
+    if opportunities:
+        choices_heading = (
+            "## Top 5 Products To Build Today"
+            if len(opportunities) == 5
+            else f"## Top {len(opportunities)} Products To Build Today"
+        )
+        choices_intro = (
+            "只回答一个问题：**如果今天要 build，一个值得优先考虑的产品是什么？** "
+            "下面每个选择都把新产品供给、真实收入和用户讨论合并成同一个判断。"
+        )
+        if len(opportunities) < 5:
+            choices_intro += f" 今天只有 {len(opportunities)} 个足够新的方向，不为了凑满 5 个而重复昨天的判断。"
+    else:
+        choices_heading = "## No New Build Choices Today"
+        choices_intro = "只回答一个问题：**如果今天要 build，有没有新的产品方向值得优先考虑？**"
 
     lines: list[str] = [
         f"# 产品雷达 — {run_date}",
         "",
-        "## 今日判断",
-        f"- 今天的新增产品信号集中在 **{top_tags}**。Product Hunt 负责发现“新供给”，Hacker News 负责暴露“真实需求和争议”，TrustMRR 负责验证“哪些小产品真的在收钱”。",
-        "- 读法不是追热点，而是回答一个问题：**我们现在应该考虑造什么，为什么这个方向可能有人付钱。**",
+        choices_heading,
         "",
-        "## 可行动机会",
+        choices_intro,
+        "",
     ]
 
     if opportunities:
         for idx, opp in enumerate(opportunities, 1):
             lines.append(f"### {idx}. {opp['title']}")
-            evidence = "；".join(f"{e.source} 的 [{e.title}]({e.url})" for e in opp["evidence"])
-            lines.append(f"- **证据**：{evidence}。")
-            lines.append(f"- **切入方式**：{opp['action']}")
+            lines.append(f"- **可以 build 什么**：{product_to_build(opp['tag'])}")
+            lines.append(f"- **为什么是今天**：{opportunity_reason(opp['tag'])}")
+            lines.append("- **证据**：")
+            lines.extend(evidence_line(e) for e in opp["evidence"])
+            lines.append(f"- **MVP 切入**：{opp['action']}")
             lines.append("")
     else:
-        lines.append("- 今天没有足够新的产品/需求/收入信号形成可行动机会。")
+        lines.append("今天没有足够新的产品/需求/收入信号形成新的 Top 5 build choices。")
+        if recent_opportunity_titles:
+            lines.append("最近几天已经反复出现过的方向已隐藏；没有必要把同样的 5 个方向换顺序再推一次。")
         lines.append("")
-
-    lines.extend([
-        "## 新产品雷达（Product Hunt）",
-        "",
-    ])
-    lines.extend(source_item_line(sig) for sig in ph)
-    if not ph:
-        lines.append("- Product Hunt feed 本次没有新增产品；重复出现的滚动榜单条目已从读者版隐藏。")
-
-    lines.extend([
-        "",
-        "## 真实收入信号（TrustMRR）",
-        "",
-    ])
-    lines.extend(source_item_line(sig) for sig in tmrr)
-    if not tmrr:
-        lines.append("- TrustMRR 本次没有新增收入信号；重复出现的在售项目已从读者版隐藏。")
-
-    lines.extend([
-        "",
-        "## 需求与痛点（Hacker News）",
-        "",
-    ])
-    lines.extend(source_item_line(sig) for sig in hn)
-    if not hn:
-        lines.append("- Hacker News API 本次没有新增可用条目。")
-
-    lines.extend([
-        "",
-        "## 信号分布",
-        "",
-    ])
-    for tag, count in counts[:8]:
-        lines.append(f"- **{tag_label(tag)}**：{count} 条")
-    if not counts:
-        lines.append("- 暂无可统计标签。")
 
     lines.extend([
         "",
@@ -609,6 +639,7 @@ def render_markdown(
         "",
         *data_quality_lines(meta),
         f"- 读者版新增信号：{len(signals)} 条；完整抓取快照：{total_signals if total_signals is not None else len(signals)} 条；隐藏近期重复：{repeated_signals} 条。",
+        f"- 隐藏近期重复产品方向：{repeated_opportunities} 个。",
         f"- 生成时间：{generated}。",
         "",
     ])
@@ -757,6 +788,32 @@ def previous_signal_keys(run_date: str, *, lookback_days: int = 14) -> set[str]:
     return keys
 
 
+def previous_opportunity_titles(run_date: str, *, lookback_days: int = 3) -> set[str]:
+    try:
+        current = datetime.strptime(run_date, "%Y-%m-%d").date()
+    except ValueError:
+        return set()
+    since = current - timedelta(days=lookback_days)
+    titles: set[str] = set()
+    for path in SENT_DIR.glob("product-radar-*.md"):
+        match = re.search(r"product-radar-(\d{2})-(\d{2})-(\d{2})\.md$", path.name)
+        if not match:
+            continue
+        year, month, day = match.groups()
+        try:
+            date = datetime.strptime(f"20{year}-{month}-{day}", "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if not (since <= date < current):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        titles.update(re.findall(r"^###\s+\d+\.\s+(.+?)\s*$", text, flags=re.M))
+    return titles
+
+
 def new_signals_only(signals: list[Signal], previous_keys: set[str]) -> list[Signal]:
     return [sig for sig in signals if signal_key(sig) not in previous_keys]
 
@@ -786,6 +843,7 @@ def product_radar_paths(run_date: str) -> tuple[Path, Path, Path]:
 def build_product_radar(run_date: str, *, with_png: bool = True) -> dict:
     signals, meta = collect_signals()
     previous_keys = previous_signal_keys(run_date)
+    recent_titles = previous_opportunity_titles(run_date)
     reader_signals = new_signals_only(signals, previous_keys)
     markdown = render_markdown(
         reader_signals,
@@ -793,6 +851,7 @@ def build_product_radar(run_date: str, *, with_png: bool = True) -> dict:
         run_date,
         total_signals=len(signals),
         repeated_signals=len(signals) - len(reader_signals),
+        recent_opportunity_titles=recent_titles,
     )
     SENT_DIR.mkdir(parents=True, exist_ok=True)
     md_path, html_path, png_path = product_radar_paths(run_date)

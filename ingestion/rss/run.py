@@ -40,6 +40,7 @@ YOUTUBE_FALLBACK_HANDLES = {
     "ChatGPT YouTube": "ChatGPT",
     "Anthropic YouTube": "anthropic-ai",
     "Claude YouTube": "claude",
+    "Nate Herk - AI Automation": "nateherk",
 }
 
 
@@ -177,6 +178,66 @@ def youtube_titles_with_ytdlp(handle: str, limit: int = 8) -> dict:
     return out
 
 
+def youtube_item_metadata(url: str) -> dict:
+    if not url:
+        return {}
+    try:
+        result = subprocess.run(
+            [
+                "/opt/homebrew/bin/yt-dlp",
+                "--dump-single-json",
+                "--no-warnings",
+                "--skip-download",
+                url,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=25,
+        )
+    except Exception:
+        return {}
+    if result.returncode != 0:
+        return {}
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {}
+    return {
+        "title": payload.get("title") or "",
+        "url": payload.get("webpage_url") or payload.get("original_url") or payload.get("url") or "",
+        "duration": payload.get("duration"),
+        "description": payload.get("description") or "",
+    }
+
+
+def enrich_youtube_item(item: dict) -> dict:
+    meta = youtube_item_metadata(str(item.get("url") or ""))
+    if not meta:
+        return item
+    duration = meta.get("duration")
+    if meta.get("title"):
+        item["title"] = meta["title"]
+    if meta.get("url"):
+        item["url"] = meta["url"]
+    if duration:
+        item["duration"] = duration
+        summary = str(item.get("summary") or "").strip()
+        if "Duration:" not in summary:
+            summary = f"{summary}\n\nDuration: {int(float(duration))} seconds.".strip()
+        item["summary"] = summary
+    if meta.get("description") and not str(item.get("summary") or "").strip():
+        item["summary"] = str(meta["description"])[:3000]
+    return item
+
+
+def is_youtube_source(src: dict) -> bool:
+    return "youtube.com/feeds/videos.xml" in str(src.get("url") or "") or "youtube" in str(src.get("name") or "").lower()
+
+
+def should_skip_youtube_item(item: dict) -> bool:
+    return is_youtube_short(str(item.get("url") or ""), item.get("duration"))
+
+
 def fetch_youtube_fallback(src: dict) -> list:
     handle = YOUTUBE_FALLBACK_HANDLES.get(src["name"])
     if not handle:
@@ -300,6 +361,12 @@ def main():
                         continue
                     if e.get("published"):
                         e["published"] = published_local_date(e["published"])
+                    if is_youtube_source(src):
+                        e = enrich_youtube_item(e)
+                        if should_skip_youtube_item(e):
+                            log("fetch-rss", f"  skip YouTube short/under-5min: {e.get('title', '')[:60]}")
+                            continue
+                        url = e.get("url", "")
                     new_items.append(e)
                     if url:
                         seen_urls[url] = today()

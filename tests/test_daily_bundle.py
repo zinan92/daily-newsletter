@@ -20,7 +20,7 @@ def test_daily_bundle_links_three_reader_products(tmp_path):
         encoding="utf-8",
     )
     (sent / "product-radar-26-06-20.md").write_text(
-        "# 产品雷达 — 2026-06-20\n\n## 新产品雷达（Product Hunt）\n\n- **Product Hunt** | [Tool](https://example.com/tool)\n  summary\n",
+        "# 产品雷达 — 2026-06-20\n\n## Top 5 Products To Build Today\n\n### 1. AI workflow builder\n\n- **可以 build 什么**：一个垂直 Agent。\n",
         encoding="utf-8",
     )
 
@@ -29,8 +29,9 @@ def test_daily_bundle_links_three_reader_products(tmp_path):
     assert "# Daily Newsletter — 2026-06-20" in md
     assert "**快讯**：1 条快讯信号" in md
     assert "**深读**：1 条深读候选" in md
-    assert "**产品雷达**：1 条产品/需求/收入信号" in md
+    assert "**产品雷达**：1 个可 build 产品方向" in md
     assert "product-radar-26-06-20.md" in md
+    assert "今天最值得 build 的 5 个产品方向是什么" in md
     assert "WeChat / YouTube / 单个产品雷达源异常只进入健康提示，不阻塞每日 bundle 生成" in md
 
 

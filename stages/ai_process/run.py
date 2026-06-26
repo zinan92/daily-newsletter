@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import llm_call, log, parse_frontmatter, parse_md_items, processed_batch_dir, today
+from lib import is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, processed_batch_dir, today
 
 
 PROMPT_DIR = REPO_ROOT / "prompts" / "ai-process"
@@ -138,6 +138,11 @@ def item_from_single_markdown(path: Path, fm: dict, body: str) -> dict:
         "title": title,
         "url": str(fm.get("url") or ""),
         "published_at": str(fm.get("published_at") or fm.get("published") or ""),
+        "platform": str(fm.get("platform") or ""),
+        "category": str(fm.get("category") or ""),
+        "channel": str(fm.get("channel") or ""),
+        "profile_name": str(fm.get("profile_name") or ""),
+        "duration": str(fm.get("duration") or ""),
         "content_type": str(fm.get("content_type") or fm.get("platform") or fm.get("category") or "markdown"),
         "file": str(path),
         "content": body.strip(),
@@ -164,6 +169,11 @@ def collect_processed_items(batch_dir: Path | None = None) -> list[dict]:
                         "title": item.get("title") or path.stem,
                         "url": item.get("url") or "",
                         "published_at": item.get("published") or fm.get("published_at") or "",
+                        "platform": str(fm.get("platform") or ""),
+                        "category": str(fm.get("category") or ""),
+                        "channel": str(fm.get("channel") or ""),
+                        "profile_name": str(fm.get("profile_name") or ""),
+                        "duration": str(fm.get("duration") or ""),
                         "content_type": fm.get("content_type") or fm.get("platform") or fm.get("category") or "markdown",
                         "file": str(path),
                         "content": item.get("content") or "",
@@ -691,6 +701,142 @@ def selected_urls(events: list[dict], selection: dict, keys: tuple[str, ...]) ->
     return urls
 
 
+def duration_seconds(value: Any, content: str = "") -> int | None:
+    raw = str(value or "").strip()
+    if not raw:
+        match = re.search(r"(?:Duration|时长)[:：]\s*([0-9.]+)\s*(?:seconds?|秒)", content, flags=re.I)
+        raw = match.group(1) if match else ""
+    try:
+        secs = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if secs <= 0:
+        return None
+    return int(round(secs))
+
+
+def format_duration(seconds: int | None) -> str:
+    if not seconds:
+        return "未知"
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def is_youtube_item(item: dict) -> bool:
+    haystack = " ".join(
+        str(item.get(key) or "")
+        for key in ("url", "source", "profile_name", "platform", "category", "content_type")
+    ).lower()
+    return "youtube.com" in haystack or "youtu.be" in haystack or "youtube" in haystack
+
+
+def is_douyin_item(item: dict) -> bool:
+    haystack = " ".join(
+        str(item.get(key) or "")
+        for key in ("url", "source", "profile_name", "platform", "category", "content_type")
+    ).lower()
+    return "douyin.com" in haystack or "douyin" in haystack or str(item.get("platform") or "").lower() == "douyin"
+
+
+def video_description(item: dict, max_chars: int = 260) -> str:
+    content = re.sub(r"<[^>]+>", " ", str(item.get("content") or ""))
+    title = str(item.get("title") or "").strip()
+    if content.strip().lower().startswith("transcript"):
+        return title
+    lines: list[str] = []
+    for raw in content.splitlines():
+        line = raw.strip().strip("# ").strip()
+        if not line or line == title:
+            continue
+        if re.match(r"^(作者|时长|点赞|评论|收藏|分享)[:：]", line):
+            continue
+        if line.startswith("Duration:"):
+            continue
+        lines.append(line)
+    text = re.sub(r"\s+", " ", " ".join(lines)).strip()
+    if text.lower().startswith("transcript"):
+        text = title
+    if not text:
+        text = title
+    if len(text) > max_chars:
+        text = text[: max_chars - 1].rstrip() + "…"
+    return text
+
+
+def video_display_name(item: dict) -> str:
+    return str(
+        item.get("author")
+        or item.get("profile_name")
+        or item.get("source")
+        or item.get("channel")
+        or "Unknown"
+    ).strip()
+
+
+def video_updates(items: list[dict]) -> list[dict]:
+    rows: list[dict] = []
+    seen: set[str] = set()
+    for item in items:
+        url = str(item.get("url") or "").strip()
+        if not url or url in seen:
+            continue
+        kind = "youtube" if is_youtube_item(item) else "douyin" if is_douyin_item(item) else ""
+        if not kind:
+            continue
+        secs = duration_seconds(item.get("duration"), str(item.get("content") or ""))
+        if kind == "youtube" and is_youtube_short(url, secs):
+            continue
+        seen.add(url)
+        rows.append(
+            {
+                "kind": kind,
+                "name": video_display_name(item),
+                "title": str(item.get("title") or "Untitled").strip(),
+                "url": url,
+                "description": video_description(item),
+                "duration": format_duration(secs),
+            }
+        )
+    return rows
+
+
+def render_video_updates_section(items: list[dict]) -> tuple[str, list[str]]:
+    rows = video_updates(items)
+    if not rows:
+        return "", []
+    labels = (("youtube", "YouTube"), ("douyin", "抖音"))
+    lines = ["## 视频更新", ""]
+    urls: list[str] = []
+    for kind, heading in labels:
+        group = [row for row in rows if row["kind"] == kind]
+        if not group:
+            continue
+        lines.extend([f"### {heading}", ""])
+        for row in group:
+            title = markdown_link_text(row["title"])
+            lines.append(f"- **{row['name']}** | [{title}]({row['url']})")
+            lines.append(f"  {row['description']}")
+            lines.append(f"  时长：{row['duration']}")
+            lines.append("")
+            urls.append(row["url"])
+    return "\n".join(lines).strip(), urls
+
+
+def append_video_updates_to_deep(markdown: str, items: list[dict], date: str) -> tuple[str, list[str]]:
+    block, urls = render_video_updates_section(items)
+    if not block:
+        return markdown, []
+    text = clean_markdown(markdown)
+    if not text:
+        text = f"# Daily Inbox 深读 — {date}\n\n## 深读\n\n*(今日没有 AI 选择出的深读文章。)*"
+    if "## 深读" not in text:
+        text = text.rstrip() + "\n\n## 深读\n\n*(今日没有 AI 选择出的深读文章。)*"
+    return f"{text.rstrip()}\n\n{block}", urls
+
+
 def event_display_source(event: dict) -> tuple[str, str, str, str]:
     sources = event.get("sources") or []
     first = sources[0] if sources and isinstance(sources[0], dict) else {}
@@ -860,13 +1006,20 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
         except Exception as exc:
             write_error(ai_dir, "deep_writing", raw, f"{type(exc).__name__}: {exc}")
             raise
+    video_markdown_urls: list[str] = []
+    deep_markdown, video_markdown_urls = append_video_updates_to_deep(deep_markdown, items, date)
+    if deep_markdown:
+        deep_markdown = validate_deep_markdown(deep_markdown)
         (ai_dir / "05-deep.md").write_text(deep_markdown + "\n", encoding="utf-8")
     else:
-        write_json(ai_dir / "05-deep-empty.json", {"date": date, "reason": "no deep_candidates"})
+        write_json(ai_dir / "05-deep-empty.json", {"date": date, "reason": "no deep_candidates_or_video_updates"})
 
     processed = [str(item.get("url") or item.get("id") or "") for item in items if str(item.get("url") or item.get("id") or "")]
     push = selected_urls(events, selection, ("brief_universe",))[:10]
     deep_urls = selected_urls(events, selection, ("deep_candidates",))
+    for url in video_markdown_urls:
+        if url not in deep_urls:
+            deep_urls.append(url)
     return AIProcessResult(
         markdown=markdown,
         deep_markdown=deep_markdown,

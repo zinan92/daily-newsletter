@@ -31,7 +31,7 @@ Daily Newsletter 是 umbrella，每天固定组织三个读者产品：
 
 - `000-YY-MM-DD.md/html/png` 是默认**快讯**产品，回答“今天有哪些新信号值得知道”。
 - `deep-YY-MM-DD.md/html/png` 是可选**深读**产品，只在当天有 `deep_candidates` 时生成，回答“哪些内容值得花 10-30 分钟理解”。
-- `product-radar-YY-MM-DD.md/html/png` 是独立**产品雷达**产品，读取 Product Hunt / Hacker News / TrustMRR，回答“今天有哪些产品机会、收入验证和需求痛点值得关注”。
+- `product-radar-YY-MM-DD.md/html/png` 是独立**产品雷达**产品，读取 Product Hunt / Hacker News / TrustMRR，只回答“今天最值得 build 的产品方向是什么，以及证据是什么”；最多给 5 个，少于 5 个时不硬凑。
 - `daily-YY-MM-DD.md/html/png` 是 umbrella index，只链接三份产品并记录健康/降级状态，不重新改写正文。
 
 深读必须是快讯全集的子集，并通过 `parent_brief_event_id` 可追踪。`Source Health` 留在状态页和 run-report，不进入读者正文。
@@ -132,12 +132,14 @@ PARKIO_BATCH_ID=$BATCH python3 stages/archive/run.py
 PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # Stage 5: 写 sent/YY-MM-DD.* 和 optional sent/deep-YY-MM-DD.*
 python3 build-product-radar.py --date "$(date +%F)" # Product Radar：独立产品机会雷达
 python3 build-daily-bundle.py --date "$(date +%F)"  # Daily umbrella：链接快讯/深读/产品雷达
+python3 reader_quality.py --date "$(date +%F)"       # Reader QA：检查最终读者产物
+python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正文并写 delivery receipt
 # Telegram 当前临时关闭：默认生成 processed/ 并写本地 sent/。
 # 恢复 Telegram 后再手动执行：
 # PARKIO_BATCH_ID=$BATCH PARKIO_FORCE_PUSH=1 python3 send-artifacts.py
 ```
 
-日常由 launchd 驱动：`fetch-all.sh` 每小时只抓取 raw/source data 并刷新状态健康；`push-digest.sh` 每天 08:30 依次执行 `to-md -> open-batch -> build-digest -> archive -> finalize -> product-radar -> daily-bundle`，保存到 `processed/` 并写入本地定稿 `sent/YY-MM-DD.{md,html,png}`；如果当天有深读候选，同时写 `sent/deep-YY-MM-DD.{md,html,png}`；产品雷达写 `sent/product-radar-YY-MM-DD.{md,html,png}`；umbrella 写 `sent/daily-YY-MM-DD.{md,html,png}`。WeChat / YouTube 等可恢复登录态异常会进入状态页和 daily bundle 的健康提示，默认不阻塞当天生成；临时恢复旧阻塞行为可设置 `PARKIO_PREFLIGHT_BLOCK=1`。Telegram token 修复前，`push-digest.sh` 默认跳过发送；恢复发送时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
+日常由 launchd 驱动：`fetch-all.sh` 每小时只抓取 raw/source data 并刷新状态健康；`push-digest.sh` 每天 08:30 依次执行 `to-md -> open-batch -> build-digest -> archive -> finalize -> product-radar -> daily-bundle -> reader-qa -> status`，保存到 `processed/` 并写入本地定稿 `sent/YY-MM-DD.{md,html,png}`；如果当天有深读候选，同时写 `sent/deep-YY-MM-DD.{md,html,png}`；产品雷达写 `sent/product-radar-YY-MM-DD.{md,html,png}`；umbrella 写 `sent/daily-YY-MM-DD.{md,html,png}`。WeChat / YouTube 等可恢复登录态异常会进入状态页和 daily bundle 的健康提示，默认不阻塞当天生成；临时恢复旧阻塞行为可设置 `PARKIO_PREFLIGHT_BLOCK=1`。`push-feishu-digest.sh` 在 `push-digest.sh` 后执行 `send-feishu-digest.py`，向飞书发送完整正文并落 delivery receipt。Telegram token 修复前，`push-digest.sh` 默认跳过发送；恢复发送时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
 
 ## Pipeline 阶段
 
@@ -151,10 +153,12 @@ python3 build-daily-bundle.py --date "$(date +%F)"  # Daily umbrella：链接快
 | 运行报告 | `run_report.py` | script | 为同一个 batch 生成 `run-report.json`；日报、status、health alert 共用这一份健康事实 |
 | 归档 | `stages/archive/run.py` | script | 按 `ai/03-selection.json` 归档 `brief_universe` / `deep_candidates`；discard 只保留 decision log |
 | 本地定稿 | `finalize-local.py` | script | 不依赖 Telegram，写 `sent/YY-MM-DD.{md,html,png}` 和 optional `sent/deep-YY-MM-DD.{md,html,png}` |
-| 产品雷达 | `build-product-radar.py` | script | 独立抓取 Product Hunt / HN / TrustMRR，写 `sent/product-radar-YY-MM-DD.{md,html,png}` 和 raw snapshot |
+| 产品雷达 | `build-product-radar.py` | script | 独立抓取 Product Hunt / HN / TrustMRR，输出当天新的 Top N build choices，写 `sent/product-radar-YY-MM-DD.{md,html,png}` 和 raw snapshot |
 | Daily Umbrella | `build-daily-bundle.py` | script | 不重写正文，只链接快讯/深读/产品雷达并记录健康/降级状态 |
+| Reader QA | `reader_quality.py` | script | 检查实际读者 Markdown：禁止 raw transcript、机器 marker、本地路径泄漏、缺失核心 section；失败则停止推送 |
+| 飞书推送 | `send-feishu-digest.py` | script | 发送完整正文，不依赖本地 Markdown 链接；写 `processed/receipts/feishu/*.json` delivery receipt |
 | 推送 | `send-artifacts.py` → `push-telegram.py` | script | 当前默认跳过；恢复后发送 Telegram |
-| 状态 | `generate-status.py` | script | 维护者状态页 `status.html`（抓取/依赖/健康） |
+| 状态 | `generate-status.py` | script | 维护者状态页 `status.html`（抓取/依赖/健康），并同步 `park-ai-intel/public/source-health-live.json` |
 | 渠道健康 | `channel-health.py` | script | 按 fetch 日志真值 + feed 新鲜度，分 DOWN/STALE/QUIET/NEW |
 
 ## 渠道健康与可观测性
@@ -168,7 +172,10 @@ python3 build-daily-bundle.py --date "$(date +%F)"  # Daily umbrella：链接快
   - **NEW**：有新内容入库
   - **FILTERED**（状态页「抓到但过滤」）：抓到了新内容，但 0 条进入当天正文（被 coarse filter 或 AI selection 丢掉）
 - `status.html` 的逐源健康与依赖检查都走 `channel-health` 真值；依赖检查是**功能型**（cookie/登录态按真实抓取结果判定、wewe-rss 检查 feed 新鲜度而非仅可达）。`wewe-auth-monitor.py` 每次 fetch 都会查询 WeWe RSS 的 `account.list`；读书账号失效时写 `~/park-io/_inbox/wewe-auth-alert.json` 和 `wewe-auth-qr.png`，并在 `status.html` 顶部显示扫码恢复入口。
-- `processed/<YY-MM-DD>/run-report.json` 是日报、`status.html`、`health-alerts.md` 的共享事实源：同一个 batch 的抓取数、入选数、过滤数、source 异常、音视频转录失败必须从这里读，不能各自重新计算。
+- `processed/<YY-MM-DD>/run-report.json` 是日报、`status.html`、`health-alerts.md` 的共享事实源：同一个 batch 的 AI 输入、粗筛丢弃、合并事件、快讯/深读/产品雷达数量、source 异常、音视频转录失败、Reader QA、Feishu receipt 必须从这里读，不能各自重新计算。
+- `reader_quality.py` 是最终读者产物 QA，只检查 `sent/` 中实际要被读者看到的 Markdown，不重写正文、不做 fallback；发现 raw transcript、重复 filler、机器 marker 或正文内本地路径会失败。
+- `send-feishu-digest.py` 会把快讯、深读、产品雷达正文 inline 发送到飞书，并在 `processed/receipts/feishu/` 写入发送回执；如果飞书失败，也要落 failed receipt，便于 status/James 复盘。
+- `generate-status.py` 每次刷新 `status.html` 时同步 `park-ai-intel/public/source-health-live.json`，前端可用 `generatedAt` 判断 dashboard 是否 stale。
 - 状态页带**渠道告警条**：哪些渠道挂了 / 冻结 / 音视频转录失败一眼可见；最终 newsletter 正文不展示 RuntimeError、cookie 文件名等内部报错。
 - `status.html` 允许被 hourly fetch 刷新，但必须区分“最新日报 batch”和“当前 unprocessed 下一批”，不能把二者混成同一个“今日待处理”数字。
 
@@ -249,7 +256,7 @@ daily-newsletter/
 └── AGENTS.md                  # 给 AI agent 的编辑规则
 ```
 
-数据目录在 `~/park-io/`：`_inbox/`（raw/unprocessed/processed/sent）、`library/`（长期 intake 归档，item 直接平铺）、`knowledge/`（Wendy 自己的输出资产）、`_inbox/status.html`（维护者面板）。
+数据目录在 `~/park-io/`：`_inbox/`（raw/unprocessed/processed/sent）、`references/`（长期 intake 归档，item 直接平铺）、`workbench/`（Wendy 的内容项目工作区）、`knowledge/`（角色、prompt、playbook、gotchas 等 know-how）、`productions/`（最终内容资产包）、`_inbox/status.html`（维护者面板）。
 
 ## Agent-Claimable Task Graph
 

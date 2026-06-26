@@ -1060,6 +1060,87 @@ def test_selection_prompt_forbids_discard_as_subsection():
     assert "Discard is a top-level array, not a subsection." in selection_prompt
 
 
+def test_video_updates_section_keeps_long_youtube_and_douyin_without_ai_filtering():
+    items = [
+        {
+            "source": "OpenAI YouTube",
+            "title": "Two minute update",
+            "url": "https://www.youtube.com/watch?v=short001",
+            "duration": "120",
+            "content": "A short update.",
+        },
+        {
+            "source": "Anthropic YouTube",
+            "title": "Building reliable agents",
+            "url": "https://www.youtube.com/watch?v=long001",
+            "duration": "620",
+            "content": "A practical talk about production agents.",
+        },
+        {
+            "platform": "douyin",
+            "source": "柱子哥TzFilm",
+            "title": "Claude Code 实战",
+            "url": "https://www.douyin.com/video/1234567890123456789",
+            "duration": "45",
+            "content": "作者：柱子哥TzFilm。\n\nClaude Code 实战案例。\n\n时长：45 秒。\n点赞：1。",
+        },
+    ]
+
+    block, urls = ai_process.render_video_updates_section(items)
+
+    assert "Two minute update" not in block
+    assert "Building reliable agents" in block
+    assert "时长：10:20" in block
+    assert "柱子哥TzFilm" in block
+    assert "Claude Code 实战案例" in block
+    assert "时长：0:45" in block
+    assert urls == [
+        "https://www.youtube.com/watch?v=long001",
+        "https://www.douyin.com/video/1234567890123456789",
+    ]
+
+
+def test_video_updates_never_publish_raw_transcript_as_description():
+    block, _urls = ai_process.render_video_updates_section(
+        [
+            {
+                "source": "Latent Space",
+                "title": "Cooking with OpenAI Research Chief",
+                "url": "https://www.youtube.com/watch?v=long002",
+                "duration": "3600",
+                "content": "Transcript 是的。就是这样。我知道。干杯。干杯。干杯。" * 10,
+            }
+        ]
+    )
+
+    assert "Cooking with OpenAI Research Chief" in block
+    assert "Transcript" not in block
+    assert "干杯。干杯" not in block
+
+
+def test_append_video_updates_creates_deep_markdown_when_only_videos_exist():
+    markdown, urls = ai_process.append_video_updates_to_deep(
+        "",
+        [
+            {
+                "source": "Nate Herk - AI Automation",
+                "title": "AI automation build",
+                "url": "https://www.youtube.com/watch?v=nate001",
+                "duration": "1800",
+                "content": "Workflow tutorial.",
+            }
+        ],
+        "2026-06-24",
+    )
+
+    assert "# Daily Inbox 深读 — 2026-06-24" in markdown
+    assert "## 深读" in markdown
+    assert "## 视频更新" in markdown
+    assert "Nate Herk - AI Automation" in markdown
+    assert urls == ["https://www.youtube.com/watch?v=nate001"]
+    assert ai_process.validate_deep_markdown(markdown) == markdown
+
+
 def test_summarize_main_writes_brief_and_deep_artifact_families():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)

@@ -65,23 +65,41 @@ def title_text(aweme: dict) -> str:
     return text[:90] or str(aweme.get("aweme_id") or "Douyin update")
 
 
+def duration_seconds(aweme: dict) -> int | None:
+    video = aweme.get("video") if isinstance(aweme.get("video"), dict) else {}
+    raw = aweme.get("duration") or video.get("duration") or video.get("video_duration")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0:
+        return None
+    # Douyin API commonly reports video.duration in milliseconds.
+    if value > 10_000:
+        return round(value / 1000)
+    return value
+
+
 def item_from_aweme(aweme: dict) -> dict:
     aweme_id = str(aweme.get("aweme_id") or "")
     stats = aweme.get("statistics") or {}
     desc = aweme.get("desc") or title_text(aweme)
     author = aweme_author(aweme)
+    duration = duration_seconds(aweme)
     detail = [
         f"作者：{author.get('nickname', '') or '未知'}。",
         "",
         desc.strip(),
         "",
+        f"时长：{duration} 秒。" if duration else "",
         f"点赞：{stats.get('digg_count', 0)}；评论：{stats.get('comment_count', 0)}；收藏：{stats.get('collect_count', 0)}；分享：{stats.get('share_count', 0)}。",
     ]
     return {
         "title": title_text(aweme),
         "url": f"https://www.douyin.com/video/{aweme_id}",
         "published": published_date(aweme.get("create_time")),
-        "content": "\n".join(detail).strip(),
+        "duration": duration or "",
+        "content": "\n".join(line for line in detail if line).strip(),
     }
 
 

@@ -11,6 +11,7 @@ def test_push_digest_generates_product_radar_and_daily_bundle():
     text = (ROOT / "push-digest.sh").read_text(encoding="utf-8")
     assert "build-product-radar.py" in text
     assert "build-daily-bundle.py" in text
+    assert "reader_quality.py" in text
     assert "continue with degraded daily bundle" in text
 
 

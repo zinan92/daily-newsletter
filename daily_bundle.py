@@ -91,8 +91,8 @@ def artifact_summary(artifact: Artifact) -> dict[str, object]:
             count = 0
         detail = f"{count} 条深读候选" if exists else "未生成"
     else:
-        count = _line_count(text, r"^- \*\*")
-        detail = f"{count} 条产品/需求/收入信号" if exists else "未生成"
+        count = _line_count(text, r"^###\s+\d+\.")
+        detail = f"{count} 个可 build 产品方向" if exists else "未生成"
     return {
         "key": artifact.key,
         "title": artifact.title,
@@ -147,6 +147,21 @@ def run_report_lines(run_date: str) -> list[str]:
         lines.append(f"来源异常：{len(source_problems)} 个 source 需要关注")
     if media_failures:
         lines.append(f"音视频异常：{len(media_failures)} 条转录/下载异常")
+    reader_quality = health.get("reader_quality") or {}
+    if reader_quality:
+        status = reader_quality.get("status")
+        if status == "pass":
+            lines.append("读者产物 QA：通过")
+        elif status == "warn":
+            lines.append(f"读者产物 QA：{reader_quality.get('warn_count', 0)} 个 warning")
+        elif status == "fail":
+            lines.append(f"读者产物 QA：{reader_quality.get('fail_count', 0)} 个 blocker")
+    feishu = health.get("feishu") or {}
+    if feishu:
+        if feishu.get("status") == "sent":
+            lines.append(f"飞书发送：已发送 {feishu.get('chunks', 0)} 段，{feishu.get('chars', 0)} 字")
+        elif feishu.get("status"):
+            lines.append(f"飞书发送：{feishu.get('status')}")
     return lines
 
 
@@ -177,7 +192,7 @@ def render_markdown(run_date: str, sent_dir: Path = SENT_DIR, extra_warnings: li
     lines.extend(["", "## 产品关系", ""])
     lines.append("- **快讯** 是默认每日信息雷达，覆盖当天所有有用信号。")
     lines.append("- **深读** 是从快讯信号升级出来的文章级理解，不硬凑。")
-    lines.append("- **产品雷达** 独立观察新产品、真实收入和用户痛点，服务“接下来可以做什么”。")
+    lines.append("- **产品雷达** 只回答一个问题：今天最值得 build 的 5 个产品方向是什么。")
 
     radar_quality = product_radar_data_quality(run_date)
     if radar_quality:

@@ -69,11 +69,33 @@ def test_render_markdown_contract_sections():
     ]
     md = product_radar.render_markdown(signals, [{"source": "x", "method": "fixture", "fetched": 1}], "2026-06-18")
     assert md.startswith("# 产品雷达 — 2026-06-18")
-    assert "## 可行动机会" in md
-    assert "## 新产品雷达（Product Hunt）" in md
-    assert "## 真实收入信号（TrustMRR）" in md
-    assert "## 需求与痛点（Hacker News）" in md
+    assert "Products To Build Today" in md
+    assert "### 1." in md
+    assert "- **可以 build 什么**：" in md
+    assert "- **为什么是今天**：" in md
+    assert "- **证据**：" in md
+    assert "- **MVP 切入**：" in md
+    assert "## 可行动机会" not in md
+    assert "## 新产品雷达（Product Hunt）" not in md
+    assert "## 真实收入信号（TrustMRR）" not in md
+    assert "## 需求与痛点（Hacker News）" not in md
     assert "TrustMRR 当前使用公开页面抓取" in md
+
+
+def test_render_markdown_advertises_actual_opportunity_count():
+    signal = product_radar.score_signal(product_radar.Signal(
+        source="Product Hunt",
+        title="AI Sales Coach",
+        url="https://example.com/sales",
+        summary="AI teammate for sales conversations",
+    ))
+
+    md = product_radar.render_markdown([signal], [{"source": "x", "method": "fixture", "fetched": 1}], "2026-06-18")
+
+    opportunity_count = md.count("\n### ")
+    assert f"## Top {opportunity_count} Products To Build Today" in md
+    assert f"今天只有 {opportunity_count} 个足够新的方向" in md
+    assert "## Top 5 Products To Build Today" not in md
 
 
 def test_fetch_product_hunt_uses_official_feed(monkeypatch):
@@ -255,7 +277,7 @@ def test_build_product_radar_renders_only_new_signals_but_snapshots_all(tmp_path
         source="Hacker News",
         title="Fresh Pain",
         url="https://news.ycombinator.com/item?id=200",
-        summary="Fresh user pain",
+        summary="Fresh user pain for AI research monitoring",
         metric="55 points · 20 comments · topstories",
     ))
     monkeypatch.setattr(
@@ -276,3 +298,31 @@ def test_build_product_radar_renders_only_new_signals_but_snapshots_all(tmp_path
     assert "读者版新增信号：1 条；完整抓取快照：2 条；隐藏近期重复：1 条" in markdown
     assert "Old Tool" in raw
     assert "Fresh Pain" in raw
+
+
+def test_product_radar_hides_recently_repeated_opportunity_titles():
+    signal = product_radar.score_signal(product_radar.Signal(
+        source="Product Hunt",
+        title="AI Agent Builder",
+        url="https://example.com/agent-builder",
+        summary="Build AI agents and automate workflows",
+    ))
+    repeated_title = product_radar.opportunity_title("ai_agents")
+
+    markdown = product_radar.render_markdown(
+        [signal],
+        [{"source": "fixture", "method": "mock", "fetched": 1}],
+        "2026-06-26",
+        recent_opportunity_titles={repeated_title},
+    )
+
+    assert repeated_title not in markdown
+    assert "没有必要把同样的 5 个方向换顺序再推一次" in markdown
+    assert "隐藏近期重复产品方向：1 个" in markdown
+
+
+def test_product_radar_tag_matching_does_not_match_inside_words():
+    tags = product_radar.tag_signal("Apple raises prices of MacBooks and iPads")
+
+    assert "growth_sales" not in tags
+    assert "revenue_saas" not in tags

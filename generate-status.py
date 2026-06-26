@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
-from lib import PARKIO, ROOT, load_sources, parkio_secret_path, parse_frontmatter, today
+from lib import PARKIO, PROFILE_LIBRARY_DIR, ROOT, load_sources, parkio_secret_path, parse_frontmatter, today
 import summarize
 from run_report import build_run_report, latest_run_report, media_failures_for_date, write_run_report
 
@@ -20,6 +20,7 @@ WECHAT_URL_RE = re.compile(r"https://mp\.weixin\.qq\.com/s/[A-Za-z0-9_-]+")
 WEWE_AUTH_ALERT = PARKIO / "_inbox" / "wewe-auth-alert.json"
 MANUAL_PUSH_SCRIPT = ROOT / "manual-push.command"
 BLOCKING_DEP_TOKENS = ("WeWe", "公众号", "YouTube")
+LIVE_DASHBOARD_JSON = Path("/Users/wendy/work/park-ai-intel/public/source-health-live.json")
 
 
 def latest_line(path: Path, needle: str) -> str:
@@ -30,6 +31,14 @@ def latest_line(path: Path, needle: str) -> str:
         if needle in line:
             return line
     return ""
+
+
+def write_live_dashboard_payload(payload: dict) -> None:
+    try:
+        LIVE_DASHBOARD_JSON.parent.mkdir(parents=True, exist_ok=True)
+        LIVE_DASHBOARD_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        return
 
 
 def next_wall_clock(hour: int) -> datetime:
@@ -128,7 +137,6 @@ def dependency_checks() -> list[dict]:
     """Functional probes — reflect whether things actually WORK, not just whether a file
     exists. Source-backed deps (cookie/auth/bridge) are judged by recent real fetch
     outcomes via channel-health, so an expired cookie or frozen bridge shows red, not green."""
-    import summarize
     twitter_auth = ROOT / "twitter-auth.env"
     cookie = parkio_secret_path("douyin-cookies.json")
     try:
@@ -379,7 +387,7 @@ def sent_digest_summary(day: str) -> dict:
 
 def library_profile_stats() -> list[dict]:
     pushed = set().union(*pushed_urls_by_day().values()) if pushed_urls_by_day() else set()
-    root = PARKIO / "library"
+    root = PARKIO / "references"
     by_source: dict[str, dict] = {}
     if not root.exists():
         return []
@@ -387,11 +395,11 @@ def library_profile_stats() -> list[dict]:
     article_paths = [
         path
         for path in root.rglob("*.md")
-        if path.is_file() and "profiles" not in path.parts and path.name != "profile.md"
+        if path.is_file() and "_gotchas" not in path.parts and path.name != "profile.md"
     ]
-    # Migration window: keep old profile archives visible if they still exist.
-    article_paths.extend((root / "profiles").glob("*/items/*.md"))
-    article_paths.extend((root / "profiles").glob("*/items/*/article.md"))
+    # Source profile baselines are operational data, not Obsidian references.
+    article_paths.extend(PROFILE_LIBRARY_DIR.glob("*/items/*.md"))
+    article_paths.extend(PROFILE_LIBRARY_DIR.glob("*/items/*/article.md"))
 
     for article in article_paths:
         fm, _body = item_frontmatter(article)
@@ -432,7 +440,7 @@ def library_profile_stats() -> list[dict]:
 def independent_link_count() -> int:
     return sum(
         1
-        for path in (PARKIO / "library").glob("*/*/*.md")
+        for path in (PARKIO / "references").glob("*.md")
         if path.is_file() and "profile_id: x-saved" in path.read_text(encoding="utf-8", errors="replace")[:500]
     )
 
@@ -905,6 +913,17 @@ def render() -> str:
         report_problem_rows.append(
             f"<tr><td>打分服务</td><td>{escape(str(scoring.get('status', '')))}</td><td>{escape(str(scoring.get('message', '')))}</td></tr>"
         )
+    reader_quality = report_health.get("reader_quality") or {}
+    reader_quality_status = str(reader_quality.get("status") or "未运行")
+    for row in reader_quality.get("issues", []) or []:
+        report_problem_rows.append(
+            f"<tr><td>读者 QA / {escape(str(row.get('severity', '')))}</td><td>{escape(str(row.get('artifact', '')))}</td><td>{escape(str(row.get('message', '')))}</td></tr>"
+        )
+    feishu_status = report_health.get("feishu") or {}
+    if feishu_status:
+        report_problem_rows.append(
+            f"<tr><td>飞书发送</td><td>{escape(str(feishu_status.get('status', '')))}</td><td>{escape(str(feishu_status.get('chunks', 0)))} 段 · {escape(str(feishu_status.get('chars', 0)))} 字</td></tr>"
+        )
 
     profile_rows = []
     for row in sorted(profile_stats, key=lambda value: (-value["total"], value["profile"]))[:50]:
@@ -925,10 +944,45 @@ def render() -> str:
     digest_items = int(report_totals.get("items", 0) or 0)
     digest_kept = int(report_totals.get("kept", 0) or 0)
     digest_filtered = int(report_totals.get("filtered", 0) or 0)
+    report_funnel = report_for_header.get("funnel") or {}
+    digest_ai_input = int(report_funnel.get("ai_input_items", 0) or report_totals.get("processed_markdown_files", 0) or 0)
+    digest_events = int(report_totals.get("events", 0) or 0)
+    digest_brief = int(report_totals.get("brief_universe", 0) or 0)
+    digest_deep = int(report_totals.get("deep_candidates", 0) or 0)
+    digest_coarse_rejects = int(report_totals.get("coarse_rejects", 0) or 0)
     mode_note = (
         f"当前页面基于最新日报 batch {digest_label}；下方另列当前 unprocessed 下一批。"
         if active_report.get("mode") != "batch" and digest_report
         else f"当前页面基于正在处理的 batch {active_report.get('batch_label')}。"
+    )
+    write_live_dashboard_payload(
+        {
+            "schema": 2,
+            "generatedAt": datetime.now().isoformat(timespec="seconds"),
+            "sourceHealthDate": date,
+            "batch": {
+                "label": digest_label,
+                "mode": report_for_header.get("mode"),
+                "dir": report_for_header.get("batch_dir"),
+            },
+            "funnel": {
+                "aiInputItems": digest_ai_input,
+                "coarseRejects": digest_coarse_rejects,
+                "events": digest_events,
+                "briefUniverse": digest_brief,
+                "deepCandidates": digest_deep,
+                "filtered": digest_filtered,
+            },
+            "readerQuality": reader_quality,
+            "feishu": feishu_status,
+            "health": {
+                "needsAttention": report_problem_count,
+                "sourceProblems": report_health.get("source_problems") or [],
+                "dependencies": report_health.get("dependencies") or [],
+                "mediaFailures": report_health.get("media_failures") or [],
+            },
+            "sent": {**sent, "path": str(sent.get("path") or "")},
+        }
     )
     page = f"""<!doctype html>
 <html lang="zh-CN">
@@ -1062,11 +1116,13 @@ def render() -> str:
     <section class="hero">
       <div class="hero-summary">
         <h2>{escape(today_verdict)}</h2>
-        <p>最新日报 batch 抓到 {digest_items} 条内容，{digest_kept} 条进入正文，{digest_filtered} 条被过滤；Telegram 推送链接 {pushed_count} 条。{escape(mode_note)}</p>
+        <p>最新日报 batch：AI 输入 {digest_ai_input} 条，粗筛丢弃 {digest_coarse_rejects} 条，合并 {digest_events} 个事件，快讯 {digest_brief} 条，深读 {digest_deep} 条；读者 QA：{escape(reader_quality_status)}；飞书：{escape(str(feishu_status.get('status') or '未发送'))}。{escape(mode_note)}</p>
         <div class="pill-row">
           <span class="pill">下一次推送 {escape(next_push_text())}</span>
           <span class="pill">手动链接待导入 {manual['pending']}</span>
           <span class="pill">需维护 {report_problem_count}</span>
+          <span class="pill">Reader QA {escape(reader_quality_status)}</span>
+          <span class="pill">Feishu {escape(str(feishu_status.get('status') or '未发送'))}</span>
         </div>
       </div>
       {render_donut("今日内容去向", today_parts, max(funnel["total"], 0), "条原始内容")}
@@ -1076,7 +1132,7 @@ def render() -> str:
 
     <section class="grid">
       {render_metric("活跃来源", len(configured), "来源清单中启用的来源")}
-      {render_metric("最新日报 Batch", digest_items, f"进入正文 {digest_kept} · 过滤 {digest_filtered}")}
+      {render_metric("最新日报 Batch", digest_items, f"事件 {digest_events} · 快讯 {digest_brief} · 深读 {digest_deep}")}
       {render_metric("当前待处理（下一批）", funnel["total"], f"进入正文 {funnel['kept']} · 过滤 {funnel['filtered']}")}
       {render_metric("今日已推送", pushed_count, "Telegram 推送链接数")}
       {render_metric("需要维护", report_problem_count, "来自最新日报 batch 的 health report")}
@@ -1116,7 +1172,8 @@ def render() -> str:
         <h3>最近运行日志</h3>
         <p><strong>最近 fetch：</strong>{escape(fetch_done or "unknown")}</p>
         <p><strong>最近 push：</strong>{escape(push_done or "unknown")}</p>
-        <p><strong>质量门：</strong>{escape(quality_line or "push 前执行")}</p>
+        <p><strong>读者 QA：</strong>{escape(reader_quality_status)}</p>
+        <p><strong>飞书：</strong>{escape(str(feishu_status.get('status') or '未发送'))}</p>
       </div>
     </section>
 

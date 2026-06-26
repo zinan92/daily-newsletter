@@ -127,6 +127,15 @@ if [ "$EXIT" -ne 0 ]; then
   exit "$EXIT"
 fi
 
+echo "[$(ts)] >>> reader-quality.py" >> "$LOG"
+python3 "$SCRIPT_DIR/reader_quality.py" --date "$RUN_DATE" >> "$LOG" 2>&1
+EXIT=$?
+if [ "$EXIT" -ne 0 ]; then
+  echo "[$(ts)] !!! reader-quality.py exit=$EXIT" >> "$LOG"
+  echo "[$(ts)] push-digest STOPPED at reader-quality.py" >> "$LOG"
+  exit "$EXIT"
+fi
+
 echo "[$(ts)] >>> generate-status.py" >> "$LOG"
 python3 "$SCRIPT_DIR/generate-status.py" >> "$LOG" 2>&1
 EXIT=$?

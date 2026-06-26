@@ -34,7 +34,7 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 15 | `sent/` keeps the local final artifact family `YY-MM-DD.{md,html,png}` and optional `deep-YY-MM-DD.{md,html,png}` | 🧪🔵 | `finalize-local.py` · `tests/test_finalize_local.py` |
 | 16 | Stable file naming `YY-MM-DD`, no 早/晚/hhmm | ⚪ | convention |
 | 17 | Manual links: single `manual-links.md` (Pending/Imported/Failed) | ⚪ | convention · `fetch-manual-links.py` |
-| 18 | Library: `library/YYYY-MM-DD__platform__author__title__hash.md`; profile/source baselines live under `.system/source-profiles` | ⚪ | convention |
+| 18 | References: `references/YYYY-MM-DD__platform__author__title__hash.md`; profile/source baselines live under `.system/source-profiles` | ⚪ | convention |
 | 19 | Workflow diagram is a closed 5-stage system | 🔵 | `validate-workflow.py`. **Note:** v13 contract = fetch → to_md → coarse_filter → ai_process → archive, with dual product outputs |
 | 20 | Structural AI output failure is the only production gate: invalid JSON or missing required final sections must stop the run and write `ai/error.json` | 🟢🧪 | `aggregation/digest/ai_process.py` · `tests/test_ai_process.py` |
 | 21 | AI endpoint/JSON failure is not silent and never creates a fake successful newsletter | 🟢🔵 | `ai/error.json` + `ai/raw-response.md` |
@@ -74,8 +74,9 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
   curated long articles that can justify 10-30 minutes of reader attention.
 - **#29 Daily Newsletter umbrella contract** — the daily reader routine now
   ships three products: 快讯, 深读, 产品雷达. Product Radar stays outside the
-  快讯/深读 AI selection universe and is linked by `daily-YY-MM-DD.*`; do not
-  merge Product Hunt / HN / TrustMRR rows into the main signal selection.
+  快讯/深读 AI selection universe and is linked by `daily-YY-MM-DD.*`. Product
+  Radar should render one Top 5 build-choices list, not separate Product Hunt /
+  HN / TrustMRR sections; do not merge those rows into the main signal selection.
 - **#30 Recoverable source auth is non-blocking** — WeChat / YouTube cookie or
   QR/login problems must be surfaced in status/run-report/daily bundle, but the
   scheduled daily artifact still generates from available sources by default.
