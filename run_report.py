@@ -97,6 +97,38 @@ def latest_feishu_receipt(date: str) -> dict[str, Any] | None:
     return None
 
 
+def pending_raw_summary(date: str) -> dict[str, Any]:
+    try:
+        from stages.to_md import run as to_md_run
+    except Exception:
+        return {"total": 0, "by_profile": {}, "examples": []}
+    try:
+        existing = to_md_run.existing_normalized_raw_paths(date=date)
+        roots = to_md_run.raw_roots_for_pending(date)
+    except Exception:
+        return {"total": 0, "by_profile": {}, "examples": []}
+    by_profile: Counter[str] = Counter()
+    examples: list[str] = []
+    total = 0
+    for _root_date, root in roots:
+        if not root.exists():
+            continue
+        for path in sorted(p for p in root.rglob("*") if p.is_file()):
+            if path.name.startswith(".") or path.name.endswith(to_md_run.PROCESSED_MARKER_SUFFIX):
+                continue
+            if to_md_run.marker_path(path).exists() or str(path) in existing:
+                continue
+            total += 1
+            try:
+                profile = path.parent.relative_to(root).parts[0]
+            except Exception:
+                profile = path.parent.name or "root"
+            by_profile[profile] += 1
+            if len(examples) < 8:
+                examples.append(str(path))
+    return {"total": total, "by_profile": dict(by_profile), "examples": examples}
+
+
 def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
     """Read the current 5-stage artifacts and expose the real product funnel."""
     root = processed_batch_dir(batch)
@@ -134,6 +166,7 @@ def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
         "product_radar": SENT_DIR / f"product-radar-{label}.md",
     }
     product_directions = _line_count(sent_paths["product_radar"], r"^###\s+\d+\.") if sent_paths["product_radar"].exists() else 0
+    pending_raw = pending_raw_summary(date)
     source_markdown_files = [
         p
         for p in root.rglob("*.md")
@@ -160,6 +193,7 @@ def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
         },
         "reader_quality": reader_quality,
         "feishu": feishu,
+        "pending_raw": pending_raw,
     }
 
 
@@ -348,6 +382,8 @@ def build_run_report(
             "brief_universe": funnel.get("brief_universe", 0),
             "deep_candidates": funnel.get("deep_candidates", 0),
             "discard": funnel.get("discard", 0),
+            "pending_raw": (funnel.get("pending_raw") or {}).get("total", 0),
+            "pending_x_saved_raw": (funnel.get("pending_raw") or {}).get("by_profile", {}).get("x-saved", 0),
         },
         "funnel": funnel,
         "health": {

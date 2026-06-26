@@ -19,7 +19,7 @@ from stages.coarse_filter import run as coarse_run
 
 
 def load_to_md():
-    spec = importlib.util.spec_from_file_location("to_md", ROOT / "to-md.py")
+    spec = importlib.util.spec_from_file_location("to_md", ROOT / "stages" / "to_md" / "run.py")
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -106,6 +106,83 @@ def test_to_md_preserves_summary_only_raw_item_body():
         written = to_md.normalize_raw_day("2026-06-11", raw, out)
         text = written[0].read_text(encoding="utf-8")
         assert "这是一条只有 summary 字段的视频 feed 内容。" in text
+
+
+def test_to_md_pending_mode_processes_late_raw_from_recent_prior_day():
+    to_md = load_to_md()
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        raw_base = root / "raw"
+        unprocessed = root / "unprocessed"
+        processed = root / "processed"
+        late = raw_base / "2026-06-25" / "x-saved"
+        late.mkdir(parents=True)
+        (late / "saved.json").write_text(
+            json.dumps(
+                {
+                    "id": "saved-1",
+                    "source": "我的 X 收藏",
+                    "profile_id": "x-saved",
+                    "title": "收藏的 AI 文章",
+                    "url": "https://x.com/demo/status/1",
+                    "content": "这是稍晚抓到的收藏内容。",
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        old_raw = to_md.RAW_DIR
+        old_unprocessed = to_md.UNPROCESSED_DIR
+        old_processed = to_md.PROCESSED_DIR
+        try:
+            to_md.RAW_DIR = raw_base
+            to_md.UNPROCESSED_DIR = unprocessed
+            to_md.PROCESSED_DIR = processed
+            written = to_md.normalize_raw_day("2026-06-26", pending_only=True)
+        finally:
+            to_md.RAW_DIR = old_raw
+            to_md.UNPROCESSED_DIR = old_unprocessed
+            to_md.PROCESSED_DIR = old_processed
+
+        assert len(written) == 1
+        assert "2026-06-25/items" in str(written[0])
+        assert (late / ("saved.json" + to_md.PROCESSED_MARKER_SUFFIX)).exists()
+
+
+def test_to_md_pending_mode_skips_raw_already_represented_by_frontmatter():
+    to_md = load_to_md()
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        raw_base = root / "raw"
+        unprocessed = root / "unprocessed"
+        processed = root / "processed"
+        raw_file = raw_base / "2026-06-26" / "x-saved" / "saved.json"
+        raw_file.parent.mkdir(parents=True)
+        raw_file.write_text(
+            json.dumps({"id": "saved-1", "title": "Saved", "content": "body"}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        existing = processed / "26-06-26" / "x-saved"
+        existing.mkdir(parents=True)
+        write_item(existing / "saved.md", 1, "Saved", "body", "https://x.com/demo/status/1")
+        text = (existing / "saved.md").read_text(encoding="utf-8")
+        text = text.replace("raw_path: raw.json", f"raw_path: {raw_file}")
+        (existing / "saved.md").write_text(text, encoding="utf-8")
+
+        old_raw = to_md.RAW_DIR
+        old_unprocessed = to_md.UNPROCESSED_DIR
+        old_processed = to_md.PROCESSED_DIR
+        try:
+            to_md.RAW_DIR = raw_base
+            to_md.UNPROCESSED_DIR = unprocessed
+            to_md.PROCESSED_DIR = processed
+            written = to_md.normalize_raw_day("2026-06-26", pending_only=True)
+        finally:
+            to_md.RAW_DIR = old_raw
+            to_md.UNPROCESSED_DIR = old_unprocessed
+            to_md.PROCESSED_DIR = old_processed
+
+        assert written == []
 
 
 def test_media_enrichment_reads_and_writes_one_item_markdown():

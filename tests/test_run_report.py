@@ -129,6 +129,36 @@ def test_report_backfills_five_stage_artifact_funnel(tmp_path):
         run_report.MEDIA_SUMMARIES_PATH = original_media
 
 
+def test_report_surfaces_pending_x_saved_raw(tmp_path):
+    from stages.to_md import run as to_md_run
+
+    original_raw = to_md_run.RAW_DIR
+    original_unprocessed = to_md_run.UNPROCESSED_DIR
+    original_processed = to_md_run.PROCESSED_DIR
+    try:
+        raw = tmp_path / "raw"
+        unprocessed = tmp_path / "unprocessed"
+        processed = tmp_path / "processed"
+        pending = raw / TODAY / "x-saved"
+        pending.mkdir(parents=True)
+        (pending / "saved.json").write_text(
+            json.dumps({"id": "x1", "title": "Saved", "content": "body"}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        to_md_run.RAW_DIR = raw
+        to_md_run.UNPROCESSED_DIR = unprocessed
+        to_md_run.PROCESSED_DIR = processed
+
+        summary = run_report.pending_raw_summary(TODAY)
+
+        assert summary["total"] == 1
+        assert summary["by_profile"]["x-saved"] == 1
+    finally:
+        to_md_run.RAW_DIR = original_raw
+        to_md_run.UNPROCESSED_DIR = original_unprocessed
+        to_md_run.PROCESSED_DIR = original_processed
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):

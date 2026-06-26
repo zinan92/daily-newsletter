@@ -950,6 +950,8 @@ def render() -> str:
     digest_brief = int(report_totals.get("brief_universe", 0) or 0)
     digest_deep = int(report_totals.get("deep_candidates", 0) or 0)
     digest_coarse_rejects = int(report_totals.get("coarse_rejects", 0) or 0)
+    digest_pending_raw = int(report_totals.get("pending_raw", 0) or 0)
+    digest_pending_x_saved_raw = int(report_totals.get("pending_x_saved_raw", 0) or 0)
     mode_note = (
         f"当前页面基于最新日报 batch {digest_label}；下方另列当前 unprocessed 下一批。"
         if active_report.get("mode") != "batch" and digest_report
@@ -972,6 +974,8 @@ def render() -> str:
                 "briefUniverse": digest_brief,
                 "deepCandidates": digest_deep,
                 "filtered": digest_filtered,
+                "pendingRaw": digest_pending_raw,
+                "pendingXSavedRaw": digest_pending_x_saved_raw,
             },
             "readerQuality": reader_quality,
             "feishu": feishu_status,
@@ -1116,13 +1120,14 @@ def render() -> str:
     <section class="hero">
       <div class="hero-summary">
         <h2>{escape(today_verdict)}</h2>
-        <p>最新日报 batch：AI 输入 {digest_ai_input} 条，粗筛丢弃 {digest_coarse_rejects} 条，合并 {digest_events} 个事件，快讯 {digest_brief} 条，深读 {digest_deep} 条；读者 QA：{escape(reader_quality_status)}；飞书：{escape(str(feishu_status.get('status') or '未发送'))}。{escape(mode_note)}</p>
+        <p>最新日报 batch：AI 输入 {digest_ai_input} 条，粗筛丢弃 {digest_coarse_rejects} 条，合并 {digest_events} 个事件，快讯 {digest_brief} 条，深读 {digest_deep} 条；pending raw {digest_pending_raw} 条（X 收藏 {digest_pending_x_saved_raw} 条）；读者 QA：{escape(reader_quality_status)}；飞书：{escape(str(feishu_status.get('status') or '未发送'))}。{escape(mode_note)}</p>
         <div class="pill-row">
           <span class="pill">下一次推送 {escape(next_push_text())}</span>
           <span class="pill">手动链接待导入 {manual['pending']}</span>
           <span class="pill">需维护 {report_problem_count}</span>
           <span class="pill">Reader QA {escape(reader_quality_status)}</span>
           <span class="pill">Feishu {escape(str(feishu_status.get('status') or '未发送'))}</span>
+          <span class="pill">Pending raw {digest_pending_raw} · X 收藏 {digest_pending_x_saved_raw}</span>
         </div>
       </div>
       {render_donut("今日内容去向", today_parts, max(funnel["total"], 0), "条原始内容")}
@@ -1133,6 +1138,7 @@ def render() -> str:
     <section class="grid">
       {render_metric("活跃来源", len(configured), "来源清单中启用的来源")}
       {render_metric("最新日报 Batch", digest_items, f"事件 {digest_events} · 快讯 {digest_brief} · 深读 {digest_deep}")}
+      {render_metric("Pending Raw", digest_pending_raw, f"X 收藏 {digest_pending_x_saved_raw} · 等待下一轮 to_md")}
       {render_metric("当前待处理（下一批）", funnel["total"], f"进入正文 {funnel['kept']} · 过滤 {funnel['filtered']}")}
       {render_metric("今日已推送", pushed_count, "Telegram 推送链接数")}
       {render_metric("需要维护", report_problem_count, "来自最新日报 batch 的 health report")}
