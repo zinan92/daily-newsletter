@@ -236,11 +236,21 @@ def call_json_stage(ai_dir: Path, stage_name: str, prompt_file: str, payload: An
 
 
 def repair_brief_markdown(raw: str, final_payload: dict, expected_item_count: int) -> str:
+    date = str(final_payload.get("date") or "DATE")
     prompt = (
         "The following Daily Inbox brief markdown failed structural validation.\n"
         f"It must contain exactly {expected_item_count} bullet item(s), one bullet per selected event in selection.brief_universe.\n"
-        "Rewrite the entire Markdown. Do not omit selected events. Do not split one event into multiple bullets.\n"
-        "Keep the exact required structure and output only Markdown.\n\n"
+        "Rewrite the entire Markdown from INPUT JSON as the source of truth. The FAILED DRAFT is only diagnostic.\n"
+        "Do not omit selected events. Do not split one event into multiple bullets. Do not add events not in selection.brief_universe.\n"
+        "Output only Markdown. No code block. No explanations.\n\n"
+        "Required structure, exactly:\n"
+        f"# Daily Inbox 快讯 — {date}\n\n"
+        "## 快讯\n\n"
+        "### 底层工具\n\n"
+        "### 工作流\n\n"
+        "### 内容\n\n"
+        "Each selected event must appear exactly once under its selection.subsection.\n"
+        "If a subsection has no items, write: *(今日无内容)*.\n\n"
         "INPUT JSON:\n"
         f"{json_payload(final_payload)}\n\n"
         "FAILED DRAFT:\n"

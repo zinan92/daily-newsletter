@@ -707,6 +707,31 @@ def test_brief_markdown_structural_repair_can_run_multiple_rounds():
     assert "[two](https://example.com/2)" in markdown
 
 
+def test_brief_repair_prompt_regenerates_from_json_source_of_truth():
+    final_payload = {"date": "2026-06-27", "events": [], "selection": {"brief_universe": [{}, {}]}}
+    captured = {}
+    old_llm = ai_process.llm_call
+
+    def fake_llm(prompt, **kwargs):
+        captured["prompt"] = prompt
+        return "# Daily Inbox 快讯 — 2026-06-27\n\n## 快讯\n\n### 底层工具\n\n*(今日无内容)*\n\n### 工作流\n\n*(今日无内容)*\n\n### 内容\n\n*(今日无内容)*\n"
+
+    try:
+        ai_process.llm_call = fake_llm
+        ai_process.repair_brief_markdown("# bad draft", final_payload, expected_item_count=2)
+    finally:
+        ai_process.llm_call = old_llm
+
+    prompt = captured["prompt"]
+    assert "Rewrite the entire Markdown from INPUT JSON as the source of truth" in prompt
+    assert "The FAILED DRAFT is only diagnostic" in prompt
+    assert "# Daily Inbox 快讯 — 2026-06-27" in prompt
+    assert "## 快讯" in prompt
+    assert "### 底层工具" in prompt
+    assert "### 工作流" in prompt
+    assert "### 内容" in prompt
+
+
 def test_event_merge_must_cover_every_item_card():
     with tempfile.TemporaryDirectory() as td:
         ai_dir = Path(td) / "ai"

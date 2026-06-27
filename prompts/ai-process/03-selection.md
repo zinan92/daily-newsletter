@@ -45,6 +45,9 @@ Criteria for discard:
 - Low information, generic commentary, lifestyle chatter, emotional reaction,
   motivational content, relationship/lowbrow topics, pure repost, or anything
   unrelated to AI/tools/workflow/content/distribution/monetization.
+- Operational trivia, jokes, quota-reset chatter, availability complaints, or
+  "I will answer questions" posts must be discarded unless they reveal a real
+  product, pricing, policy, workflow, distribution, or market change.
 
 Score each event from the perspective of AI-native builders, content operators,
 and small teams using AI for tools, workflows, content, distribution, and
