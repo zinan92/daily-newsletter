@@ -33,7 +33,7 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 14 | PNG trims trailing whitespace | 🔵 | `html-to-long-image.trim_bottom_whitespace()` |
 | 15 | `001_daily newsletter/ai/` keeps the local final artifact family `YY-MM-DD.{md,html,png}` and optional `deep-YY-MM-DD.{md,html,png}` | 🧪🔵 | `finalize-local.py` · `tests/test_finalize_local.py` |
 | 16 | Stable file naming `YY-MM-DD`, no 早/晚/hhmm | ⚪ | convention |
-| 17 | Manual links: single `002_个人收藏/_manual-links.md` (Pending/Imported/Failed) | ⚪ | convention · `ingestion/manual_links/run.py` |
+| 17 | Personal collection index: single `002_个人收藏/_manual-links.md` table with date/source/author/title/tags/status/file/source URL; `Pending` remains only as a temporary compatibility inbox | ⚪ | convention · `ingestion/collection_index.py` · `ingestion/manual_links/run.py` |
 | 18 | Personal collection: `002_个人收藏/YYMMDD_SOURCE_title__hash.md`; source codes stay short (`X`, `WX`, `ClaudeBlog`, etc.); profile/source baselines live under `.system/source-profiles` | ⚪ | convention |
 | 19 | Workflow diagram is a closed 5-stage system | 🔵 | `validate-workflow.py`. **Note:** v13 contract = fetch → to_md → coarse_filter → ai_process → archive, with dual product outputs |
 | 20 | Structural AI output failure is the only production gate: invalid JSON or missing required final sections must stop the run and write `ai/error.json` | 🟢🧪 | `aggregation/digest/ai_process.py` · `tests/test_ai_process.py` |

@@ -26,6 +26,12 @@ from lib import (
     today,
     write_source_output,
 )
+from ingestion.collection_index import (
+    default_index_text,
+    ensure_index_file,
+    pending_lines as index_pending_lines,
+    rebuild_collection_index,
+)
 
 MANUAL_LINKS = LIBRARY_DIR / "_manual-links.md"
 URL_RE = re.compile(r"https?://[^\s<>)\]]+")
@@ -41,27 +47,11 @@ def load_fetch_wechat():
 
 
 def default_manual_links_text() -> str:
-    return "\n".join(
-        [
-            "# Manual Links",
-            "",
-            "把你希望进入下一次 Daily Inbox 的单篇链接贴在这里，每行一个。",
-            "系统会自动去重；导入成功后会自动从 Pending 移到 Imported。",
-            "",
-            "## Pending",
-            "",
-            "## Imported",
-            "",
-            "## Failed",
-            "",
-        ]
-    )
+    return default_index_text()
 
 
 def ensure_manual_links_file() -> None:
-    if not MANUAL_LINKS.exists():
-        MANUAL_LINKS.parent.mkdir(parents=True, exist_ok=True)
-        MANUAL_LINKS.write_text(default_manual_links_text(), encoding="utf-8")
+    ensure_index_file()
 
 
 def section_text(text: str, section: str) -> str:
@@ -89,9 +79,7 @@ def clean_url(url: str) -> str:
 
 
 def pending_lines() -> list[str]:
-    ensure_manual_links_file()
-    text = MANUAL_LINKS.read_text(encoding="utf-8")
-    return [line.rstrip() for line in section_text(text, "Pending").splitlines() if line.strip()]
+    return index_pending_lines()
 
 
 def urls_from_pending(lines: list[str], pattern: re.Pattern[str] = WECHAT_URL_RE) -> list[str]:
@@ -148,35 +136,7 @@ def render_manual_links(
     failed_records: list[dict],
     pending: list[str] | None = None,
 ) -> None:
-    pending = pending or []
-    lines = [
-        "# Manual Links",
-        "",
-        "把你希望进入下一次 Daily Inbox 的单篇链接贴在这里，每行一个。",
-        "系统会自动去重；导入成功后会自动从 Pending 移到 Imported。",
-        "",
-        "## Pending",
-        "",
-    ]
-    lines.extend(pending)
-    if pending:
-        lines.append("")
-    lines.extend(["## Imported", ""])
-    for record in imported_records[-200:]:
-        title = str(record.get("title") or "已导入链接").replace("\n", " ").strip()
-        date = record.get("date") or today()
-        profile = record.get("profile") or ""
-        url = record.get("url") or ""
-        suffix = f" · {profile}" if profile else ""
-        lines.append(f"- {date}{suffix} · [{title}]({url})")
-    lines.extend(["", "## Failed", ""])
-    for record in failed_records[-100:]:
-        date = record.get("date") or today()
-        url = record.get("url") or ""
-        error = str(record.get("error") or "unknown error").replace("\n", " ").strip()
-        lines.append(f"- {date} · {url} · {error}")
-    lines.append("")
-    MANUAL_LINKS.write_text("\n".join(lines), encoding="utf-8")
+    rebuild_collection_index(pending=pending or [], failed=failed_records[-100:])
 
 
 def source_for_article(account: str, user_name: str, url: str, sources: list[dict]) -> dict:
