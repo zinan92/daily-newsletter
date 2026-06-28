@@ -16,7 +16,7 @@ def load_reader_quality():
 def write_artifacts(sent: Path, label: str = "26-06-25") -> None:
     sent.mkdir(parents=True, exist_ok=True)
     (sent / f"daily-{label}.md").write_text(
-        "# Daily Newsletter\n\n## 今日包\n\n[快讯](</Users/wendy/park-io/_inbox/sent/26-06-25.md>)\n\n## Source Health\n\n- OK\n",
+        "# Daily Newsletter\n\n## 今日包\n\n[快讯](</Users/wendy/park-io/001_daily newsletter/ai/26-06-25.md>)\n\n## Source Health\n\n- OK\n",
         encoding="utf-8",
     )
     (sent / f"{label}.md").write_text(

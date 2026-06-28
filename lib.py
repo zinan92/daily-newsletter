@@ -14,7 +14,7 @@ from typing import Tuple
 
 ROOT = Path(__file__).resolve().parent
 PARKIO = Path.home() / "park-io"
-SOURCE_MANAGEMENT_DIR = PARKIO / "_source management- james"
+SOURCE_MANAGEMENT_DIR = PARKIO / "_source management"
 SOURCES_PATH = SOURCE_MANAGEMENT_DIR / "sources.md"
 TRACKING_LIST = SOURCES_PATH
 STATE_PATH = ROOT / "state.json"
@@ -24,9 +24,9 @@ INBOX = PARKIO / "_inbox"
 RAW_DIR = INBOX / "raw"
 UNPROCESSED_DIR = INBOX / "unprocessed"
 PROCESSED_DIR = INBOX / "processed"
-SENT_DIR = INBOX / "sent"
-LIBRARY_DIR = PARKIO / "references"
-KNOWLEDGE_DIR = PARKIO / "knowledge"
+SENT_DIR = PARKIO / "001_daily newsletter" / "ai"
+LIBRARY_DIR = PARKIO / "002_个人收藏"
+KNOWLEDGE_DIR = PARKIO / "000_ai使用守则"
 PROFILE_LIBRARY_DIR = PARKIO / ".system" / "source-profiles"
 
 # -----------------------------------------------------------------------------
@@ -144,11 +144,8 @@ def reset_usage() -> None:
 
 
 def parkio_secret_path(secret_filename: str) -> Path:
-    """Prefer the underscore ops folder, while tolerating the legacy location."""
-    primary = PARKIO / "_secrets" / secret_filename
-    if primary.exists():
-        return primary
-    return PARKIO / "secrets" / secret_filename
+    """Local credentials live only in the underscore ops folder."""
+    return PARKIO / "_secrets" / secret_filename
 
 
 def _load_secret(env_name: str, secret_filename: str) -> str:
@@ -572,6 +569,132 @@ def item_slug(item: dict, max_len: int = 72) -> str:
 def item_identity(item: dict) -> str:
     value = str(item.get("url") or item.get("id") or item.get("title") or item.get("content") or "")
     return hashlib.sha1(value.encode("utf-8")).hexdigest()[:10]
+
+
+def compact_collection_date(value: str | None = None) -> str:
+    """Return YYMMDD for personal-collection filenames."""
+    raw = str(value or today()).strip()
+    match = re.search(r"(\d{4})[-/](\d{2})[-/](\d{2})", raw)
+    if match:
+        yyyy, mm, dd = match.groups()
+        return f"{yyyy[2:]}{mm}{dd}"
+    match = re.match(r"^(\d{2})-(\d{2})-(\d{2})", raw)
+    if match:
+        yy, mm, dd = match.groups()
+        return f"{yy}{mm}{dd}"
+    match = re.match(r"^(\d{8})", raw)
+    if match:
+        digits = match.group(1)
+        return digits[2:]
+    match = re.match(r"^(\d{6})", raw)
+    if match:
+        return match.group(1)
+    return compact_collection_date(today())
+
+
+def clean_collection_title(title: str) -> str:
+    """Remove ingestion labels that do not belong in collection filenames."""
+    text = re.sub(r"\s+", " ", str(title or "").strip())
+    text = re.sub(r"^#+\s*", "", text)
+    text = re.sub(r"链接[:：]\s*\S+", "", text, flags=re.I)
+    text = re.sub(r"https?://\S+", "", text)
+    text = re.sub(r"\s*公开互动[:：]?.*$", "", text, flags=re.I)
+    text = re.sub(r"\s*这是你主动收藏的内容.*$", "", text)
+    prefixes = (
+        "文章标题",
+        "手动公众号文章",
+        "独立链接",
+        "我的 X 收藏",
+        "我的-x-收藏",
+        "我的x收藏",
+    )
+    changed = True
+    while changed:
+        changed = False
+        for prefix in prefixes:
+            pattern = rf"^{re.escape(prefix)}\s*[:：\-_—｜|]*\s*"
+            cleaned = re.sub(pattern, "", text, flags=re.I).strip()
+            if cleaned != text:
+                text = cleaned
+                changed = True
+    text = re.sub(r"(?:链接|link)\s*$", "", text, flags=re.I)
+    return text.strip(" -_—｜|:：") or "untitled"
+
+
+def _collection_source_token(value: str) -> str:
+    token = re.sub(r"\s+", "", str(value or "").strip())
+    token = re.sub(r"[^\w\-\u4e00-\u9fff]+", "", token, flags=re.UNICODE)
+    return token[:24] or "Web"
+
+
+def collection_source_code(source: dict | None = None, item: dict | None = None, url: str = "") -> str:
+    """Short human-readable source code for 002_个人收藏 filenames."""
+    source = source or {}
+    item = item or {}
+    values = [
+        source.get("platform"),
+        source.get("category"),
+        source.get("name"),
+        source.get("profile_id"),
+        source.get("profile_name"),
+        source.get("url"),
+        item.get("source"),
+        item.get("meta"),
+        item.get("url"),
+        url,
+    ]
+    fields = " ".join(str(v or "") for v in values).lower()
+    link = str(url or item.get("url") or source.get("url") or "").lower()
+    name = str(source.get("name") or item.get("source") or source.get("profile_name") or "").strip()
+    platform = str(source.get("platform") or "").strip().lower()
+
+    if (
+        platform in {"twitter", "x"}
+        or "x-saved" in fields
+        or "我的 x 收藏" in fields
+        or "我的-x-收藏" in fields
+        or "x.com/" in link
+        or "twitter.com/" in link
+    ):
+        return "X"
+    if platform in {"wechat", "wechat-rss"} or "mp.weixin.qq.com" in link or "公众号" in fields:
+        return "WX"
+    if platform == "douyin" or "douyin.com" in link:
+        return "Douyin"
+    if "claude blog" in fields:
+        return "ClaudeBlog"
+    if "anthropic.com" in link or "anthropic" in fields:
+        return "Anthropic"
+    if "openai.com" in link or "openai" in fields:
+        return "OpenAI"
+    if "youtube.com" in link or "youtu.be" in link or platform == "youtube":
+        return "YouTube"
+    if "github.com" in link or platform == "github":
+        return "GitHub"
+    if platform == "scrape" and name:
+        return _collection_source_token(name)
+    if platform and platform not in {"web", "scrape"}:
+        return _collection_source_token(platform)
+    if name:
+        return _collection_source_token(name)
+    return "Web"
+
+
+def collection_item_filename(
+    collected_date: str,
+    source_code: str,
+    title: str,
+    suffix: str = "",
+    *,
+    max_title_len: int = 96,
+) -> str:
+    date_part = compact_collection_date(collected_date)
+    source_part = _collection_source_token(source_code)
+    title_part = safe_filename(clean_collection_title(title))[:max_title_len].strip("-") or "untitled"
+    clean_suffix = re.sub(r"[^a-fA-F0-9]+", "", str(suffix or ""))[:16]
+    if clean_suffix:
+        return f"{date_part}_{source_part}_{title_part}__{clean_suffix}.md"
+    return f"{date_part}_{source_part}_{title_part}.md"
 
 
 def item_filename(source: dict, item: dict) -> str:

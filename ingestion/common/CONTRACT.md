@@ -6,7 +6,7 @@ This folder is not a source channel. It provides reusable contracts and helpers 
 
 ## Owns
 
-- Loading source configuration from `~/park-io/_source management- james/sources.md`.
+- Loading source configuration from `~/park-io/_source management/sources.md`.
 - Building standard ingestion artifacts.
 - Writing channel artifacts to deterministic paths.
 - URL normalization and identity helpers.

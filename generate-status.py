@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
-from lib import PARKIO, PROFILE_LIBRARY_DIR, ROOT, load_sources, parkio_secret_path, parse_frontmatter, today
+from lib import PARKIO, PROFILE_LIBRARY_DIR, ROOT, SENT_DIR, load_sources, parkio_secret_path, parse_frontmatter, today
 import summarize
 from run_report import build_run_report, latest_run_report, media_failures_for_date, write_run_report
 
@@ -349,8 +349,7 @@ def item_frontmatter(path: Path) -> tuple[dict, str]:
 
 def pushed_urls_by_day() -> dict[str, set[str]]:
     out: dict[str, set[str]] = {}
-    sent_dir = PARKIO / "_inbox" / "sent"
-    for path in sorted(sent_dir.glob("*.md")):
+    for path in sorted(SENT_DIR.glob("*.md")):
         text = path.read_text(encoding="utf-8", errors="replace")
         match = PUSH_RE.search(text)
         urls: set[str] = set()
@@ -365,7 +364,7 @@ def pushed_urls_by_day() -> dict[str, set[str]]:
 
 def sent_digest_summary(day: str) -> dict:
     short_day = day[2:]
-    path = PARKIO / "_inbox" / "sent" / f"{short_day}.md"
+    path = SENT_DIR / f"{short_day}.md"
     if not path.exists():
         return {"path": path, "exists": False, "pushed": 0, "sections": []}
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -387,7 +386,7 @@ def sent_digest_summary(day: str) -> dict:
 
 def library_profile_stats() -> list[dict]:
     pushed = set().union(*pushed_urls_by_day().values()) if pushed_urls_by_day() else set()
-    root = PARKIO / "references"
+    root = PARKIO / "002_个人收藏"
     by_source: dict[str, dict] = {}
     if not root.exists():
         return []
@@ -440,7 +439,7 @@ def library_profile_stats() -> list[dict]:
 def independent_link_count() -> int:
     return sum(
         1
-        for path in (PARKIO / "references").glob("*.md")
+        for path in (PARKIO / "002_个人收藏").glob("*.md")
         if path.is_file() and "profile_id: x-saved" in path.read_text(encoding="utf-8", errors="replace")[:500]
     )
 
@@ -499,7 +498,7 @@ def empty_intake_buckets() -> dict[str, dict]:
         "manual": new_bucket(
             "手动添加",
             "+",
-            "你主动收藏、点赞或贴到 manual-links 的内容；默认进入正文或资料库。",
+            "你主动收藏、点赞或贴到 manual-links 的内容；默认进入正文或个人收藏。",
             [("manual_link", "手动链接", "+"), ("x_saved", "X 收藏", "X"), ("other", "其他手动内容", "其")],
         ),
     }

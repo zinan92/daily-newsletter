@@ -26,7 +26,7 @@
       "name": "Fetch RSS And YouTube Feeds",
       "type": "command",
       "command": "python3 fetch-rss.py",
-      "inputs": ["fetch_window", "~/park-io/_source management- james/sources.md"],
+      "inputs": ["fetch_window", "~/park-io/_source management/sources.md"],
       "outputs": ["channel_artifact", "media_candidate_artifact"]
     },
     {
@@ -34,7 +34,7 @@
       "name": "Fetch X Timeline",
       "type": "command",
       "command": "python3 fetch-twitter.py",
-      "inputs": ["fetch_window", "~/park-io/_source management- james/sources.md"],
+      "inputs": ["fetch_window", "~/park-io/_source management/sources.md"],
       "outputs": ["channel_artifact"]
     },
     {
@@ -50,7 +50,7 @@
       "name": "Fetch Official Web Scrape",
       "type": "command",
       "command": "python3 fetch-scrape.py",
-      "inputs": ["fetch_window", "~/park-io/_source management- james/sources.md"],
+      "inputs": ["fetch_window", "~/park-io/_source management/sources.md"],
       "outputs": ["channel_artifact"]
     },
     {
@@ -58,7 +58,7 @@
       "name": "Fetch Seeded WeChat Articles",
       "type": "command",
       "command": "python3 fetch-wechat.py",
-      "inputs": ["fetch_window", "~/park-io/_source management- james/sources.md"],
+      "inputs": ["fetch_window", "~/park-io/_source management/sources.md"],
       "outputs": ["channel_artifact"]
     },
     {
@@ -66,7 +66,7 @@
       "name": "Fetch WeChat RSS",
       "type": "command",
       "command": "python3 fetch-wechat-rss.py",
-      "inputs": ["fetch_window", "~/park-io/_source management- james/sources.md", "wewe-rss"],
+      "inputs": ["fetch_window", "~/park-io/_source management/sources.md", "wewe-rss"],
       "outputs": ["channel_artifact"]
     },
     {
@@ -82,7 +82,7 @@
       "name": "Fetch Douyin Profiles",
       "type": "command",
       "command": "python3 fetch-douyin.py",
-      "inputs": ["fetch_window", "~/park-io/_source management- james/sources.md", "douyin cookies"],
+      "inputs": ["fetch_window", "~/park-io/_source management/sources.md", "douyin cookies"],
       "outputs": ["media_candidate_artifact", "channel_artifact"]
     },
     {
@@ -163,7 +163,7 @@
       "type": "artifact",
       "command": "PARKIO_BATCH_ID=${PARKIO_BATCH_ID} python3 finalize-local.py",
       "inputs": ["quality_pass", "markdown", "html", "png"],
-      "outputs": ["~/park-io/_inbox/sent/<date>.md", "~/park-io/_inbox/sent/<date>.html", "~/park-io/_inbox/sent/<date>.png"]
+      "outputs": ["~/park-io/001_daily newsletter/ai/<date>.md", "~/park-io/001_daily newsletter/ai/<date>.html", "~/park-io/001_daily newsletter/ai/<date>.png"]
     },
     {
       "id": "status_after_digest",

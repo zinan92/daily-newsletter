@@ -31,10 +31,10 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 12 | Empty sections hidden on consumer page | 🔵 | `render_html_*_card()` return "" on empty |
 | 13 | Markdown is the single content source for HTML / PNG | 🔵 | `ai_process.run_ai_process()` returns Markdown; `render_html_from_markdown()` derives HTML; PNG from HTML |
 | 14 | PNG trims trailing whitespace | 🔵 | `html-to-long-image.trim_bottom_whitespace()` |
-| 15 | `sent/` keeps the local final artifact family `YY-MM-DD.{md,html,png}` and optional `deep-YY-MM-DD.{md,html,png}` | 🧪🔵 | `finalize-local.py` · `tests/test_finalize_local.py` |
+| 15 | `001_daily newsletter/ai/` keeps the local final artifact family `YY-MM-DD.{md,html,png}` and optional `deep-YY-MM-DD.{md,html,png}` | 🧪🔵 | `finalize-local.py` · `tests/test_finalize_local.py` |
 | 16 | Stable file naming `YY-MM-DD`, no 早/晚/hhmm | ⚪ | convention |
-| 17 | Manual links: single `manual-links.md` (Pending/Imported/Failed) | ⚪ | convention · `fetch-manual-links.py` |
-| 18 | References: `references/YYYY-MM-DD__platform__author__title__hash.md`; profile/source baselines live under `.system/source-profiles` | ⚪ | convention |
+| 17 | Manual links: single `002_个人收藏/_manual-links.md` (Pending/Imported/Failed) | ⚪ | convention · `ingestion/manual_links/run.py` |
+| 18 | Personal collection: `002_个人收藏/YYMMDD_SOURCE_title__hash.md`; source codes stay short (`X`, `WX`, `ClaudeBlog`, etc.); profile/source baselines live under `.system/source-profiles` | ⚪ | convention |
 | 19 | Workflow diagram is a closed 5-stage system | 🔵 | `validate-workflow.py`. **Note:** v13 contract = fetch → to_md → coarse_filter → ai_process → archive, with dual product outputs |
 | 20 | Structural AI output failure is the only production gate: invalid JSON or missing required final sections must stop the run and write `ai/error.json` | 🟢🧪 | `aggregation/digest/ai_process.py` · `tests/test_ai_process.py` |
 | 21 | AI endpoint/JSON failure is not silent and never creates a fake successful newsletter | 🟢🔵 | `ai/error.json` + `ai/raw-response.md` |
@@ -47,7 +47,7 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 28 | Reader surface has default 快讯 plus optional 深读; deep_candidates must be a traceable subset of brief_universe and preserve article-level substance | 🟢🧪 | `prompts/ai-process/03-selection.md` · `prompts/ai-process/05-deep-writing.md` · `validate_selection_references()` |
 | 29 | Daily Newsletter umbrella ships three products: 快讯, 深读, 产品雷达; `daily-YY-MM-DD.*` links them without rewriting their bodies | 🧪🔵 | `build-daily-bundle.py` · `daily_bundle.py` · `tests/test_daily_bundle.py` |
 | 30 | Recoverable source auth is non-blocking by default; WeChat / YouTube problems are health warnings, not reasons to skip daily artifact generation | 🧪🔵 | `push-digest.sh` · `tests/test_daily_routine_contract.py` |
-| 31 | Unprocessed raw is not the library boundary: obvious low-value social noise is rejected before `processed/`; selected AI brief_universe/deep_candidates items archive, discard does not | 🧪🔵 | `processing_filter.py` · `open-batch.py` · `aggregation/digest/archive.py` |
+| 31 | Unprocessed raw and AI selection are not the personal-collection boundary: only explicit saves/manual links/X saved enter `002_个人收藏`; normal daily candidates stay in daily artifacts or `.system/source-profiles` | 🧪🔵 | `stages/archive/run.py` · `ingestion/manual_links/run.py` |
 | 32 | The five pipeline stages have physical folders; root scripts are compatibility wrappers only | 🧪🔵 | `stages/*/run.py` · `tests/test_ai_process.py` |
 
 ---

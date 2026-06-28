@@ -14,11 +14,11 @@ from datetime import datetime
 from pathlib import Path
 import re
 
+from lib import PROCESSED_DIR, SENT_DIR
 
 PARKIO = Path.home() / "park-io"
 DEFAULT_CONFIG = PARKIO / ".system" / "content-ops" / "secrets" / "feishu-digest.env"
-SENT_DIR = PARKIO / "_inbox" / "sent"
-RECEIPT_DIR = PARKIO / "_inbox" / "processed" / "receipts" / "feishu"
+RECEIPT_DIR = PROCESSED_DIR / "receipts" / "feishu"
 MAX_TEXT_CHARS = 3500
 MACHINE_COMMENT_RE = re.compile(r"\n?<!--\s*parkio-[\s\S]*?-->", re.M)
 LOCAL_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(<(/Users/[^>]+)>\)")

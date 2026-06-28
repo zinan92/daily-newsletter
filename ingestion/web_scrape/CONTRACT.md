@@ -8,7 +8,7 @@ Web scrape ingestion owns official web pages that are not reliable generic feeds
 
 ## Inputs
 
-- Active scrape source rows from `~/park-io/_source management- james/sources.md`.
+- Active scrape source rows from `~/park-io/_source management/sources.md`.
 - Site-specific sitemap or article listing pages.
 
 ## Outputs

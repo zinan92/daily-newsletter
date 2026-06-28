@@ -39,7 +39,7 @@ Digest aggregation owns the final reader-facing product.
 - Final Markdown digest.
 - HTML derived from Markdown.
 - PNG derived from HTML.
-- Local sent artifact family under `~/park-io/_inbox/sent/`.
+- Local sent artifact family under `~/park-io/001_daily newsletter/ai/`.
 
 ## Boundary
 

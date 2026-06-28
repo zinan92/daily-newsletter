@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import PARKIO, ROOT, batch_artifact_paths, today
+from lib import PARKIO, ROOT, SENT_DIR, batch_artifact_paths, today
 
 PUSH_RE = re.compile(r"<!-- parkio-push-items:(.*?) -->", re.S)
 PROCESSED_RE = re.compile(r"<!-- parkio-processed-items:(.*?) -->", re.S)
@@ -352,7 +352,7 @@ def main() -> int:
     elif os.environ.get("PARKIO_BATCH_ID") or os.environ.get("PARKIO_BATCH_DIR"):
         md, html, _ = batch_artifact_paths()
     else:
-        sent = PARKIO / "_inbox" / "sent"
+        sent = SENT_DIR
         short_date = date[2:]
         candidates = sorted(
             [*sent.glob(f"{short_date}.md"), *sent.glob(f"{short_date}-*.md"), *sent.glob(f"{date}.md"), *sent.glob(f"{date}-*.md")],

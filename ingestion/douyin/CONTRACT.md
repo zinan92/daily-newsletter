@@ -12,7 +12,7 @@ Douyin ingestion owns Douyin source discovery, delivery-state rules, and raw vid
 
 ## Inputs
 
-- Active `platform=douyin` source rows from `~/park-io/_source management- james/sources.md`.
+- Active `platform=douyin` source rows from `~/park-io/_source management/sources.md`.
 - `content-toolkit` runtime dependency outside this repo.
 
 ## Outputs

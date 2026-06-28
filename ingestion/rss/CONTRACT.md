@@ -8,7 +8,7 @@ RSS ingestion owns generic RSS/Atom sources that behave like ordinary article fe
 
 ## Inputs
 
-- Active `platform=rss` source rows from `~/park-io/_source management- james/sources.md`.
+- Active `platform=rss` source rows from `~/park-io/_source management/sources.md`.
 - Feed URLs for official blogs, podcasts, YouTube feeds, and other RSS-compatible sources.
 
 ## Outputs

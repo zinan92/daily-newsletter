@@ -16,11 +16,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import PARKIO, PROCESSED_DIR, parse_frontmatter, render_frontmatter, safe_filename, today
+from lib import PROCESSED_DIR, RAW_DIR, UNPROCESSED_DIR, parse_frontmatter, render_frontmatter, safe_filename, today
 
 
-RAW_DIR = PARKIO / "_inbox" / "raw"
-UNPROCESSED_DIR = PARKIO / "_inbox" / "unprocessed"
 PROCESSED_MARKER_SUFFIX = ".to-md.json"
 DEFAULT_LOOKBACK_DAYS = 1
 

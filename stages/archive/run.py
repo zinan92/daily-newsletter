@@ -17,15 +17,15 @@ from lib import (
     PROCESSED_DIR,
     batch_label,
     channel_for_source,
+    collection_item_filename,
+    collection_source_code,
     item_identity,
-    item_slug,
     load_sources,
     log,
     parse_frontmatter,
     parse_md_items,
     processed_batch_dir,
     render_frontmatter,
-    safe_filename,
     today,
 )
 
@@ -88,12 +88,43 @@ def library_date_dir(collected_date: str) -> Path:
 
 
 def library_item_filename(collected_date: str, source: dict, item: dict) -> str:
-    platform = safe_filename(channel_for_source(source))
-    author = safe_filename(str(source.get("name") or source.get("profile_name") or "unknown"))
-    title = item_slug(item, max_len=96)
-    stem = f"{collected_date}__{platform}__{author}__{title}"
-    suffix = item_identity(item)
-    return f"{stem}__{suffix}.md"
+    source_code = collection_source_code(source, item)
+    title = str(item.get("title") or item.get("text") or item.get("content") or item.get("url") or "item")
+    return collection_item_filename(collected_date, source_code, title, item_identity(item))
+
+
+def is_explicit_collection_item(source_name: str, source: dict, fm: dict, item: dict) -> bool:
+    """Only user-explicit saves belong in 002_个人收藏.
+
+    Normal AI daily candidates are useful for that day's brief, but they are not
+    durable collection items unless Wendy explicitly saved or pasted them.
+    """
+    fields = " ".join(
+        str(value or "")
+        for value in (
+            source_name,
+            source.get("name"),
+            source.get("profile_id"),
+            source.get("platform"),
+            fm.get("source_name"),
+            fm.get("profile_id"),
+            fm.get("origin"),
+            item.get("source"),
+            item.get("meta"),
+        )
+    ).lower()
+    explicit_tokens = (
+        "manual",
+        "manual-links",
+        "手动",
+        "独立链接",
+        "x-saved",
+        "我的 x 收藏",
+        "我的-x-收藏",
+        "bookmark",
+        "bookmarks",
+    )
+    return any(token in fields for token in explicit_tokens)
 
 
 def selected_urls_from_ai(root: Path) -> set[str] | None:
@@ -154,8 +185,6 @@ def archive_item(path: Path, batch: str, sources: dict[str, dict], selected_urls
     items_dir = library_date_dir(collected_date)
     archived = 0
     for item in markdown_items_for_archive(path, fm, body):
-        if selected_urls is not None and item.get("url", "") not in selected_urls:
-            continue
         source_name = item.get("source") or fm.get("source_name", profile_name)
         source = {
             **sources.get(source_name, {}),
@@ -165,6 +194,8 @@ def archive_item(path: Path, batch: str, sources: dict[str, dict], selected_urls
             "category": sources.get(source_name, {}).get("category") or fm.get("category", ""),
             "url": sources.get(source_name, {}).get("url") or item.get("url", ""),
         }
+        if not is_explicit_collection_item(source_name, source, fm, item):
+            continue
         item_fm = {
             "id": item.get("url", "") or item.get("title", ""),
             "profile_id": profile_id,

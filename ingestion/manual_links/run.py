@@ -16,17 +16,18 @@ if str(REPO_ROOT) not in sys.path:
 from lib import (
     LIBRARY_DIR,
     PARKIO,
+    collection_item_filename,
+    collection_source_code,
     load_sources,
     load_state,
     log,
     profile_id_for_source,
-    safe_filename,
     save_state,
     today,
     write_source_output,
 )
 
-MANUAL_LINKS = PARKIO / "_inbox" / "manual-links.md"
+MANUAL_LINKS = LIBRARY_DIR / "_manual-links.md"
 URL_RE = re.compile(r"https?://[^\s<>)\]]+")
 WECHAT_URL_RE = re.compile(r"https://mp\.weixin\.qq\.com/s/[A-Za-z0-9_-]+")
 SECTIONS = ("Pending", "Imported", "Failed")
@@ -205,16 +206,21 @@ def source_for_article(account: str, user_name: str, url: str, sources: list[dic
 
 def save_independent_article(item: dict, html: str, account: str) -> str:
     date = today()
-    title = safe_filename(item.get("title", "wechat-article"))[:96]
-    author = safe_filename(account or "manual-wechat")
     url = str(item.get("url", ""))
     identity = hashlib.sha1((url or item.get("title", "")).encode("utf-8")).hexdigest()[:10]
     out_dir = LIBRARY_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    article = out_dir / f"{date}__wechat__{author}__{title}__{identity}.md"
+    source = {"platform": "wechat", "name": account or "手动公众号文章", "url": url}
+    article_name = collection_item_filename(
+        date,
+        collection_source_code(source, item, url),
+        str(item.get("title") or "微信公众号文章"),
+        identity,
+    )
+    article = out_dir / article_name
     raw_dir = PARKIO / ".system" / "source-raw" / "manual-links" / date[:4] / date[5:7]
     raw_dir.mkdir(parents=True, exist_ok=True)
-    raw = raw_dir / f"{date}__wechat__{author}__{title}__{identity}.html"
+    raw = raw_dir / article_name.replace(".md", ".html")
     article.write_text(
         "\n".join(
             [

@@ -47,7 +47,7 @@ def test_feishu_digest_inlines_reader_artifacts_instead_of_local_links(tmp_path)
     sent.mkdir()
     label = "26-06-25"
     (sent / f"daily-{label}.md").write_text(
-        "# Daily Newsletter\n\n[Markdown](</Users/wendy/park-io/_inbox/sent/26-06-25.md>)\n",
+        "# Daily Newsletter\n\n[Markdown](</Users/wendy/park-io/001_daily newsletter/ai/26-06-25.md>)\n",
         encoding="utf-8",
     )
     (sent / f"{label}.md").write_text(

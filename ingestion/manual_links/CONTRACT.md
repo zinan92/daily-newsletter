@@ -15,7 +15,7 @@ Manual link ingestion owns owner-provided URLs.
 ## Inputs
 
 - Manual link files under `~/park-io/`.
-- Seed URLs in `~/park-io/_source management- james/sources.md`.
+- Seed URLs in `~/park-io/_source management/sources.md`.
 
 ## Outputs
 

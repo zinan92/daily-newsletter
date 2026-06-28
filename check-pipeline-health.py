@@ -19,7 +19,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 
-from lib import PARKIO, ROOT, load_sources, today, write_health_alert
+from lib import PARKIO, ROOT, SENT_DIR, load_sources, today, write_health_alert
 from run_report import latest_run_report, problem_lines
 
 PUSH_LOG = ROOT / "logs" / "push-digest.log"
@@ -119,8 +119,8 @@ def wewe_auth_issue() -> str | None:
 
 
 def digest_sent_today() -> bool:
-    sent = PARKIO / "_inbox" / "sent" / f"{today()[2:]}.md"
-    sent_full = PARKIO / "_inbox" / "sent" / f"{today()}.md"
+    sent = SENT_DIR / f"{today()[2:]}.md"
+    sent_full = SENT_DIR / f"{today()}.md"
     return sent.exists() or sent_full.exists()
 
 
