@@ -13,8 +13,8 @@ echo ">>> fetch-all.sh"
 ./fetch-all.sh
 
 echo ""
-echo ">>> push-digest.sh"
-./push-digest.sh
+echo ">>> push-feishu-digest.sh"
+./push-feishu-digest.sh
 
 echo ""
 echo "Manual push finished. Press Return to close this window."
