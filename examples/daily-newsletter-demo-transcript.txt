@@ -1,0 +1,36 @@
+# Daily Newsletter demo transcript
+# generated_at=2026-06-28T15:44:16+08:00
+# source=real public verification commands; local paths sanitized
+
+## Install-free public verification
+$ python3 -m pytest -q
+241 passed in 11.72s
+exit=0 elapsed=12.6s
+
+## Task graph contract
+$ python3 scripts/task_graph_validate.py
+PASS <repo>/tasks/daily-inbox-task-graph.json: 24 task(s)
+exit=0 elapsed=0.1s
+
+## Workflow graph contract
+$ python3 scripts/workflow_graph_validate.py
+PASS <repo>/workflow/diagram/daily-newsletter.graph.json: 22 node(s)
+exit=0 elapsed=0.0s
+
+## Dry-run command waves
+$ python3 scripts/workflow_graph_dry_run.py
+wave 01 | schedule_digest | Schedule Digest Build
+wave 01 | schedule_fetch | Schedule Fetch Window
+wave 02 | douyin | Fetch Douyin Profiles :: python3 fetch-douyin.py
+wave 02 | manual_links | Fetch Manual Links :: python3 fetch-manual-links.py
+wave 02 | rss | Fetch RSS And YouTube Feeds :: python3 fetch-rss.py
+wave 02 | web_scrape | Fetch Official Web Scrape :: python3 fetch-scrape.py
+wave 02 | wechat_exporter | Import WeChat Exporter Files :: python3 fetch-wechat-exporter.py
+wave 02 | wechat_rss | Fetch WeChat RSS :: python3 fetch-wechat-rss.py
+... workflow waves continue through archive/finalize/status
+exit=0 elapsed=0.0s
+
+## n8n projection drift check
+$ python3 scripts/n8n_import_diff.py
+PASS n8n workflow matches canonical graph projection
+exit=0 elapsed=0.0s
