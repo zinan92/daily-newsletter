@@ -7,6 +7,7 @@ fetch path.
 """
 import asyncio
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -19,7 +20,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from lib import PROFILE_LIBRARY_DIR, load_sources, load_state, log, parkio_secret_path, profile_id_for_source, safe_filename, save_state, today, write_source_output
 
-DOWNLOAD_CAPABILITY = Path.home() / "content-toolkit/capabilities/download"
+DOWNLOAD_CAPABILITY = Path(
+    os.environ.get("PARKIO_DOWNLOAD_CAPABILITY", Path.home() / "content-toolkit/capabilities/download")
+).expanduser()
 COOKIE_FILE = parkio_secret_path("douyin-cookies.json")
 FETCH_LIMIT = 160
 

@@ -26,8 +26,8 @@ from lib import (
     today,
 )
 
-TWITTER_BIN = "/Users/wendy/.local/bin/twitter"
-TWITTER_AUTH_ENV = "/Users/wendy/work/input-to-park/twitter-auth.env"
+TWITTER_BIN = os.environ.get("PARKIO_TWITTER_BIN", str(Path.home() / ".local/bin/twitter"))
+TWITTER_AUTH_ENV = os.environ.get("PARKIO_TWITTER_AUTH_ENV", str(ROOT / "twitter-auth.env"))
 MAX_PER_HANDLE = 20
 REFETCH_TODAY = os.environ.get("PARKIO_REFETCH_TODAY") == "1"
 ARTICLE_TIMEOUT_SECONDS = int(os.environ.get("PARKIO_TWITTER_ARTICLE_TIMEOUT_SECONDS", "8"))

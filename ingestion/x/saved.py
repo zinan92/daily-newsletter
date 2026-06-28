@@ -13,8 +13,8 @@ if str(ROOT) not in sys.path:
 
 from lib import ROOT, inbox_dir, load_sources, now_utc, safe_filename, write_source_output, log
 
-TWITTER_BIN = "/Users/wendy/.local/bin/twitter"
-TWITTER_AUTH_ENV = "/Users/wendy/work/input-to-park/twitter-auth.env"
+TWITTER_BIN = os.environ.get("PARKIO_TWITTER_BIN", str(Path.home() / ".local/bin/twitter"))
+TWITTER_AUTH_ENV = os.environ.get("PARKIO_TWITTER_AUTH_ENV", str(ROOT / "twitter-auth.env"))
 DB_PATH = ROOT / "x-saved-items.json"
 STATE_PATH = ROOT / "x-saved-state.json"
 CANDIDATES_PATH = ROOT / "x-saved-source-candidates.json"

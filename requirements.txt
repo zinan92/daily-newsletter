@@ -1,0 +1,9 @@
+# Minimal public verification dependencies.
+pytest>=8.0
+PyYAML>=6.0
+
+# Optional production/rendering helpers.
+# The pipeline can fall back to Chrome CLI rendering when websockets is absent,
+# and PNG whitespace trimming is skipped when Pillow is absent.
+websockets>=12.0
+Pillow>=10.0

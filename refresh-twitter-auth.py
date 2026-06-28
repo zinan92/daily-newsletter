@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "twitter-auth.env"
-PYTHON = "/Users/wendy/.local/share/uv/tools/twitter-cli/bin/python"
+PYTHON = os.environ.get("PARKIO_TWITTER_PYTHON", str(Path.home() / ".local/share/uv/tools/twitter-cli/bin/python"))
 
 
 def main() -> int:
