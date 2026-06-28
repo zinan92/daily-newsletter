@@ -176,6 +176,7 @@ def load_history() -> dict:
 
 
 def save_history(data: dict) -> None:
+    HEALTH_JSON.parent.mkdir(parents=True, exist_ok=True)
     HEALTH_JSON.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
@@ -205,6 +206,7 @@ def record() -> dict:
     )
     data["runs"] = runs[-120:]
     save_history(data)
+    HEALTH_MD.parent.mkdir(parents=True, exist_ok=True)
     HEALTH_MD.write_text(render_markdown(data), encoding="utf-8")
     return data
 
