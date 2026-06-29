@@ -18,6 +18,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from ingestion.collection_index import existing_collection_path_for_url, rebuild_collection_index
+from ingestion.manual_links.wechat_seed import fetch_url as fetch_wechat_url
+from ingestion.manual_links.wechat_seed import parse_article as parse_wechat_article
 from lib import LIBRARY_DIR, collection_item_filename, collection_source_code, load_state, log, save_state, today
 
 DEFAULT_CHAT_ID = "oc_981fc0b83b25e008df425384aa7c7910"
@@ -116,6 +118,31 @@ def source_code_for_url(url: str) -> str:
     return collection_source_code({"platform": "web", "name": host}, {"url": url}, url)
 
 
+def is_wechat_article_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return "mp.weixin.qq.com" in parsed.netloc.lower() and parsed.path.startswith("/s/")
+
+
+def fetch_wechat_article(url: str) -> dict:
+    html = fetch_wechat_url(url)
+    article = parse_wechat_article(url, html)
+    content = str(article.get("content") or "").strip()
+    account = str(article.get("wechat_account") or "").strip()
+    author = str(article.get("wechat_author") or account).strip()
+    return {
+        "source": "WX",
+        "source_platform": "wx",
+        "title": str(article.get("title") or title_from_url(url)).strip(),
+        "author": author,
+        "handle": "",
+        "tweet_created_at": "",
+        "body": content,
+        "status": "archived" if content else "needs_fetch",
+        "extra_urls": [],
+        "metrics": {},
+    }
+
+
 def item_for_url(url: str, x_items: dict) -> dict:
     x_item = x_metadata(url, x_items)
     if x_item:
@@ -134,6 +161,11 @@ def item_for_url(url: str, x_items: dict) -> dict:
             "extra_urls": x_item.get("urls") or [],
             "metrics": x_item.get("metrics") or {},
         }
+    if is_wechat_article_url(url):
+        try:
+            return fetch_wechat_article(url)
+        except Exception as exc:
+            log("feishu-favorites", f"wechat_fetch_failed:{type(exc).__name__}:{url}:{exc}")
     return {
         "source": source_code_for_url(url),
         "source_platform": source_code_for_url(url).lower(),
@@ -146,6 +178,14 @@ def item_for_url(url: str, x_items: dict) -> dict:
         "extra_urls": [],
         "metrics": {},
     }
+
+
+def file_has_status(path: Path, status: str) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return re.search(rf"^status:\s*{re.escape(status)}\s*$", text, flags=re.M) is not None
 
 
 def unique_path(path: Path) -> Path:
@@ -219,9 +259,24 @@ def render_markdown(url: str, item: dict, message: dict, chat_id: str, chat_name
     return "\n".join(lines)
 
 
+def update_existing_if_needs_fetch(path: Path, url: str, message: dict, chat_id: str, chat_name: str, x_items: dict, dry_run: bool) -> str | None:
+    if not file_has_status(path, "needs_fetch"):
+        return None
+    item = item_for_url(url, x_items)
+    if item.get("status") == "needs_fetch":
+        return None
+    if dry_run:
+        return f"would_update:{path.name}"
+    path.write_text(render_markdown(url, item, message, chat_id, chat_name), encoding="utf-8")
+    return f"updated:{path.name}"
+
+
 def archive_url(url: str, message: dict, chat_id: str, chat_name: str, x_items: dict, dry_run: bool) -> str:
     existing = existing_collection_path_for_url(url)
     if existing:
+        updated = update_existing_if_needs_fetch(existing, url, message, chat_id, chat_name, x_items, dry_run)
+        if updated:
+            return updated
         return f"exists:{existing.name}"
     item = item_for_url(url, x_items)
     identity = hashlib.sha1(url.encode("utf-8")).hexdigest()[:10]
