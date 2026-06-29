@@ -94,3 +94,26 @@ def test_feishu_digest_writes_delivery_receipt(tmp_path):
         assert '"chunks": 2' in text
     finally:
         sender.RECEIPT_DIR = old_dir
+
+
+def test_feishu_digest_detects_existing_successful_receipt(tmp_path):
+    sender = load_sender()
+    old_dir = sender.RECEIPT_DIR
+    try:
+        sender.RECEIPT_DIR = tmp_path / "receipts"
+        sender.RECEIPT_DIR.mkdir()
+        (sender.RECEIPT_DIR / "2026-06-25-20260625-090000.json").write_text(
+            '{"date":"2026-06-25","status":"sent"}',
+            encoding="utf-8",
+        )
+        (sender.RECEIPT_DIR / "2026-06-25-20260625-091000.json").write_text(
+            '{"date":"2026-06-25","status":"failed"}',
+            encoding="utf-8",
+        )
+
+        receipts = sender.successful_receipts("2026-06-25")
+
+        assert len(receipts) == 1
+        assert receipts[0].name.endswith("090000.json")
+    finally:
+        sender.RECEIPT_DIR = old_dir
