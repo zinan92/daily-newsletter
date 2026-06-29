@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Tuple
 
 ROOT = Path(__file__).resolve().parent
-PARKIO = Path.home() / "park-io"
+PARKIO = Path(os.environ.get("PARKIO_HOME", Path.home() / "park-io")).expanduser()
 SOURCE_MANAGEMENT_DIR = PARKIO / "_source management"
 SOURCES_PATH = SOURCE_MANAGEMENT_DIR / "sources.md"
 TRACKING_LIST = SOURCES_PATH

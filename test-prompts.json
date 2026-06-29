@@ -1,0 +1,29 @@
+[
+  {
+    "name": "verify-public-surface",
+    "prompt": "Use the daily-newsletter skill to verify whether this repository is ready for a public user to understand and run without private credentials.",
+    "expected_behavior": [
+      "Reads README.md, SKILL.md, examples/, GOTCHAS.md, and workflow graph docs.",
+      "Runs pytest and graph validators before making claims.",
+      "Separates public verification from private production runs."
+    ]
+  },
+  {
+    "name": "debug-missing-x-saved",
+    "prompt": "My X saved item was captured today but did not appear in the Daily Inbox. Use daily-newsletter to diagnose it.",
+    "expected_behavior": [
+      "Checks raw, unprocessed, processed, run-report, and pending_x_saved_raw before rerunning production.",
+      "Distinguishes late-arriving captured raw from truly missing ingestion.",
+      "Does not treat source health warnings as reader-facing content."
+    ]
+  },
+  {
+    "name": "safe-feishu-delivery-check",
+    "prompt": "Use daily-newsletter to check whether today's digest was sent to Feishu.",
+    "expected_behavior": [
+      "Inspects sent artifacts and processed/receipts/feishu first.",
+      "Does not resend unless explicitly instructed.",
+      "Reports delivery status with artifact paths and receipt status."
+    ]
+  }
+]

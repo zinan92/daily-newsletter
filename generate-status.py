@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -20,7 +21,12 @@ WECHAT_URL_RE = re.compile(r"https://mp\.weixin\.qq\.com/s/[A-Za-z0-9_-]+")
 WEWE_AUTH_ALERT = PARKIO / "_inbox" / "wewe-auth-alert.json"
 MANUAL_PUSH_SCRIPT = ROOT / "manual-push.command"
 BLOCKING_DEP_TOKENS = ("WeWe", "公众号", "YouTube")
-LIVE_DASHBOARD_JSON = Path("/Users/wendy/work/park-ai-intel/public/source-health-live.json")
+LIVE_DASHBOARD_JSON = Path(
+    os.environ.get(
+        "PARKIO_LIVE_DASHBOARD_JSON",
+        Path.home() / "work/park-ai-intel/public/source-health-live.json",
+    )
+).expanduser()
 
 
 def latest_line(path: Path, needle: str) -> str:
@@ -628,7 +634,7 @@ def render_intake_funnel(buckets: list[dict], pushed: int) -> str:
             <h2>今日入口漏斗</h2>
             <p>默认只看今天：三大入口先汇总，再拆到具体渠道。数字回答的是“从哪里来、留下多少、哪里坏了”。</p>
           </div>
-          <div class="output-badge"><strong>{pushed}</strong><span>今日推送链接</span></div>
+          <div class="output-badge"><strong>{pushed}</strong><span>今日定稿 URL</span></div>
         </div>
         <div class="intake-funnel">{''.join(rows)}</div>
       </section>
@@ -685,7 +691,7 @@ def render_funnel(total: int, kept: int, filtered: int, pushed: int) -> str:
     stages = [
         ("抓到原始内容", total, "#1d4f45"),
         ("进入正文", kept, "#0f766e"),
-        ("推送链接", pushed, "#2563eb"),
+        ("定稿 URL", pushed, "#2563eb"),
         ("被过滤", filtered, "#b45309"),
     ]
     max_value = max([value for _label, value, _color in stages] + [1])
@@ -698,7 +704,7 @@ def render_funnel(total: int, kept: int, filtered: int, pushed: int) -> str:
     return f"""
       <div class="viz-card wide">
         <h3>今日处理漏斗</h3>
-        <p>先看总量，再看进入正文和最终推送。过滤不是错误，只说明它没有进入今日正文。</p>
+        <p>先看总量，再看进入正文和最终定稿。过滤不是错误，只说明它没有进入今日正文。</p>
         <div class="funnel">{''.join(rows)}</div>
       </div>
     """
@@ -710,7 +716,7 @@ def render_workflow_diagram() -> str:
         ("进入待处理区", "待处理文件", "按 Profile + 日期进入待处理队列"),
         ("生成简报", "评分与合并", "打分、合并、生成中文正文"),
         ("质量门检查", "硬规则 + AI 质检", "拦截旁白、内部元数据、重复标题"),
-        ("推送与归档", "Telegram + 资料库", "推送给读者，沉淀到资料库"),
+        ("定稿与投递", "Local + Feishu", "生成本地定稿，按需发送飞书并沉淀到资料库"),
     ]
     nodes = []
     for idx, (title, code, desc) in enumerate(steps):
@@ -1139,7 +1145,7 @@ def render() -> str:
       {render_metric("最新日报 Batch", digest_items, f"事件 {digest_events} · 快讯 {digest_brief} · 深读 {digest_deep}")}
       {render_metric("Pending Raw", digest_pending_raw, f"X 收藏 {digest_pending_x_saved_raw} · 等待下一轮 to_md")}
       {render_metric("当前待处理（下一批）", funnel["total"], f"进入正文 {funnel['kept']} · 过滤 {funnel['filtered']}")}
-      {render_metric("今日已推送", pushed_count, "Telegram 推送链接数")}
+      {render_metric("今日定稿 URL", pushed_count, "本地定稿中的链接数")}
       {render_metric("需要维护", report_problem_count, "来自最新日报 batch 的 health report")}
     </section>
 

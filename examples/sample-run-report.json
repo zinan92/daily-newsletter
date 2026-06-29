@@ -1,0 +1,37 @@
+{
+  "batch": "26-06-28",
+  "mode": "sample",
+  "generated_at": "2026-06-28T15:30:00+08:00",
+  "counts": {
+    "raw_items": 42,
+    "coarse_rejects": 8,
+    "item_cards": 34,
+    "events": 12,
+    "brief_universe": 7,
+    "deep_candidates": 1,
+    "product_radar_items": 3
+  },
+  "source_health": {
+    "new": 18,
+    "quiet": 24,
+    "stale": 1,
+    "down": 0
+  },
+  "reader_quality": {
+    "status": "passed",
+    "checks": [
+      "no local path leak",
+      "no raw transcript leak",
+      "required sections present"
+    ]
+  },
+  "delivery": {
+    "feishu": {
+      "status": "not_sent_in_sample",
+      "receipt_path": "processed/receipts/feishu/sample.json"
+    },
+    "telegram": {
+      "status": "legacy_optional_skipped"
+    }
+  }
+}

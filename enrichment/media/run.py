@@ -29,7 +29,9 @@ from summarize import (
 
 MEDIA_SUMMARIES_PATH = ROOT / "media-summaries.json"
 MEDIA_QUEUE_PATH = ROOT / "media-queue.json"
-DOWNLOAD_CAPABILITY = Path.home() / "content-toolkit/capabilities/download"
+DOWNLOAD_CAPABILITY = Path(
+    os.environ.get("PARKIO_DOWNLOAD_CAPABILITY", Path.home() / "content-toolkit/capabilities/download")
+).expanduser()
 DOUYIN_COOKIE_FILE = parkio_secret_path("douyin-cookies.json")
 # Lowered from 1200: a YouTube Short / brief clip's full transcript can be
 # 400-1000 chars and still summarize fine. 1200 silently dropped Shorts to

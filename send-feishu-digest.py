@@ -7,6 +7,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -92,6 +93,21 @@ def sha256_text(text: str) -> str:
 def receipt_path(run_date: str, sent_at: str | None = None) -> Path:
     safe_ts = (sent_at or datetime.now().isoformat(timespec="seconds")).replace(":", "").replace("-", "").replace("T", "-")
     return RECEIPT_DIR / f"{run_date}-{safe_ts}.json"
+
+
+def successful_receipts(run_date: str) -> list[Path]:
+    if not RECEIPT_DIR.exists():
+        return []
+    paths = sorted(RECEIPT_DIR.glob(f"{run_date}-*.json"))
+    out: list[Path] = []
+    for path in paths:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if data.get("status") == "sent":
+            out.append(path)
+    return out
 
 
 def write_receipt(receipt: dict) -> Path:
@@ -217,6 +233,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", default=default_run_date(), help="Run date in YYYY-MM-DD. Defaults to today.")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="Path to Feishu webhook env file.")
+    parser.add_argument("--force", action="store_true", help="Send even when a successful receipt already exists for this date.")
     return parser.parse_args()
 
 
@@ -231,6 +248,13 @@ def main() -> int:
     path = artifact_path(args.date)
     if not path.exists():
         raise FeishuPushError(f"Daily bundle not found: {path}")
+
+    prior_receipts = successful_receipts(args.date)
+    force = args.force or os.environ.get("PARKIO_FORCE_FEISHU") == "1"
+    if prior_receipts and not force:
+        latest = prior_receipts[-1]
+        print(f"[send-feishu-digest] skip; already sent for {args.date}: {latest} (use --force or PARKIO_FORCE_FEISHU=1 to resend)")
+        return 0
 
     try:
         from reader_quality import check_artifacts, write_quality_report

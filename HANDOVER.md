@@ -1,5 +1,10 @@
 # Handover - Park-IO digest stabilization and decomposition (2026-06-04)
 
+> Historical snapshot. For current public positioning, install/verify commands,
+> and delivery defaults, use `README.md` and `SKILL.md`. The current default
+> delivery path is local Markdown/HTML/PNG plus Feishu receipt; Telegram remains
+> a legacy optional sender.
+
 Context for the next engineer/agent (Codex) taking over `input-to-park` (the
 Park-IO daily AI digest pipeline). Everything below is committed to `main` and
 pushed to `github.com/zinan92/daily-newsletter`.

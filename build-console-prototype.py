@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 
-PARKIO = Path(os.environ.get("PARKIO_DIR", "/Users/wendy/park-io"))
+PARKIO = Path(os.environ.get("PARKIO_HOME", Path.home() / "park-io")).expanduser()
 INBOX = PARKIO / "_inbox"
 PROCESSED = INBOX / "processed"
 OUT = INBOX / "park-io-console-prototype.html"

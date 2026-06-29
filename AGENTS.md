@@ -13,17 +13,22 @@ for t in tests/test_*.py; do python3 "$t"; done
 
 This repo is under git. Commit working states; never leave it un-versioned.
 
-## Workflow diagram — Source Of Truth (v12 contract)
+## Workflow diagram — source of truth
 
-The human-facing workflow source is `/Users/wendy/park-io/_inbox/inbox-workflow.yaml`.
-It is rendered by `/Users/wendy/work/input-to-park/workflow/diagram/render-workflow-diagram.py`.
-The v12 model is **four independent paths**, each running entry → … → its own
-Section sink:
+The repo-local runtime source of truth is
+`workflow/diagram/daily-newsletter.graph.json`; validate it with
+`python3 scripts/workflow_graph_validate.py`. The legacy reader-facing Inbox
+workflow map can still be rendered with `workflow/diagram/render-workflow-diagram.py`
+when an external vault provides its own YAML input, but repo-local graph files
+are canonical for this repository.
 
-1. Official / code → Section 1 (AI 官方与代码源)
-2. X application layer → Section 2 (Twitter / X 应用层)
-3. Media (Podcast / YouTube / 抖音) → Section 3
-4. Saved + manual links + WeChat → Section 4 (我的收藏 / Manual Links)
+The runtime model is **five physical stages**:
+
+1. Fetch raw source data.
+2. Normalize raw artifacts to one-item Markdown.
+3. Coarse-filter obvious junk without editorial judgment.
+4. Run AI understanding, merge, selection, and writing.
+5. Archive, finalize local artifacts, record status, and send Feishu delivery.
 
 Rules when editing the YAML, renderer, or validator:
 
@@ -43,10 +48,11 @@ Rules when editing the YAML, renderer, or validator:
 - Routing is deterministic (source → profile → section). AI never decides
   routing; AI acts only *inside* nodes (scoring, summaries, QC). Mark a node's
   handler honestly via `type`, and for `type: ai` note the prompt location.
-- Before rendering HTML/PNG, run the validator:
+- Before rendering the legacy HTML/PNG workflow map, run the validator with the
+  explicit input path:
 
 ```bash
-python3 /Users/wendy/work/input-to-park/workflow/diagram/validate-workflow.py /Users/wendy/park-io/_inbox/inbox-workflow.yaml
+python3 workflow/diagram/validate-workflow.py path/to/inbox-workflow.yaml
 ```
 
 - `render-workflow-diagram.py` must call the validator before writing

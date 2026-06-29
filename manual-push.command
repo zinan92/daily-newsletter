@@ -1,7 +1,8 @@
 #!/bin/zsh
 set -euo pipefail
 
-cd /Users/wendy/work/input-to-park
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 export PARKIO_IGNORE_BLOCKING_DEPS=1
 export PARKIO_SKIP_SEND="${PARKIO_SKIP_SEND:-1}"
 

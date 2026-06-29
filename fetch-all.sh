@@ -7,7 +7,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-DOWNLOAD_CAPABILITY="$HOME/content-toolkit/capabilities/download"
+DOWNLOAD_CAPABILITY="${PARKIO_DOWNLOAD_CAPABILITY:-$HOME/content-toolkit/capabilities/download}"
 if [ -d "$DOWNLOAD_CAPABILITY" ]; then
   export PYTHONPATH="$DOWNLOAD_CAPABILITY${PYTHONPATH:+:$PYTHONPATH}"
 fi

@@ -1,0 +1,24 @@
+{
+  "name": "daily-newsletter",
+  "display_name": "Daily Newsletter",
+  "description": "Local-first Daily Inbox pipeline for AI source aggregation, Chinese digest generation, source health, local artifacts, and Feishu delivery receipts.",
+  "version": "0.1.0",
+  "author": "zinan92",
+  "license": "MIT",
+  "repository": "https://github.com/zinan92/daily-newsletter",
+  "tags": [
+    "ai",
+    "newsletter",
+    "daily-inbox",
+    "content-pipeline",
+    "automation",
+    "feishu",
+    "python"
+  ],
+  "skills": [
+    {
+      "name": "daily-newsletter",
+      "path": "SKILL.md"
+    }
+  ]
+}
