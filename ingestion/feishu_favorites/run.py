@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -20,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 from ingestion.collection_index import existing_collection_path_for_url, rebuild_collection_index
 from ingestion.manual_links.wechat_seed import fetch_url as fetch_wechat_url
 from ingestion.manual_links.wechat_seed import parse_article as parse_wechat_article
+from ingestion.x import saved as x_saved
 from lib import LIBRARY_DIR, collection_item_filename, collection_source_code, load_state, log, save_state, today
 
 DEFAULT_CHAT_ID = "oc_981fc0b83b25e008df425384aa7c7910"
@@ -27,7 +29,7 @@ DEFAULT_CHAT_NAME = "好文收藏"
 STATE_KEY = "feishu-favorites"
 URL_RE = re.compile(r"https?://[^\s<>)\]]+")
 TRAILING_URL_PUNCT = ".,;:!?，。；：！？)]）】"
-X_STATUS_RE = re.compile(r"https?://(?:x|twitter)\.com/([^/\s]+)/status/(\d+)", re.I)
+X_STATUS_RE = re.compile(r"https?://(?:www\.)?(?:x|twitter)\.com/([^/\s]+)/status/(\d+)", re.I)
 X_ITEMS_PATH = REPO_ROOT / "x-saved-items.json"
 
 
@@ -103,6 +105,113 @@ def x_metadata(url: str, x_items: dict) -> dict:
     return item if isinstance(item, dict) else {}
 
 
+def x_tweet_id(url: str) -> str:
+    match = X_STATUS_RE.match(url)
+    return match.group(2) if match else ""
+
+
+def fetch_x_tweet(tweet_id: str) -> dict:
+    if not tweet_id:
+        return {}
+    x_saved.load_twitter_env()
+    result = subprocess.run(
+        [x_saved.TWITTER_BIN, "tweet", tweet_id, "--json"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=os.environ.copy(),
+    )
+    if result.returncode != 0:
+        log("feishu-favorites", f"x_fetch_failed:twitter-cli:{tweet_id}:{result.stderr.strip()[:300]}")
+        return {}
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        log("feishu-favorites", f"x_fetch_failed:json:{tweet_id}:{exc}")
+        return {}
+    data = payload.get("data") if isinstance(payload, dict) else payload
+    if isinstance(data, list):
+        for row in data:
+            if isinstance(row, dict) and str(row.get("id") or row.get("id_str")) == tweet_id:
+                return row
+        return data[0] if data and isinstance(data[0], dict) else {}
+    return data if isinstance(data, dict) else {}
+
+
+def x_article_text(tweet: dict, tweet_id: str) -> str:
+    title = x_saved.one_line(tweet.get("articleTitle") or tweet.get("title"))
+    text = x_text_block(tweet.get("articleText") or tweet.get("article_text"))
+    if not text:
+        article = x_saved.twitter_article(tweet_id)
+        title = title or x_saved.one_line(article.get("articleTitle") or article.get("title"))
+        text = x_text_block(article.get("articleText") or article.get("text"))
+    if not text:
+        return ""
+    return f"文章标题：{title}\n\n{text}" if title else text
+
+
+def x_text_block(value: object) -> str:
+    text = str(value or "").strip()
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n[ \t]+", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text
+
+
+def x_tweet_title(tweet: dict, url: str) -> str:
+    article_title = x_saved.one_line(tweet.get("articleTitle") or tweet.get("title"))
+    if article_title:
+        return article_title
+    text = x_saved.one_line(tweet.get("text") or "")
+    if text:
+        return text[:72].rstrip()
+    return title_from_url(url)
+
+
+def x_tweet_body(tweet: dict, tweet_id: str) -> str:
+    parts: list[str] = []
+    article = x_article_text(tweet, tweet_id)
+    text = x_text_block(tweet.get("text") or "")
+    if article:
+        parts.append(article)
+    if text and text != "https://t.co/":
+        parts.append(text)
+    nested = x_saved.nested_tweet(tweet)
+    if nested:
+        label, quoted = nested
+        quoted_article = x_article_text(quoted, x_saved.tweet_id(quoted))
+        quoted_text = quoted_article or x_text_block(quoted.get("text") or "")
+        quoted_author = quoted.get("author") or {}
+        quoted_name = quoted_author.get("name") if isinstance(quoted_author, dict) else ""
+        if quoted_text:
+            prefix = f"{label} {quoted_name}：" if quoted_name else f"{label}内容："
+            parts.append(prefix + quoted_text)
+    urls = [u for u in tweet.get("urls", []) if isinstance(u, str)]
+    if urls:
+        parts.append("链接：" + " ".join(urls[:5]))
+    return "\n\n".join(part for part in parts if part).strip()
+
+
+def fetch_x_item(url: str) -> dict:
+    tweet_id = x_tweet_id(url)
+    tweet = fetch_x_tweet(tweet_id)
+    if not tweet:
+        return {}
+    body = x_tweet_body(tweet, tweet_id)
+    return {
+        "source": "X",
+        "source_platform": "x",
+        "title": x_tweet_title(tweet, url),
+        "author": x_saved.author_name(tweet),
+        "handle": x_saved.author_handle(tweet),
+        "tweet_created_at": tweet.get("createdAtISO") or tweet.get("createdAtLocal") or "",
+        "body": body,
+        "status": "archived" if body else "needs_fetch",
+        "extra_urls": tweet.get("urls") or [],
+        "metrics": tweet.get("metrics") or {},
+    }
+
+
 def source_code_for_url(url: str) -> str:
     if X_STATUS_RE.match(url):
         return "X"
@@ -161,6 +270,10 @@ def item_for_url(url: str, x_items: dict) -> dict:
             "extra_urls": x_item.get("urls") or [],
             "metrics": x_item.get("metrics") or {},
         }
+    if X_STATUS_RE.match(url):
+        fetched = fetch_x_item(url)
+        if fetched:
+            return fetched
     if is_wechat_article_url(url):
         try:
             return fetch_wechat_article(url)
@@ -186,6 +299,33 @@ def file_has_status(path: Path, status: str) -> bool:
     except OSError:
         return False
     return re.search(rf"^status:\s*{re.escape(status)}\s*$", text, flags=re.M) is not None
+
+
+def frontmatter_fields(path: Path) -> dict[str, str]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    if not text.startswith("---\n"):
+        return {}
+    end = text.find("\n---", 4)
+    if end == -1:
+        return {}
+    fields: dict[str, str] = {}
+    for line in text[4:end].splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        fields[key.strip()] = value.strip().strip('"')
+    return fields
+
+
+def existing_message_from_frontmatter(fields: dict[str, str]) -> dict:
+    return {
+        "message_id": fields.get("source_message_id", ""),
+        "message_app_link": fields.get("source_message_link", ""),
+        "create_time": fields.get("captured_at", ""),
+    }
 
 
 def unique_path(path: Path) -> Path:
@@ -294,6 +434,24 @@ def archive_url(url: str, message: dict, chat_id: str, chat_name: str, x_items: 
     return f"created:{path.name}"
 
 
+def backfill_needs_fetch(chat_id: str, chat_name: str, x_items: dict, dry_run: bool) -> list[str]:
+    results: list[str] = []
+    for path in sorted(LIBRARY_DIR.glob("*.md")):
+        if path.name in {"README.md", "_manual-links.md"}:
+            continue
+        if not file_has_status(path, "needs_fetch"):
+            continue
+        fields = frontmatter_fields(path)
+        url = fields.get("source_url") or fields.get("id") or ""
+        if not url:
+            continue
+        message = existing_message_from_frontmatter(fields)
+        updated = update_existing_if_needs_fetch(path, url, message, chat_id, chat_name, x_items, dry_run)
+        if updated:
+            results.append(f"backfill_{updated}:{url}")
+    return results
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chat-id", default=DEFAULT_CHAT_ID)
@@ -324,7 +482,11 @@ def main(argv: list[str] | None = None) -> int:
             continue
         for url in urls:
             if url in seen_urls:
-                results.append(f"duplicate:{url}")
+                result = archive_url(url, message, args.chat_id, args.chat_name, x_items, args.dry_run)
+                if result.startswith("updated:"):
+                    results.append(f"{result}:{url}")
+                else:
+                    results.append(f"duplicate:{url}")
                 continue
             result = archive_url(url, message, args.chat_id, args.chat_name, x_items, args.dry_run)
             results.append(f"{result}:{url}")
@@ -332,6 +494,9 @@ def main(argv: list[str] | None = None) -> int:
                 created += 1
             seen_urls.add(url)
         seen_messages.add(message_id)
+
+    backfill_results = backfill_needs_fetch(args.chat_id, args.chat_name, x_items, args.dry_run)
+    results.extend(backfill_results)
 
     if not args.dry_run:
         current.update(
