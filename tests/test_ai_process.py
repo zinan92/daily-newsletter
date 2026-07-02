@@ -651,6 +651,55 @@ def test_selection_subsection_aliases_are_normalized():
     assert normalized["brief_universe"][0]["subsection"] == "底层工具"
 
 
+def test_selection_repair_resolves_brief_discard_conflict():
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td) / "ai"
+        events = [{"event_id": "e1"}, {"event_id": "e2"}]
+        selection = {
+            "brief_universe": [{
+                "event_id": "e1",
+                "subsection": "工作流",
+                "decision_reason": "useful",
+                "summary": "useful",
+            }],
+            "deep_candidates": [],
+            "discard": [
+                {"event_id": "e1", "decision_reason": "conflicting duplicate"},
+                {"event_id": "e2", "decision_reason": "low signal"},
+            ],
+        }
+        repaired_selection = {
+            "brief_universe": [{
+                "event_id": "e1",
+                "subsection": "工作流",
+                "decision_reason": "useful",
+                "summary": "useful",
+            }],
+            "deep_candidates": [],
+            "discard": [{"event_id": "e2", "decision_reason": "low signal"}],
+        }
+        calls = []
+        old_repair = ai_process.repair_selection_response
+
+        def fake_repair(events_arg, selection_arg, validation_error):
+            calls.append(validation_error)
+            assert events_arg == events
+            assert selection_arg == selection
+            return repaired_selection
+
+        try:
+            ai_process.repair_selection_response = fake_repair
+            normalized = ai_process.validate_selection_with_repair(ai_dir, events, selection)
+        finally:
+            ai_process.repair_selection_response = old_repair
+
+        assert calls == ["event cannot be both brief_universe and discard: e1"]
+        assert normalized == repaired_selection
+        assert (ai_dir / "03-selection.repair-01.input.json").exists()
+        assert (ai_dir / "03-selection.repair-01.json").exists()
+        assert not (ai_dir / "error.json").exists()
+
+
 def test_brief_markdown_requires_one_bullet_per_selected_event():
     markdown = """# Daily Inbox 快讯 — 2026-06-11
 
@@ -1081,6 +1130,24 @@ def test_collect_processed_items_ignores_final_output_markdown():
 
     assert len(rows) == 1
     assert rows[0]["url"] == "https://example.com/1"
+
+
+def test_collect_processed_items_keeps_duplicate_source_posts_with_unique_ids():
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        author_a = root / "author-a"
+        author_b = root / "author-b"
+        author_a.mkdir()
+        author_b.mkdir()
+        write_item(author_a / "same.md", 1, "Claude Fable 5 is back", "AI coding 更新", "https://x.com/a/status/1")
+        write_item(author_b / "same.md", 1, "Claude Fable 5 is back", "AI coding 更新", "https://x.com/b/status/1")
+
+        rows = ai_process.collect_processed_items(root)
+
+    assert len(rows) == 2
+    assert len({row["id"] for row in rows}) == 2
+    assert rows[1]["original_id"] == "item-1"
+    assert rows[1]["id"].startswith("item-1__dup_")
 
 
 def test_production_push_script_does_not_call_score_or_quality_gate():

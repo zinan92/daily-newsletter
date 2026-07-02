@@ -8,6 +8,7 @@ deterministic newsletter fallback, or quality-check.py.
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import sys
 from dataclasses import dataclass
@@ -149,6 +150,32 @@ def item_from_single_markdown(path: Path, fm: dict, body: str) -> dict:
     }
 
 
+def make_item_ids_unique(rows: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    for row in rows:
+        base = str(row.get("id") or row.get("url") or row.get("file") or "").strip()
+        if not base:
+            base = f"item-{len(seen) + 1}"
+            row["id"] = base
+        if base not in seen:
+            seen.add(base)
+            continue
+        stable_source = "|".join(
+            str(row.get(key) or "")
+            for key in ("file", "url", "source", "author", "title")
+        )
+        suffix = hashlib.sha1(stable_source.encode("utf-8")).hexdigest()[:10]
+        candidate = f"{base}__dup_{suffix}"
+        counter = 2
+        while candidate in seen:
+            candidate = f"{base}__dup_{suffix}_{counter}"
+            counter += 1
+        row["original_id"] = base
+        row["id"] = candidate
+        seen.add(candidate)
+    return rows
+
+
 def collect_processed_items(batch_dir: Path | None = None) -> list[dict]:
     root = batch_dir or processed_batch_dir()
     rows: list[dict] = []
@@ -181,7 +208,7 @@ def collect_processed_items(batch_dir: Path | None = None) -> list[dict]:
                 )
         else:
             rows.append(item_from_single_markdown(path, fm, body))
-    return rows
+    return make_item_ids_unique(rows)
 
 
 def write_json(path: Path, data: Any) -> None:
@@ -678,6 +705,63 @@ def validate_selection_references(events: list[dict], selection: dict) -> dict:
     return selection
 
 
+def repair_selection_response(events: list[dict], selection: dict, validation_error: str) -> dict:
+    prompt = (
+        "The Daily Inbox selection JSON failed structural validation.\n"
+        "Repair the selection contract. Do not write markdown. Do not explain.\n\n"
+        "Hard invariants:\n"
+        "- Return ONLY a JSON object with keys: brief_universe, deep_candidates, discard.\n"
+        "- Every event_id from EVENTS must appear exactly once in either brief_universe or discard.\n"
+        "- No event_id may appear in both brief_universe and discard.\n"
+        "- deep_candidates must be a subset of brief_universe and every row must include parent_brief_event_id.\n"
+        "- brief_universe subsection must be exactly one of: 底层工具, 工作流, 内容.\n"
+        "- If the failed selection has a conflict, use the EVENTS content to decide whether that event is useful enough for brief_universe or should be discarded.\n"
+        "- Preserve the original editorial judgment where it does not violate the contract.\n\n"
+        f"VALIDATION ERROR:\n{validation_error}\n\n"
+        "EVENTS:\n"
+        f"{json_payload(events)}\n\n"
+        "FAILED SELECTION:\n"
+        f"{json_payload(selection)}"
+    )
+    raw = llm_call(prompt, max_tokens=SELECTION_MAX_TOKENS, timeout=240)
+    try:
+        repaired = extract_json(raw)
+    except AIProcessError:
+        repaired = repair_json_response(raw, max_tokens=SELECTION_MAX_TOKENS)
+    if not isinstance(repaired, dict):
+        raise AIProcessError("selection repair must return a JSON object")
+    return repaired
+
+
+def validate_selection_with_repair(
+    ai_dir: Path,
+    events: list[dict],
+    selection: Any,
+    max_attempts: int = 2,
+) -> dict:
+    current = selection
+    for attempt in range(0, max_attempts + 1):
+        try:
+            return validate_selection_references(events, validate_selection(current))
+        except AIProcessError as exc:
+            if attempt >= max_attempts:
+                fail_schema(ai_dir, "selection", str(exc))
+            repair_attempt = attempt + 1
+            log("ai-process", f"selection: {exc}; retrying selection repair {repair_attempt}/{max_attempts}")
+            write_json(
+                ai_dir / f"03-selection.repair-{repair_attempt:02d}.input.json",
+                {
+                    "validation_error": str(exc),
+                    "events": events,
+                    "failed_selection": current,
+                },
+            )
+            current = repair_selection_response(events, current, str(exc))
+            clear_stale_error(ai_dir)
+            write_json(ai_dir / f"03-selection.repair-{repair_attempt:02d}.json", current)
+    fail_schema(ai_dir, "selection", "selection repair exhausted")
+
+
 def selection_from_override(ai_dir: Path, events: list[dict], original: dict) -> dict:
     path = ai_dir / "selection-override.json"
     if not path.exists():
@@ -978,11 +1062,8 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     write_json(ai_dir / "02-events.json", events)
 
     log("ai-process", f"selection START — {len(events)} events")
-    try:
-        selection = validate_selection(call_json_stage(ai_dir, "selection", "03-selection.md", events, max_tokens=SELECTION_MAX_TOKENS))
-        selection = validate_selection_references(events, selection)
-    except AIProcessError as exc:
-        fail_schema(ai_dir, "selection", str(exc))
+    selection = call_json_stage(ai_dir, "selection", "03-selection.md", events, max_tokens=SELECTION_MAX_TOKENS)
+    selection = validate_selection_with_repair(ai_dir, events, selection)
     selection = selection_from_override(ai_dir, events, selection)
     write_json(ai_dir / "03-selection.json", selection)
     write_json(ai_dir / "discard-log.json", selection.get("discard", []))
