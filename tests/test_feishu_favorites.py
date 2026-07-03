@@ -140,3 +140,27 @@ def test_fetch_x_tweet_selects_exact_status_from_thread(monkeypatch):
     tweet = feishu.fetch_x_tweet("123")
 
     assert tweet["text"] == "target"
+
+
+def test_render_markdown_adds_collection_taxonomy():
+    md = feishu.render_markdown(
+        "https://x.com/example/status/123",
+        {
+            "source": "X",
+            "source_platform": "x",
+            "title": "X运营增长经验：如何从100到11万关注",
+            "author": "Example",
+            "handle": "example",
+            "tweet_created_at": "2026-06-30T00:00:00+00:00",
+            "body": "这是一篇关于自媒体内容创作、流量增长和获客转化的帖子。",
+            "status": "archived",
+            "extra_urls": [],
+            "metrics": {},
+        },
+        {"message_id": "m1", "create_time": "2026-06-30 10:17"},
+        "oc_test",
+        "好文收藏",
+    )
+
+    assert "category: 做内容类" in md
+    assert "tags: 内容创作, 获客, 增长" in md

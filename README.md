@@ -236,7 +236,7 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 - **快讯/深读同一事实源**——`brief_universe` 生成默认快讯，`deep_candidates` 必须是快讯子集并生成 optional 深读。
 - **Daily umbrella 三产品**——产品雷达独立生成，`daily-YY-MM-DD.*` 只链接快讯/深读/产品雷达，不在 Markdown 基础上二次重写。
 - **读者正文不放 Source Health**——渠道健康只进 `status.html`、`run-report.json` 和 health alerts。
-- **长期收藏只收显式保存**——飞书 `好文收藏`、manual links、X saved、Wendy 点“有用”的 item 进 `002_个人收藏`；普通 AI daily 候选不自动进入个人收藏。
+- **长期收藏只收显式保存**——飞书 `好文收藏`、manual links、X saved、Wendy 点“有用”的 item 进 `002_个人收藏`；普通 AI daily 候选不自动进入个人收藏。个人收藏统一写入 `category`（AI类 / 认知提升类 / 做内容类 / 金融交易类）和 comma-separated `tags`，由 `ingestion/collection_taxonomy.py` 生成。
 
 ## 配置
 
@@ -301,7 +301,7 @@ daily-newsletter/
 └── AGENTS.md                  # 给 AI agent 的编辑规则
 ```
 
-数据目录在 `~/park-io/`：`_inbox/`（raw/unprocessed/processed 临时缓存）、`001_daily newsletter/`（agent 生成的 AI / finance daily）、`002_个人收藏/`（Wendy 显式收藏；`_manual-links.md` 是总索引）、`003_park原始输出/`（Wendy 原始表达）、`004_内容加工中/`（草稿和中间资产）、`005_自媒体发出内容/`（已发布内容指针）、`000_ai使用守则/`（角色、skills、workflows、gotchas）、`_source management/`（source ops）、`_inbox/status.html`（维护者面板）。
+数据目录在 `~/park-io/`：`_inbox/`（raw/unprocessed/processed 临时缓存）、`001_daily newsletter/`（agent 生成的 AI / finance daily）、`002_个人收藏/`（Wendy 显式收藏；`_manual-links.md` 是总索引，含 category/tags）、`003_park原始输出/`（Wendy 原始表达）、`004_内容加工中/`（草稿和中间资产）、`005_自媒体发出内容/`（已发布内容指针）、`000_ai使用守则/`（角色、skills、workflows、gotchas）、`_source management/`（source ops）、`_inbox/status.html`（维护者面板）。
 
 飞书 `好文收藏` 群由本机 LaunchAgent `com.parkio.feishu-favorites` 每 5 分钟轮询一次，入口脚本是 `fetch-feishu-favorites.py`，状态写入 `state.json` 的 `feishu-favorites`，日志写入 `logs/feishu-favorites.log`。
 

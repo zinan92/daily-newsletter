@@ -19,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from ingestion.collection_index import existing_collection_path_for_url, rebuild_collection_index
+from ingestion.collection_taxonomy import classify_collection_text, tag_string
 from ingestion.manual_links.wechat_seed import fetch_url as fetch_wechat_url
 from ingestion.manual_links.wechat_seed import parse_article as parse_wechat_article
 from ingestion.x import saved as x_saved
@@ -352,6 +353,17 @@ def render_markdown(url: str, item: dict, message: dict, chat_id: str, chat_name
     title = str(item.get("title") or title_from_url(url)).replace("\n", " ").strip()
     author = str(item.get("author") or "").replace("\n", " ").strip()
     handle = str(item.get("handle") or "").replace("\n", " ").strip()
+    body = str(item.get("body") or "").strip()
+    taxonomy = classify_collection_text(
+        title=title,
+        body=body,
+        url=url,
+        source=str(item.get("source") or source_code_for_url(url)),
+        author=author or handle,
+        existing_tags=item.get("tags") or "",
+    )
+    category = str(item.get("category") or taxonomy.category).strip()
+    tags = tag_string(taxonomy.tags)
     metrics = item.get("metrics") if isinstance(item.get("metrics"), dict) else {}
     metric_text = " · ".join(
         f"{key} {value}" for key, value in metrics.items() if value not in ("", None)
@@ -371,7 +383,8 @@ def render_markdown(url: str, item: dict, message: dict, chat_id: str, chat_name
         f"tweet_created_at: {item.get('tweet_created_at') or ''}",
         f"captured_at: {message.get('create_time') or datetime.now().isoformat(timespec='seconds')}",
         f"status: {item.get('status') or 'needs_fetch'}",
-        "tags: ",
+        f"category: {category}",
+        f"tags: {tags}",
         "---",
         "",
         f"# {title}",
@@ -390,7 +403,6 @@ def render_markdown(url: str, item: dict, message: dict, chat_id: str, chat_name
         lines.extend(["", "## 相关链接", ""])
         for extra in extra_urls:
             lines.append(f"- {extra}")
-    body = str(item.get("body") or "").strip()
     if body:
         lines.extend(["", "## 正文缓存", "", body])
     if item.get("status") == "needs_fetch":

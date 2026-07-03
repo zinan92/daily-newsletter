@@ -28,6 +28,7 @@ from lib import (
     render_frontmatter,
     today,
 )
+from ingestion.collection_taxonomy import classify_collection_text, tag_string
 
 
 def profile_readme(profile_dir: Path, profile_id: str, profile_name: str) -> None:
@@ -196,6 +197,14 @@ def archive_item(path: Path, batch: str, sources: dict[str, dict], selected_urls
         }
         if not is_explicit_collection_item(source_name, source, fm, item):
             continue
+        taxonomy = classify_collection_text(
+            title=str(item.get("title") or ""),
+            body=str(item.get("content") or ""),
+            url=str(item.get("url") or ""),
+            source=source_name,
+            author=str(item.get("author") or item.get("handle") or ""),
+            existing_tags=item.get("tags") or "",
+        )
         item_fm = {
             "id": item.get("url", "") or item.get("title", ""),
             "profile_id": profile_id,
@@ -207,6 +216,9 @@ def archive_item(path: Path, batch: str, sources: dict[str, dict], selected_urls
             "published_at": item.get("published", ""),
             "batch_id": batch,
             "status": "archived",
+            "source_category": source.get("category", ""),
+            "category": taxonomy.category,
+            "tags": tag_string(taxonomy.tags),
             "collected_at": collected_date,
             "library_archived_at": datetime.now().isoformat(timespec="seconds"),
         }

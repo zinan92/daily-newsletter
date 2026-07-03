@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ingestion.collection_taxonomy import classify_collection_text
 from lib import LIBRARY_DIR, clean_collection_title, collection_source_code, today
 
 INDEX_FILE = LIBRARY_DIR / "_manual-links.md"
@@ -16,7 +17,7 @@ def default_index_text() -> str:
         [
             "# 个人收藏索引",
             "",
-            "这个文件是 `002_个人收藏` 的总索引。它记录每一条显式收藏的来源、作者、标题、tags 和处理状态。",
+            "这个文件是 `002_个人收藏` 的总索引。它记录每一条显式收藏的来源、作者、标题、category、tags 和处理状态。",
             "",
             "- 最近收藏排在最上面。",
             "- `Tags` 是人工/agent 后续补充的主题标签；脚本更新时会尽量保留已有 tags。",
@@ -24,8 +25,8 @@ def default_index_text() -> str:
             "",
             "## Index",
             "",
-            "| 日期 | Source | 作者 | Title | Tags | 状态 | 文件 | 原文 |",
-            "|---|---|---|---|---|---|---|---|",
+            "| 日期 | Source | 作者 | Title | Category | Tags | 状态 | 文件 | 原文 |",
+            "|---|---|---|---|---|---|---|---|---|",
             "",
             "## Pending",
             "",
@@ -165,17 +166,21 @@ def existing_tags() -> dict[str, str]:
     ensure_index_file()
     text = INDEX_FILE.read_text(encoding="utf-8")
     tags: dict[str, str] = {}
-    for line in _section_text(text, "Index").splitlines():
+    index_lines = _section_text(text, "Index").splitlines()
+    header_line = next((line for line in index_lines if line.startswith("| 日期")), "")
+    has_category_column = "Category" in header_line
+    for line in index_lines:
         if not line.startswith("|") or "---" in line or "日期" in line:
             continue
         cells = _split_table_row(line)
-        if len(cells) < 8:
+        tag_idx = 5 if has_category_column else 4
+        if len(cells) <= tag_idx:
             continue
-        value = cells[4].strip()
-        if not value or value == "-":
+        value = cells[tag_idx].strip()
+        if not value or value == "-" or value in {"archived", "needs_fetch"}:
             continue
-        url = _link_url(cells[7])
-        file_name = _wikilink_file(cells[6])
+        url = _link_url(line)
+        file_name = _wikilink_file(line)
         if url:
             tags[url] = value
         if file_name:
@@ -201,11 +206,20 @@ def collection_record_from_file(path: Path, tag_overrides: dict[str, str] | None
     status = fm.get("status") or "archived"
     tag_overrides = tag_overrides or {}
     tags = tag_overrides.get(url) or tag_overrides.get(path.name) or fm.get("tags") or "-"
+    category = fm.get("category") or classify_collection_text(
+        title=title,
+        body=text,
+        url=url,
+        source=source,
+        author=author,
+        existing_tags=tags,
+    ).category
     return {
         "date": _date_from_filename(path, fm),
         "source": source,
         "author": author,
         "title": title,
+        "category": category,
         "tags": tags,
         "status": status,
         "file": path.name,
@@ -213,8 +227,8 @@ def collection_record_from_file(path: Path, tag_overrides: dict[str, str] | None
     }
 
 
-def collection_records() -> list[dict[str, str]]:
-    tag_overrides = existing_tags()
+def collection_records(*, preserve_existing_tags: bool = True) -> list[dict[str, str]]:
+    tag_overrides = existing_tags() if preserve_existing_tags else {}
     records: list[dict[str, str]] = []
     for path in sorted(LIBRARY_DIR.glob("*.md")):
         if path.name in {"README.md", INDEX_FILE.name}:
@@ -235,7 +249,7 @@ def render_index(
     lines = [
         "# 个人收藏索引",
         "",
-        "这个文件是 `002_个人收藏` 的总索引。它记录每一条显式收藏的来源、作者、标题、tags 和处理状态。",
+        "这个文件是 `002_个人收藏` 的总索引。它记录每一条显式收藏的来源、作者、标题、category、tags 和处理状态。",
         "",
         "- 最近收藏排在最上面。",
         "- `Tags` 是人工/agent 后续补充的主题标签；脚本更新时会尽量保留已有 tags。",
@@ -243,8 +257,8 @@ def render_index(
         "",
         "## Index",
         "",
-        "| 日期 | Source | 作者 | Title | Tags | 状态 | 文件 | 原文 |",
-        "|---|---|---|---|---|---|---|---|",
+        "| 日期 | Source | 作者 | Title | Category | Tags | 状态 | 文件 | 原文 |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for record in records:
         file_name = record.get("file", "")
@@ -260,6 +274,7 @@ def render_index(
                     _escape_cell(record.get("source", "")),
                     _escape_cell(record.get("author", "")),
                     _escape_cell(title),
+                    _escape_cell(record.get("category", "")),
                     _escape_cell(record.get("tags", "")),
                     _escape_cell(record.get("status", "")),
                     file_link,
@@ -287,10 +302,15 @@ def rebuild_collection_index(
     *,
     pending: list[str] | None = None,
     failed: list[dict[str, str]] | None = None,
+    preserve_existing_tags: bool = True,
 ) -> None:
     ensure_index_file()
     INDEX_FILE.write_text(
-        render_index(collection_records(), pending=pending, failed=failed),
+        render_index(
+            collection_records(preserve_existing_tags=preserve_existing_tags),
+            pending=pending,
+            failed=failed,
+        ),
         encoding="utf-8",
     )
 

@@ -32,6 +32,7 @@ from ingestion.collection_index import (
     pending_lines as index_pending_lines,
     rebuild_collection_index,
 )
+from ingestion.collection_taxonomy import classify_collection_text, tag_string
 
 MANUAL_LINKS = LIBRARY_DIR / "_manual-links.md"
 URL_RE = re.compile(r"https?://[^\s<>)\]]+")
@@ -181,6 +182,13 @@ def save_independent_article(item: dict, html: str, account: str) -> str:
     raw_dir = PARKIO / ".system" / "source-raw" / "manual-links" / date[:4] / date[5:7]
     raw_dir.mkdir(parents=True, exist_ok=True)
     raw = raw_dir / article_name.replace(".md", ".html")
+    taxonomy = classify_collection_text(
+        title=str(item.get("title") or "微信公众号文章"),
+        body=str(item.get("content") or ""),
+        url=url,
+        source=account or "手动公众号文章",
+        author=account,
+    )
     article.write_text(
         "\n".join(
             [
@@ -190,6 +198,9 @@ def save_independent_article(item: dict, html: str, account: str) -> str:
                 f"published: {item.get('published', '')}",
                 "origin: manual-links",
                 f"raw_html_path: {raw}",
+                "status: archived",
+                f"category: {taxonomy.category}",
+                f"tags: {tag_string(taxonomy.tags)}",
                 "---",
                 "",
                 f"# {item.get('title', '微信公众号文章')}",
