@@ -155,17 +155,7 @@ def chunk_text(text: str, limit: int = MAX_TEXT_CHARS) -> list[str]:
 
 
 def artifact_path(run_date: str) -> Path:
-    return SENT_DIR / f"daily-{date_label(run_date)}.md"
-
-
-def artifact_paths(run_date: str) -> dict[str, Path]:
-    label = date_label(run_date)
-    return {
-        "daily": SENT_DIR / f"daily-{label}.md",
-        "brief": SENT_DIR / f"{label}.md",
-        "deep": SENT_DIR / f"deep-{label}.md",
-        "radar": SENT_DIR / f"product-radar-{label}.md",
-    }
+    return SENT_DIR / f"{date_label(run_date)}.md"
 
 
 def readable_markdown(markdown: str) -> str:
@@ -185,43 +175,14 @@ def read_artifact(path: Path, *, required: bool = True) -> str:
 
 
 def message_text(run_date: str, markdown_path: Path | None = None) -> str:
-    paths = artifact_paths(run_date)
-    daily = read_artifact(markdown_path or paths["daily"])
-    brief = read_artifact(paths["brief"])
-    deep = read_artifact(paths["deep"], required=False)
-    radar = read_artifact(paths["radar"], required=False)
+    daily = read_artifact(markdown_path or artifact_path(run_date))
     sections = [
-        f"Park-IO Daily Newsletter — {run_date}",
+        f"AI Daily Newsletter — {run_date}",
         "",
         "这条飞书消息包含完整正文；不需要打开本地 Markdown 文件。",
         "",
         daily,
-        "",
-        "====================",
-        "快讯正文",
-        "====================",
-        brief,
     ]
-    if deep:
-        sections.extend(
-            [
-                "",
-                "====================",
-                "深读正文",
-                "====================",
-                deep,
-            ]
-        )
-    if radar:
-        sections.extend(
-            [
-                "",
-                "====================",
-                "产品雷达正文",
-                "====================",
-                radar,
-            ]
-        )
     return "\n".join(
         section.strip()
         for section in sections

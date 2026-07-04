@@ -12,7 +12,7 @@ Digest aggregation owns the final reader-facing product.
 - `quality-check.py`
 - `ai-quality-check.py`
 - `archive-items.py`
-- `finalize-local.py`
+- `finalize-local.py` (legacy split-artifact compatibility)
 - `html-to-long-image.py`
 
 ## Implementation
@@ -32,14 +32,13 @@ Digest aggregation owns the final reader-facing product.
 
 - Standardized ingestion artifacts.
 - Enrichment artifacts.
-- Scores and source-health state.
+- Source-health state.
 
 ## Outputs
 
-- Final Markdown digest.
-- HTML derived from Markdown.
-- PNG derived from HTML.
-- Local sent artifact family under `~/park-io/001_daily newsletter/ai/`.
+- Intermediate brief/deep/product radar Markdown under `~/park-io/_inbox/processed/<YY-MM-DD>/`.
+- One durable reader Markdown under `~/park-io/006_ai daily newsletter/<YY-MM-DD>.md`.
+- No final reader HTML/PNG artifacts by default.
 
 ## Boundary
 

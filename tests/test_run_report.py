@@ -105,8 +105,10 @@ def test_report_backfills_five_stage_artifact_funnel(tmp_path):
         (batch_dir / "source" / "item.md").write_text("# Item\n", encoding="utf-8")
         sent = tmp_path / "sent"
         sent.mkdir()
-        (sent / "26-06-06.md").write_text("- **A**\n", encoding="utf-8")
-        (sent / "product-radar-26-06-06.md").write_text("### 1. A\n", encoding="utf-8")
+        (sent / "26-06-06.md").write_text(
+            "# AI Daily Newsletter — 2026-06-06\n\n## 快讯\n\n- **A**\n\n## 深读\n\n## 产品雷达\n\n### 1. A\n",
+            encoding="utf-8",
+        )
         run_report.SENT_DIR = sent
         run_report.processed_batch_dir = lambda batch=None: batch_dir
         run_report.MEDIA_SUMMARIES_PATH = _temp_json({})
@@ -118,7 +120,7 @@ def test_report_backfills_five_stage_artifact_funnel(tmp_path):
         assert report["totals"]["filtered"] == 3
         assert report["totals"]["coarse_rejects"] == 2
         assert report["totals"]["events"] == 1
-        assert report["funnel"]["reader_products"]["product_radar"]["items"] == 1
+        assert report["funnel"]["reader_products"]["daily"]["product_directions"] == 1
     finally:
         try:
             run_report.MEDIA_SUMMARIES_PATH.unlink()

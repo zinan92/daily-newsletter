@@ -159,13 +159,8 @@ def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
 
     reader_quality = _load_json(root / "reader-quality.json")
     feishu = latest_feishu_receipt(date)
-    sent_paths = {
-        "daily": SENT_DIR / f"daily-{label}.md",
-        "brief": SENT_DIR / f"{label}.md",
-        "deep": SENT_DIR / f"deep-{label}.md",
-        "product_radar": SENT_DIR / f"product-radar-{label}.md",
-    }
-    product_directions = _line_count(sent_paths["product_radar"], r"^###\s+\d+\.") if sent_paths["product_radar"].exists() else 0
+    daily_path = SENT_DIR / f"{label}.md"
+    product_directions = _line_count(daily_path, r"^###\s+\d+\.") if daily_path.exists() else 0
     pending_raw = pending_raw_summary(date)
     source_markdown_files = [
         p
@@ -186,10 +181,12 @@ def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
         "deep_candidates": len(deep),
         "discard": len(discard),
         "reader_products": {
-            "daily": _artifact_exists(sent_paths["daily"]),
-            "brief": {**_artifact_exists(sent_paths["brief"]), "items": _line_count(sent_paths["brief"], r"^- \*\*")},
-            "deep": {**_artifact_exists(sent_paths["deep"]), "items": _line_count(sent_paths["deep"], r"^###\s+")},
-            "product_radar": {**_artifact_exists(sent_paths["product_radar"]), "items": product_directions},
+            "daily": {
+                **_artifact_exists(daily_path),
+                "brief_items": len(brief),
+                "deep_items": len(deep),
+                "product_directions": product_directions,
+            },
         },
         "reader_quality": reader_quality,
         "feishu": feishu,

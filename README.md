@@ -2,7 +2,7 @@
 
 # Daily Newsletter
 
-**把分散在官方渠道、X、播客和公众号里的 AI 信息，每天自动凝练成一份中文摘要，保存成本地 Markdown / HTML / 长图。**
+**把分散在官方渠道、X、播客和公众号里的 AI 信息，每天自动凝练成一份中文日报，保存为一个本地 Markdown。**
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![Tests](https://img.shields.io/badge/tests-all%20suites-green.svg)](tests/)
@@ -17,7 +17,7 @@
 
 ```
 in   官方渠道 (Anthropic/OpenAI/Claude/Codex) + X 关注账号 + 播客/YouTube/抖音 + 手动链接/公众号
-out  一份中文日报 (Markdown + HTML + 长图) → `inbox/processed/<YY-MM-DD>/`，每天 08:30
+out  一份中文日报 Markdown → `~/park-io/006_ai daily newsletter/<YY-MM-DD>.md`，每天 08:30
 
 fail LLM 端点 502/SSL    → DeepSeek 重试 3 次；仍失败则自动转 CLIProxy/Sonnet；配置错误不兜底
 fail AI 结构化输出失败   → 写 processed/<YY-MM-DD>/ai/error.json + raw-response.md，直接停止，不 fallback
@@ -25,7 +25,7 @@ fail 最终 Markdown 缺栏目 → build-digest 失败，不生成假成功产�
 fail 某来源抓取失败      → 跳过并在状态页标记，不影响其他来源
 ```
 
-Daily Newsletter 是一个 **local-first Daily Inbox pipeline**：默认生成本地 Markdown / HTML / PNG，并把完整正文发到飞书。Telegram 仍保留为 legacy optional sender，但不是当前默认交付路径。
+Daily Newsletter 是一个 **local-first Daily Inbox pipeline**：默认只生成一个本地 Markdown，并把完整正文发到飞书。HTML / PNG 和 Telegram 只保留为 legacy / 调试能力，不是当前默认交付路径。
 
 生产链路现在是 5-stage：`fetch -> to_md -> coarse_filter -> ai_process -> archive`。脚本只负责下载、转写、粗筛、保存和推送；内容判断、合并、打分、分类、快讯全集/深读子集选择全部交给 AI system prompt。
 
@@ -49,18 +49,19 @@ npx skills add zinan92/daily-newsletter
 
 ## 示例输出
 
-Daily Newsletter 是 umbrella，每天固定组织三个读者产品：
+Daily Newsletter 是一个 umbrella 单文件，每天固定组织三个 section：
 
-- `000-YY-MM-DD.md/html/png` 是默认**快讯**产品，回答“今天有哪些新信号值得知道”。
-- `deep-YY-MM-DD.md/html/png` 是可选**深读**产品，只在当天有 `deep_candidates` 时生成，回答“哪些内容值得花 10-30 分钟理解”。
-- `product-radar-YY-MM-DD.md/html/png` 是独立**产品雷达**产品，读取 Product Hunt / Hacker News / TrustMRR，只回答“今天最值得 build 的产品方向是什么，以及证据是什么”；最多给 5 个，少于 5 个时不硬凑。
-- `daily-YY-MM-DD.md/html/png` 是 umbrella index，只链接三份产品并记录健康/降级状态，不重新改写正文。
+- `## 快讯`：回答“今天有哪些新信号值得知道”。
+- `## 深读`：只在当天有 `deep_candidates` 时展开，回答“哪些内容值得花 10-30 分钟理解”。
+- `## 产品雷达`：读取 Product Hunt / Hacker News / TrustMRR，只回答“今天最值得 build 的产品方向是什么，以及证据是什么”；最多给 5 个，少于 5 个时不硬凑。
+
+中间层仍会在 `~/park-io/_inbox/processed/<YY-MM-DD>/` 保留 `000-*`、`deep-*`、`product-radar-*` Markdown 方便 debug；长期读者归档只保存 `~/park-io/006_ai daily newsletter/<YY-MM-DD>.md`。
 
 深读必须是快讯全集的子集，并通过 `parent_brief_event_id` 可追踪。`Source Health` 留在状态页和 run-report，不进入读者正文。
 产品雷达不进入快讯/深读的 AI selection universe；它是同一个 daily routine 里的第三个产品，避免产品机会源污染资讯判断。
 
 ```markdown
-# Daily Inbox 快讯 — 2026-06-10
+# AI Daily Newsletter — 2026-06-10
 
 ## 快讯
 ### 底层工具
@@ -74,27 +75,14 @@ Daily Newsletter 是 umbrella，每天固定组织三个读者产品：
 ### 内容
 - **X / Yenita_Su** | [小红书创作窗口解析](https://x.com/...)
   平台扶持方向变化，适合做机会扫描。
-```
 
-```markdown
-# Daily Inbox 深读 — 2026-06-10
 ## 深读
-### 1. [Claude Fable 5 and Claude Mythos 5](https://www.anthropic.com/news/...)
+### [Claude Code 官方循环工程入门指南](https://example.com)
+文章级判断与可迁移启发。
 
-来源：Anthropic News
-
-**核心论点：**
-模型能力正在按开放层级、安全边界和使用权限重新分层。
-
-**为什么值得读：**
-它提供了一个观察 AI 平台竞争的新角度。
-
-**它改变了什么判断：**
-选择 AI 工具时，不能只看 benchmark，还要看开放稳定性、权限和成本结构。
-
-**可迁移启发：**
-可迁移到 AI 产品分层、企业自动化架构和开发者工具设计。
-
+## 产品雷达
+### 1. AI workflow builder
+- **可以 build 什么**：一个垂直 Agent。
 ```
 
 > 终端运行时每个阶段都会打印进度，例如：
@@ -106,15 +94,16 @@ Daily Newsletter 是 umbrella，每天固定组织三个读者产品：
 
 ## 架构：5-stage AI-first
 
-抓取入口仍按来源拆分，但生产边界按 stage folder 固化。最终正文只输出 `短讯` 和 `深读`。
+抓取入口仍按来源拆分，但生产边界按 stage folder 固化。最终读者正文只输出一个 Markdown，内部包含 `快讯`、`深读` 和 `产品雷达`。
 
 ```
 fetch → raw/<YYYY-MM-DD>
       → to_md → unprocessed/<YYYY-MM-DD>/items/*.md
       → coarse_filter → processed/<YY-MM-DD>/items/*.md + coarse-rejects.jsonl
       → ai_process → ai/01-item-cards.json → ai/02-events.json → ai/03-selection.json
-                   → 000-YY-MM-DD.md/html/png + optional deep-YY-MM-DD.md/html/png
+                   → processed/000-YY-MM-DD.md + optional processed/deep-YY-MM-DD.md
       → archive → explicit collection items + daily artifacts
+      → daily_bundle → 006_ai daily newsletter/YY-MM-DD.md
 ```
 
 实现入口固定在 `stages/`，根目录脚本只是兼容 wrapper：
@@ -164,16 +153,15 @@ python3 stages/to_md/run.py                       # Stage 2: raw → one-item ma
 BATCH=$(python3 stages/coarse_filter/run.py | tail -1) # Stage 3: coarse filter → processed
 PARKIO_BATCH_ID=$BATCH python3 build-digest.py    # Stage 4: AI → 快讯 artifact + optional 深读 artifact
 PARKIO_BATCH_ID=$BATCH python3 stages/archive/run.py
-PARKIO_BATCH_ID=$BATCH python3 finalize-local.py  # Stage 5: 写 sent/YY-MM-DD.* 和 optional sent/deep-YY-MM-DD.*
-python3 build-product-radar.py --date "$(date +%F)" # Product Radar：独立产品机会雷达
-python3 build-daily-bundle.py --date "$(date +%F)"  # Daily umbrella：链接快讯/深读/产品雷达
+python3 build-product-radar.py --date "$(date +%F)" # Product Radar：写 processed/<YY-MM-DD>/product-radar-*.md
+python3 build-daily-bundle.py --date "$(date +%F)"  # Stage 5: 写 006_ai daily newsletter/YY-MM-DD.md
 python3 reader_quality.py --date "$(date +%F)"       # Reader QA：检查最终读者产物
 python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正文并写 delivery receipt
 # Telegram 是 legacy optional sender，默认跳过；恢复后再手动执行：
 # PARKIO_BATCH_ID=$BATCH PARKIO_FORCE_PUSH=1 python3 send-artifacts.py
 ```
 
-日常由 launchd 驱动：`fetch-all.sh` 每小时只抓取 raw/source data 并刷新状态健康；`push-feishu-digest.sh` 每天 08:30 先调用 `push-digest.sh` 依次执行 `to-md -> open-batch -> build-digest -> archive -> finalize -> product-radar -> daily-bundle -> reader-qa -> status`，保存到 `processed/` 并写入本地定稿 `sent/YY-MM-DD.{md,html,png}`；如果当天有深读候选，同时写 `sent/deep-YY-MM-DD.{md,html,png}`；产品雷达写 `sent/product-radar-YY-MM-DD.{md,html,png}`；umbrella 写 `sent/daily-YY-MM-DD.{md,html,png}`；随后执行 `send-feishu-digest.py`，向飞书发送完整正文并落 delivery receipt。WeChat / YouTube 等可恢复登录态异常会进入状态页和 daily bundle 的健康提示，默认不阻塞当天生成；临时恢复旧阻塞行为可设置 `PARKIO_PREFLIGHT_BLOCK=1`。Telegram token 修复前，`push-digest.sh` 默认跳过 Telegram 发送；恢复 Telegram 时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
+日常由 launchd 驱动：`fetch-all.sh` 每小时只抓取 raw/source data 并刷新状态健康；`push-feishu-digest.sh` 每天 08:30 先调用 `push-digest.sh` 依次执行 `to-md -> open-batch -> build-digest -> archive -> product-radar -> daily-bundle -> reader-qa -> status`，保存中间产物到 `processed/`，最终只写入 `~/park-io/006_ai daily newsletter/YY-MM-DD.md`；随后执行 `send-feishu-digest.py`，向飞书发送这份完整正文并落 delivery receipt。WeChat / YouTube 等可恢复登录态异常会进入状态页和 daily bundle 的健康提示，默认不阻塞当天生成；临时恢复旧阻塞行为可设置 `PARKIO_PREFLIGHT_BLOCK=1`。Telegram token 修复前，`push-digest.sh` 默认跳过 Telegram 发送；恢复 Telegram 时用 `PARKIO_SKIP_SEND=0 ./push-digest.sh`。
 
 ## Pipeline 阶段
 
@@ -186,9 +174,9 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 | AI Process | `stages/ai_process/run.py` | ai | AI：item cards → events → selection → 快讯写作 + optional 深读写作；失败直接停止，不 fallback |
 | 运行报告 | `run_report.py` | script | 为同一个 batch 生成 `run-report.json`；日报、status、health alert 共用这一份健康事实 |
 | 归档 | `stages/archive/run.py` | script | 按 `ai/03-selection.json` 归档 `brief_universe` / `deep_candidates`；discard 只保留 decision log |
-| 本地定稿 | `finalize-local.py` | script | 不依赖 Telegram，写 `sent/YY-MM-DD.{md,html,png}` 和 optional `sent/deep-YY-MM-DD.{md,html,png}` |
-| 产品雷达 | `build-product-radar.py` | script | 独立抓取 Product Hunt / HN / TrustMRR，输出当天新的 Top N build choices，写 `sent/product-radar-YY-MM-DD.{md,html,png}` 和 raw snapshot |
-| Daily Umbrella | `build-daily-bundle.py` | script | 不重写正文，只链接快讯/深读/产品雷达并记录健康/降级状态 |
+| 本地定稿 | `build-daily-bundle.py` | script | 合并 processed 快讯、深读和产品雷达，写 `~/park-io/006_ai daily newsletter/YY-MM-DD.md` |
+| 产品雷达 | `build-product-radar.py` | script | 独立抓取 Product Hunt / HN / TrustMRR，输出当天新的 Top N build choices，写 processed 中间 Markdown 和 raw snapshot |
+| Legacy split finalize | `finalize-local.py` | script | 仅兼容旧 split-artifact 调试，不在生产链路中调用 |
 | Reader QA | `reader_quality.py` | script | 检查实际读者 Markdown：禁止 raw transcript、机器 marker、本地路径泄漏、缺失核心 section；失败则停止推送 |
 | 飞书推送 | `send-feishu-digest.py` | script | 发送完整正文，不依赖本地 Markdown 链接；写 `processed/receipts/feishu/*.json` delivery receipt |
 | 推送 | `send-artifacts.py` → `push-telegram.py` | script | 当前默认跳过；恢复后发送 Telegram |
@@ -234,7 +222,7 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 - **脚本不做产品判断**——除了 coarse filter 的明显垃圾，merge / score / selection / writing 都在 AI process。
 - **失败不 fallback**——AI JSON 错、结构错、最终 Markdown 缺栏目，直接写 `ai/error.json` 并停止。
 - **快讯/深读同一事实源**——`brief_universe` 生成默认快讯，`deep_candidates` 必须是快讯子集并生成 optional 深读。
-- **Daily umbrella 三产品**——产品雷达独立生成，`daily-YY-MM-DD.*` 只链接快讯/深读/产品雷达，不在 Markdown 基础上二次重写。
+- **Daily umbrella 单文件**——产品雷达独立生成中间 Markdown，`006_ai daily newsletter/YY-MM-DD.md` 合并快讯、深读、产品雷达三个 section，不再生成 reader-facing HTML/PNG。
 - **读者正文不放 Source Health**——渠道健康只进 `status.html`、`run-report.json` 和 health alerts。
 - **长期收藏只收显式保存**——飞书 `好文收藏`、manual links、X saved、Wendy 点“有用”的 item 进 `002_个人收藏`；普通 AI daily 候选不自动进入个人收藏。个人收藏统一写入 `category`（AI类 / 认知提升类 / 做内容类 / 金融交易类）和 comma-separated `tags`，由 `ingestion/collection_taxonomy.py` 生成。
 
@@ -301,7 +289,7 @@ daily-newsletter/
 └── AGENTS.md                  # 给 AI agent 的编辑规则
 ```
 
-数据目录在 `~/park-io/`：`_inbox/`（raw/unprocessed/processed 临时缓存）、`001_daily newsletter/`（agent 生成的 AI / finance daily）、`002_个人收藏/`（Wendy 显式收藏；`_manual-links.md` 是总索引，含 category/tags）、`003_park原始输出/`（Wendy 原始表达）、`004_内容加工中/`（草稿和中间资产）、`005_自媒体发出内容/`（已发布内容指针）、`000_ai使用守则/`（角色、skills、workflows、gotchas）、`_source management/`（source ops）、`_inbox/status.html`（维护者面板）。
+数据目录在 `~/park-io/`：`_inbox/`（raw/unprocessed/processed 临时缓存）、`006_ai daily newsletter/`（AI daily newsletter 最终单文件 Markdown 归档）、`001_daily newsletter/`（legacy/旧产物，不再作为 AI daily 输出目标）、`002_个人收藏/`（Wendy 显式收藏；`_manual-links.md` 是总索引，含 category/tags）、`003_park原始输出/`（Wendy 原始表达）、`004_内容加工中/`（草稿和中间资产）、`005_自媒体发出内容/`（已发布内容指针）、`000_ai使用守则/`（角色、skills、workflows、gotchas）、`_source management/`（source ops）、`_inbox/status.html`（维护者面板）。
 
 飞书 `好文收藏` 群由本机 LaunchAgent `com.parkio.feishu-favorites` 每 5 分钟轮询一次，入口脚本是 `fetch-feishu-favorites.py`，状态写入 `state.json` 的 `feishu-favorites`，日志写入 `logs/feishu-favorites.log`。
 
@@ -364,9 +352,9 @@ python3 scripts/n8n_import_diff.py
 name: daily-newsletter
 capability:
   summary: Aggregate AI news from official channels, X, podcasts, and manual links
-           into a daily Chinese digest saved under inbox/processed.
+           into a daily Chinese digest saved as one Markdown.
   in:  source configs (sources.md) + manual-links.md
-  out: inbox/sent/daily-YY-MM-DD.{md,html,png} linking brief, deep, and product radar artifacts
+  out: ~/park-io/006_ai daily newsletter/YY-MM-DD.md containing brief, deep, and product radar sections
   fail:
     - "LLM 502/SSL → retry DeepSeek 3x then fail over to CLIProxy/Sonnet; config errors fail fast"
     - "AI JSON/Markdown structure failure → write ai/error.json + raw-response.md and stop"

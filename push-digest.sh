@@ -88,9 +88,9 @@ echo "[$(ts)] batch=$PARKIO_BATCH_ID" >> "$LOG"
 echo "[$(ts)] run_date=$RUN_DATE" >> "$LOG"
 
 PARKIO_SKIP_SEND="${PARKIO_SKIP_SEND:-1}"
-STAGES=(build-digest.py stages/archive/run.py finalize-local.py)
+STAGES=(build-digest.py stages/archive/run.py)
 if [ "$PARKIO_SKIP_SEND" = "1" ]; then
-  echo "[$(ts)] PARKIO_SKIP_SEND=1; skip Telegram send-artifacts.py; local sent already finalized" >> "$LOG"
+  echo "[$(ts)] PARKIO_SKIP_SEND=1; skip Telegram send-artifacts.py; final Markdown will be built by build-daily-bundle.py" >> "$LOG"
 else
   STAGES+=(send-artifacts.py)
 fi

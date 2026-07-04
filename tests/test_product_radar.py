@@ -265,8 +265,10 @@ def test_build_product_radar_renders_only_new_signals_but_snapshots_all(tmp_path
         encoding="utf-8",
     )
     sent = tmp_path / "sent"
+    processed = tmp_path / "processed"
     monkeypatch.setattr(product_radar, "INBOX", tmp_path)
     monkeypatch.setattr(product_radar, "SENT_DIR", sent)
+    monkeypatch.setattr(product_radar, "PROCESSED_DIR", processed)
     old = product_radar.score_signal(product_radar.Signal(
         source="Product Hunt",
         title="Old Tool",

@@ -63,6 +63,7 @@ def test_workflow_spec_covers_all_paths_and_keeps_repo_as_source_of_truth():
     assert "runtime_target: n8n-ready" in text
     assert "root_entrypoints_remain_public: true" in text
     assert "daily_reader_bundle_includes_three_products: true" in text
+    assert "daily_reader_bundle_is_single_markdown: true" in text
     assert "recoverable_source_auth_is_non_blocking: true" in text
     assert "build-product-radar.py" in text
     assert "build-daily-bundle.py" in text

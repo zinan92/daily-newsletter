@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Finalize the local daily digest independent of Telegram delivery.
+"""Legacy finalize step for split reader artifacts.
 
-The owner reads the digest locally (no Telegram), so we save the Markdown,
-HTML, and PNG to sent/. The HTML is copied from the processed artifact to
-preserve computed dashboard details that are not encoded in Markdown.
+Production now writes a single durable Markdown via build-daily-bundle.py under
+~/park-io/006_ai daily newsletter/. This module is kept for compatibility and
+uses the legacy sent directory so manual runs do not pollute the new archive.
 """
 import shutil
 import sys
@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import SENT_DIR, batch_artifact_paths, batch_label, deep_artifact_paths
+from lib import LEGACY_SENT_DIR as SENT_DIR, batch_artifact_paths, batch_label, deep_artifact_paths
 def _finalize(src, dst) -> None:
     tmp = dst.with_suffix(dst.suffix + ".tmp")
     shutil.copy2(src, tmp)

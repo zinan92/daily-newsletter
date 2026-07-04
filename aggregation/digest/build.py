@@ -2,6 +2,7 @@
 """Stage 4: Build Digest."""
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +17,8 @@ def main() -> int:
     result = subprocess.run([sys.executable, str(summarize)])
     if result.returncode != 0:
         return result.returncode
+    if os.environ.get("PARKIO_RENDER_PROCESSED_PNG", "0") != "1":
+        return 0
     html_to_long_image = Path(__file__).resolve().parent / "html_to_long_image.py"
     for _, html_path, png_path in (batch_artifact_paths(), deep_artifact_paths()):
         if not html_path.exists():

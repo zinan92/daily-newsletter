@@ -46,16 +46,14 @@ def test_feishu_digest_inlines_reader_artifacts_instead_of_local_links(tmp_path)
     sent = tmp_path / "sent"
     sent.mkdir()
     label = "26-06-25"
-    (sent / f"daily-{label}.md").write_text(
-        "# Daily Newsletter\n\n[Markdown](</Users/wendy/park-io/001_daily newsletter/ai/26-06-25.md>)\n",
-        encoding="utf-8",
-    )
     (sent / f"{label}.md").write_text(
-        "# 快讯\n\n- **Source** | [原文](https://example.com/a)\n  summary\n<!-- parkio-push-items:[] -->\n",
+        "# AI Daily Newsletter — 2026-06-25\n\n"
+        "## 快讯\n\n- **Source** | [原文](https://example.com/a)\n  summary\n\n"
+        "## 深读\n\nDeep body\n\n"
+        "## 产品雷达\n\nRadar body\n"
+        "<!-- parkio-push-items:[] -->\n",
         encoding="utf-8",
     )
-    (sent / f"deep-{label}.md").write_text("# 深读\n\nDeep body\n", encoding="utf-8")
-    (sent / f"product-radar-{label}.md").write_text("# 产品雷达\n\nRadar body\n", encoding="utf-8")
 
     old_sent_dir = sender.SENT_DIR
     try:
@@ -65,9 +63,9 @@ def test_feishu_digest_inlines_reader_artifacts_instead_of_local_links(tmp_path)
         sender.SENT_DIR = old_sent_dir
 
     assert "/Users/wendy" not in text
-    assert "快讯正文" in text
-    assert "深读正文" in text
-    assert "产品雷达正文" in text
+    assert "## 快讯" in text
+    assert "## 深读" in text
+    assert "## 产品雷达" in text
     assert "原文 https://example.com/a" in text
     assert "parkio-push-items" not in text
 

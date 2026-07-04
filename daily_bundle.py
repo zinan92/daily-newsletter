@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
-"""Build the Daily Newsletter umbrella artifact.
+"""Build the single reader-facing AI Daily Newsletter Markdown.
 
-The umbrella does not rewrite reader products. It links the three independent
-daily products and records degraded status when one product is missing.
+Brief, deep-read, and product radar remain separate intermediate artifacts under
+processed/<YY-MM-DD>/ for debugging. The durable reader artifact is one Markdown
+file under ~/park-io/006_ai daily newsletter/.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import re
-import subprocess
-import tempfile
-import time
-import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from lib import SENT_DIR, batch_id, today
+from lib import PROCESSED_DIR, SENT_DIR, batch_id, today
 
 
 @dataclass(frozen=True)
@@ -25,8 +22,6 @@ class Artifact:
     key: str
     title: str
     md: Path
-    html: Path
-    png: Path
 
 
 def run_date_from_batch(batch: str | None = None) -> str:
@@ -44,24 +39,19 @@ def label_for_date(run_date: str) -> str:
     return datetime.strptime(run_date, "%Y-%m-%d").strftime("%y-%m-%d")
 
 
-def product_artifacts(run_date: str, sent_dir: Path = SENT_DIR) -> list[Artifact]:
+def product_artifacts(run_date: str) -> list[Artifact]:
     label = label_for_date(run_date)
+    base = PROCESSED_DIR / label
     return [
-        Artifact("brief", "快讯", sent_dir / f"{label}.md", sent_dir / f"{label}.html", sent_dir / f"{label}.png"),
-        Artifact("deep", "深读", sent_dir / f"deep-{label}.md", sent_dir / f"deep-{label}.html", sent_dir / f"deep-{label}.png"),
-        Artifact(
-            "product_radar",
-            "产品雷达",
-            sent_dir / f"product-radar-{label}.md",
-            sent_dir / f"product-radar-{label}.html",
-            sent_dir / f"product-radar-{label}.png",
-        ),
+        Artifact("brief", "快讯", base / f"000-{label}.md"),
+        Artifact("deep", "深读", base / f"deep-{label}.md"),
+        Artifact("product_radar", "产品雷达", base / f"product-radar-{label}.md"),
     ]
 
 
 def daily_bundle_paths(run_date: str, sent_dir: Path = SENT_DIR) -> tuple[Path, Path, Path]:
     label = label_for_date(run_date)
-    return sent_dir / f"daily-{label}.md", sent_dir / f"daily-{label}.html", sent_dir / f"daily-{label}.png"
+    return sent_dir / f"{label}.md", sent_dir / f"{label}.html", sent_dir / f"{label}.png"
 
 
 def _read(path: Path) -> str:
@@ -99,8 +89,8 @@ def artifact_summary(artifact: Artifact) -> dict[str, object]:
         "exists": exists,
         "detail": detail,
         "md": str(artifact.md),
-        "html": str(artifact.html) if artifact.html.exists() else "",
-        "png": str(artifact.png) if artifact.png.exists() else "",
+        "html": "",
+        "png": "",
     }
 
 
@@ -165,106 +155,54 @@ def run_report_lines(run_date: str) -> list[str]:
     return lines
 
 
+MACHINE_COMMENT_RE = re.compile(r"\n?<!--\s*parkio-[\s\S]*?-->\s*", re.M)
+
+
+def clean_reader_markdown(markdown: str) -> str:
+    text = MACHINE_COMMENT_RE.sub("\n", markdown)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def remove_h1(markdown: str) -> str:
+    text = clean_reader_markdown(markdown)
+    lines = text.splitlines()
+    if lines and lines[0].startswith("# "):
+        lines = lines[1:]
+        while lines and not lines[0].strip():
+            lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
+def product_radar_section(markdown: str) -> str:
+    body = remove_h1(markdown)
+    if not body:
+        return ""
+    body = re.sub(r"^##\s+(Top\s+.+)$", r"### \1", body, flags=re.M)
+    body = re.sub(r"^##\s+(No New Build Choices Today)\s*$", r"### \1", body, flags=re.M)
+    body = re.sub(r"^##\s+数据质量\s*$", "### 数据质量", body, flags=re.M)
+    return "## 产品雷达\n\n" + body.strip()
+
+
 def render_markdown(run_date: str, sent_dir: Path = SENT_DIR, extra_warnings: list[str] | None = None) -> str:
-    artifacts = product_artifacts(run_date, sent_dir)
+    artifacts = product_artifacts(run_date)
     summaries = [artifact_summary(a) for a in artifacts]
-    generated = datetime.now().strftime("%Y-%m-%d %H:%M")
-    warnings = [w for w in (extra_warnings or []) if w]
-    warnings.extend(run_report_lines(run_date))
+    by_key = {artifact.key: artifact for artifact in artifacts}
+    lines = [f"# AI Daily Newsletter — {run_date}", ""]
 
-    lines = [
-        f"# Daily Newsletter — {run_date}",
-        "",
-        "## 今日包",
-        "",
-    ]
-    for artifact, summary in zip(artifacts, summaries, strict=True):
-        if summary["exists"]:
-            links = [_link("Markdown", artifact.md)]
-            if artifact.html.exists():
-                links.append(_link("HTML", artifact.html))
-            if artifact.png.exists():
-                links.append(_link("PNG", artifact.png))
-            lines.append(f"- **{artifact.title}**：{summary['detail']}。{' · '.join(links)}")
-        else:
-            lines.append(f"- **{artifact.title}**：未生成。")
+    brief = remove_h1(_read(by_key["brief"].md))
+    lines.append(brief or "## 快讯\n\n今日没有生成快讯。")
 
-    lines.extend(["", "## 产品关系", ""])
-    lines.append("- **快讯** 是默认每日信息雷达，覆盖当天所有有用信号。")
-    lines.append("- **深读** 是从快讯信号升级出来的文章级理解，不硬凑。")
-    lines.append("- **产品雷达** 只回答一个问题：今天最值得 build 的 5 个产品方向是什么。")
+    deep = remove_h1(_read(by_key["deep"].md))
+    lines.extend(["", deep or "## 深读\n\n今日没有达到深读标准的内容。"])
 
-    radar_quality = product_radar_data_quality(run_date)
-    if radar_quality:
-        lines.extend(["", "## 产品雷达数据质量", ""])
-        lines.extend(f"- {line}" for line in radar_quality)
+    radar = product_radar_section(_read(by_key["product_radar"].md))
+    lines.extend(["", radar or "## 产品雷达\n\n今天没有足够新的产品/需求/收入信号形成新的 build choice。"])
 
-    lines.extend(["", "## Source Health", ""])
-    if warnings:
-        lines.extend(f"- {line}" for line in warnings)
-    else:
-        lines.append("- 没有需要阻塞今日推送的异常。")
-    lines.append("- WeChat / YouTube / 单个产品雷达源异常只进入健康提示，不阻塞每日 bundle 生成。")
-
-    lines.extend(["", f"_生成时间：{generated}_", ""])
-    return "\n".join(lines)
-
-
-def write_html(markdown: str, html_path: Path, run_date: str) -> None:
-    try:
-        from aggregation.digest.summarize import render_html_from_markdown
-
-        html_text = render_html_from_markdown(markdown, run_date, [], html_path.parent)
-    except Exception:
-        import html
-
-        body = "\n".join(f"<p>{html.escape(line)}</p>" for line in markdown.splitlines())
-        html_text = f"<!doctype html><meta charset='utf-8'><body>{body}</body>"
-    html_path.write_text(html_text, encoding="utf-8")
-
-
-def render_png(html_path: Path, png_path: Path) -> bool:
-    try:
-        from aggregation.digest.html_to_long_image import CHROME, trim_bottom_whitespace
-
-        if not CHROME.exists():
-            return False
-        width = 1200
-        height = 4000
-        file_url = "file://" + urllib.parse.quote(str(html_path.resolve()))
-        png_path.parent.mkdir(parents=True, exist_ok=True)
-        for attempt in range(2):
-            with tempfile.TemporaryDirectory(prefix="parkio-daily-bundle-chrome-") as user_data:
-                try:
-                    result = subprocess.run(
-                        [
-                            str(CHROME),
-                            "--headless=new",
-                            "--hide-scrollbars",
-                            "--disable-gpu",
-                            "--disable-dev-shm-usage",
-                            "--no-first-run",
-                            "--no-default-browser-check",
-                            f"--user-data-dir={user_data}",
-                            f"--window-size={width},{height}",
-                            f"--screenshot={png_path}",
-                            file_url,
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
-                    )
-                    if result.returncode == 0 and png_path.exists():
-                        trim_bottom_whitespace(png_path)
-                        return True
-                except subprocess.TimeoutExpired:
-                    if png_path.exists() and png_path.stat().st_size > 0:
-                        return True
-                if attempt == 0:
-                    time.sleep(2)
-    except Exception:
-        return False
-    return False
+    text = "\n".join(part.strip() for part in lines if part.strip()).strip() + "\n"
+    # Preserve summary calculation for run-report/status consumers.
+    _ = summaries, sent_dir, extra_warnings
+    return text
 
 
 def build_daily_bundle(
@@ -279,21 +217,19 @@ def build_daily_bundle(
     markdown = render_markdown(run_date, sent_dir, extra_warnings)
     md_path, html_path, png_path = daily_bundle_paths(run_date, sent_dir)
     md_path.write_text(markdown, encoding="utf-8")
-    write_html(markdown, html_path, run_date)
-    png_ok = render_png(html_path, png_path) if with_png else False
     return {
         "date": run_date,
         "markdown": str(md_path),
-        "html": str(html_path),
-        "png": str(png_path) if png_ok else "",
-        "products": [artifact_summary(a) for a in product_artifacts(run_date, sent_dir)],
+        "html": "",
+        "png": "",
+        "products": [artifact_summary(a) for a in product_artifacts(run_date)],
     }
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build the Daily Newsletter umbrella artifact.")
+    parser = argparse.ArgumentParser(description="Build the single AI Daily Newsletter Markdown artifact.")
     parser.add_argument("--date", default=run_date_from_batch())
-    parser.add_argument("--no-png", action="store_true")
+    parser.add_argument("--no-png", action="store_true", help="Legacy no-op; final reader output is Markdown-only.")
     parser.add_argument("--warning", action="append", default=[])
     args = parser.parse_args(argv)
     result = build_daily_bundle(args.date, with_png=not args.no_png, extra_warnings=args.warning)

@@ -46,12 +46,7 @@ def output_path(run_date: str) -> Path:
 
 def reader_artifacts(run_date: str, sent_dir: Path = SENT_DIR) -> dict[str, Path]:
     label = date_label(run_date)
-    return {
-        "daily": sent_dir / f"daily-{label}.md",
-        "brief": sent_dir / f"{label}.md",
-        "deep": sent_dir / f"deep-{label}.md",
-        "product_radar": sent_dir / f"product-radar-{label}.md",
-    }
+    return {"daily": sent_dir / f"{label}.md"}
 
 
 def _sha256(text: str) -> str:
@@ -74,7 +69,7 @@ def check_text(name: str, path: Path, text: str) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     if MACHINE_COMMENT_RE.search(text):
         issues.append(_issue("fail", name, "machine_comment", "reader Markdown contains parkio machine markers", path))
-    if name != "daily" and LOCAL_PATH_RE.search(text):
+    if LOCAL_PATH_RE.search(text):
         issues.append(_issue("fail", name, "local_path", "reader Markdown contains local /Users path", path))
     if RAW_TRANSCRIPT_RE.search(text):
         issues.append(_issue("fail", name, "raw_transcript", "reader Markdown exposes raw transcript text", path))
@@ -85,16 +80,12 @@ def check_text(name: str, path: Path, text: str) -> list[dict[str, str]]:
 
 def check_required_sections(name: str, path: Path, text: str) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
-    if name == "brief":
-        for heading in ("## 快讯", "### 底层工具", "### 工作流", "### 内容"):
+    if name == "daily":
+        for heading in ("# AI Daily Newsletter", "## 快讯", "## 深读", "## 产品雷达"):
             if heading not in text:
-                issues.append(_issue("fail", name, "missing_section", f"brief is missing required heading: {heading}", path))
-    elif name == "deep":
-        if "## 深读" not in text:
-            issues.append(_issue("fail", name, "missing_section", "deep product is missing ## 深读", path))
-    elif name == "product_radar":
-        if "## 数据质量" not in text:
-            issues.append(_issue("warn", name, "missing_data_quality", "product radar is missing data quality section", path))
+                issues.append(_issue("fail", name, "missing_section", f"daily newsletter is missing required heading: {heading}", path))
+        if "数据质量" not in text:
+            issues.append(_issue("warn", name, "missing_data_quality", "daily newsletter is missing product radar data quality", path))
         headings = PRODUCT_HEADING_RE.findall(text)
         match = TOP_N_RE.search(text)
         if match and headings:
@@ -109,10 +100,6 @@ def check_required_sections(name: str, path: Path, text: str) -> list[dict[str, 
                         path,
                     )
                 )
-    elif name == "daily":
-        for heading in ("## 今日包", "## Source Health"):
-            if heading not in text:
-                issues.append(_issue("warn", name, "missing_section", f"daily bundle is missing heading: {heading}", path))
     return issues
 
 

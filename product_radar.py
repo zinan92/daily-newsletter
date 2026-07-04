@@ -24,7 +24,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from lib import INBOX, SENT_DIR
+from lib import INBOX, PROCESSED_DIR, SENT_DIR
 
 
 PRODUCT_HUNT_FEED = "https://www.producthunt.com/feed"
@@ -795,8 +795,8 @@ def previous_opportunity_titles(run_date: str, *, lookback_days: int = 3) -> set
         return set()
     since = current - timedelta(days=lookback_days)
     titles: set[str] = set()
-    for path in SENT_DIR.glob("product-radar-*.md"):
-        match = re.search(r"product-radar-(\d{2})-(\d{2})-(\d{2})\.md$", path.name)
+    for path in SENT_DIR.glob("*.md"):
+        match = re.fullmatch(r"(\d{2})-(\d{2})-(\d{2})\.md", path.name)
         if not match:
             continue
         year, month, day = match.groups()
@@ -833,14 +833,15 @@ def write_snapshot(signals: list[Signal], meta: list[dict], run_date: str) -> Pa
 
 def product_radar_paths(run_date: str) -> tuple[Path, Path, Path]:
     label = datetime.strptime(run_date, "%Y-%m-%d").strftime("%y-%m-%d")
+    base = PROCESSED_DIR / label
     return (
-        SENT_DIR / f"product-radar-{label}.md",
-        SENT_DIR / f"product-radar-{label}.html",
-        SENT_DIR / f"product-radar-{label}.png",
+        base / f"product-radar-{label}.md",
+        base / f"product-radar-{label}.html",
+        base / f"product-radar-{label}.png",
     )
 
 
-def build_product_radar(run_date: str, *, with_png: bool = True) -> dict:
+def build_product_radar(run_date: str, *, with_html: bool = False, with_png: bool = False) -> dict:
     signals, meta = collect_signals()
     previous_keys = previous_signal_keys(run_date)
     recent_titles = previous_opportunity_titles(run_date)
@@ -853,15 +854,18 @@ def build_product_radar(run_date: str, *, with_png: bool = True) -> dict:
         repeated_signals=len(signals) - len(reader_signals),
         recent_opportunity_titles=recent_titles,
     )
-    SENT_DIR.mkdir(parents=True, exist_ok=True)
     md_path, html_path, png_path = product_radar_paths(run_date)
+    md_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.write_text(markdown, encoding="utf-8")
-    write_html(markdown, html_path, run_date)
-    png_ok = render_png(html_path, png_path) if with_png else False
+    html_ok = False
+    if with_html or with_png:
+        write_html(markdown, html_path, run_date)
+        html_ok = True
+    png_ok = render_png(html_path, png_path) if with_png and html_ok else False
     raw_path = write_snapshot(signals, meta, run_date)
     return {
         "markdown": str(md_path),
-        "html": str(html_path),
+        "html": str(html_path) if html_ok else "",
         "png": str(png_path) if png_ok else "",
         "raw": str(raw_path),
         "signals": len(signals),
@@ -874,10 +878,11 @@ def build_product_radar(run_date: str, *, with_png: bool = True) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build Product Radar from Product Hunt, TrustMRR, and Hacker News.")
     parser.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"))
-    parser.add_argument("--no-png", action="store_true", help="Skip long-image rendering.")
+    parser.add_argument("--html", action="store_true", help="Also render an intermediate HTML artifact.")
+    parser.add_argument("--png", action="store_true", help="Also render an intermediate PNG artifact.")
     args = parser.parse_args(argv)
 
-    result = build_product_radar(args.date, with_png=not args.no_png)
+    result = build_product_radar(args.date, with_html=args.html, with_png=args.png)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
