@@ -19,7 +19,6 @@ if str(REPO_ROOT) not in sys.path:
 from lib import ROOT, log
 
 STAGES = [
-    "fetch-manual-links.py",
     "fetch-rss.py",
     "fetch-twitter.py",
     "fetch-twitter-saved.py",
