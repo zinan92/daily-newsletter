@@ -82,6 +82,12 @@ def test_manual_links_uses_folderized_wechat_parser():
     assert hasattr(wechat, "parse_article")
 
 
+def test_fetch_stage_does_not_schedule_retired_manual_links():
+    from stages.fetch import run
+
+    assert "fetch-manual-links.py" not in run.STAGES
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):
