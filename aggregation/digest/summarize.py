@@ -3552,7 +3552,13 @@ def markdown_image_html(line: str, base_dir: Path | None = None) -> str | None:
     alt = escape(match.group(1))
     src = match.group(2).strip()
     if src.startswith("/"):
-        path = Path(src).resolve()
+        path = Path(src)
+        try:
+            path.relative_to(PARKIO)
+            if base_dir is None:
+                base_dir = PARKIO / "001_daily newsletter" / "ai"
+        except ValueError:
+            path = path.resolve()
         try:
             src = os.path.relpath(path, base_dir or processed_batch_dir()).replace(os.sep, "/")
         except ValueError:
@@ -3724,6 +3730,8 @@ def render_html_from_markdown(
     the LLM again and drifting away from the Markdown in wording or detail.
     """
     funnel_rows = conclusion_rows or parse_funnel_rows_from_markdown(markdown)
+    if output_dir is None:
+        output_dir = PARKIO / "001_daily newsletter" / "ai" / today_str
     visible = strip_digest_markers(markdown)
     lines = visible.splitlines()
     body: list[str] = []
