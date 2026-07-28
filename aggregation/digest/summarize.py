@@ -3562,7 +3562,7 @@ def markdown_image_html(line: str, base_dir: Path | None = None) -> str | None:
         try:
             src = os.path.relpath(path, base_dir or processed_batch_dir()).replace(os.sep, "/")
         except ValueError:
-            src = path.as_uri()
+            src = path.resolve().as_uri()
     return f'<figure class="qr-figure"><img src="{escape(src)}" alt="{alt}"><figcaption>{alt}</figcaption></figure>'
 
 

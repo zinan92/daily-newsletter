@@ -35,6 +35,7 @@ def test_transient_primary_failure_falls_back_to_anthropic():
 
     with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
             patch.object(lib, "LLM_FALLBACK_PROVIDER", "anthropic"), \
+            patch.object(lib, "_load_secret", lambda *_args: "test-key"), \
             patch("urllib.request.urlopen", fake_urlopen), \
             patch("time.sleep", lambda *_args: None):
         out = lib.llm_call("hello", max_tokens=20, retries=3, timeout=1)
@@ -54,6 +55,7 @@ def test_non_retryable_primary_error_does_not_fallback():
 
     with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
             patch.object(lib, "LLM_FALLBACK_PROVIDER", "anthropic"), \
+            patch.object(lib, "_load_secret", lambda *_args: "test-key"), \
             patch("urllib.request.urlopen", fake_urlopen):
         try:
             lib.llm_call("hello", max_tokens=20, retries=3, timeout=1)
@@ -63,6 +65,21 @@ def test_non_retryable_primary_error_does_not_fallback():
             raise AssertionError("401 must fail fast instead of falling back")
 
     assert calls == [lib.DEEPSEEK_ENDPOINT]
+
+
+def test_missing_deepseek_key_fails_before_http():
+    def fake_urlopen(_req, _timeout):
+        raise AssertionError("missing key should fail before HTTP")
+
+    with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
+            patch.object(lib, "_load_secret", lambda *_args: ""), \
+            patch("urllib.request.urlopen", fake_urlopen):
+        try:
+            lib.llm_call("hello", max_tokens=20, retries=1, timeout=1)
+        except lib.LLMNonRetryable as exc:
+            assert "missing deepseek LLM key" in str(exc)
+        else:
+            raise AssertionError("missing key must fail clearly")
 
 
 def test_deepseek_thinking_flag_logic():
@@ -87,6 +104,7 @@ def test_v4_request_sends_thinking_disabled():
     with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
             patch.object(lib, "DEEPSEEK_MODEL", "deepseek-v4-flash"), \
             patch.object(lib, "DEEPSEEK_THINKING", "disabled"), \
+            patch.object(lib, "_load_secret", lambda *_args: "test-key"), \
             patch("urllib.request.urlopen", fake_urlopen):
         lib.llm_call("hi", max_tokens=100, retries=1, timeout=60)
 

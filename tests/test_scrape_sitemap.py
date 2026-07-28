@@ -48,6 +48,28 @@ def test_age_gate_recent_vs_old():
     assert fs.article_age_days("not a date") is None
 
 
+def test_claude_blog_index_pages_are_capped(monkeypatch):
+    calls = []
+
+    def fake_fetch_url(url):
+        calls.append(url)
+        page_link = f'aria-label="Page 1 of {fs.CLAUDE_INDEX_PAGE_BUDGET + 10}"'
+        return (
+            f'<div>{page_link}</div>'
+            '<div role="listitem" class="blog_cms_item w-dyn-item">'
+            '<a href="/blog/example-post"></a>'
+            '<div fs-list-field="heading">Example Post</div>'
+            "</div>"
+        )
+
+    monkeypatch.setitem(fs.fetch_all_claude_blog_candidates.__globals__, "fetch_url", fake_fetch_url)
+
+    articles = fs.fetch_all_claude_blog_candidates("https://claude.com/blog")
+
+    assert len(calls) == fs.CLAUDE_INDEX_PAGE_BUDGET
+    assert articles[0]["url"] == "https://claude.com/blog/example-post"
+
+
 if __name__ == "__main__":
     n = 0
     for name, fn in sorted(globals().items()):

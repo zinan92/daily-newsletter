@@ -39,6 +39,7 @@ MAX_ARTICLES_PER_SOURCE = 5
 ARTICLE_DELAY_SEC = 0.5
 CLAUDE_SITEMAP = "https://claude.com/sitemap.xml"
 CLAUDE_BLOG_MAX_AGE_DAYS = 21   # only ingest blog posts published within this window
+CLAUDE_INDEX_PAGE_BUDGET = 5     # sitemap is authoritative; index pages only provide metadata
 CLAUDE_FETCH_BUDGET = 80        # max article fetches/run — bounds the one-time sitemap catch-up
 
 
@@ -190,6 +191,9 @@ def claude_blog_page_count(html: str) -> int:
 def fetch_all_claude_blog_candidates(index_url: str) -> list:
     first = fetch_url(index_url)
     pages = claude_blog_page_count(first)
+    if pages > CLAUDE_INDEX_PAGE_BUDGET:
+        log("fetch-scrape", f"  Claude Blog: cap index pages {pages} -> {CLAUDE_INDEX_PAGE_BUDGET}; sitemap covers full article set")
+        pages = CLAUDE_INDEX_PAGE_BUDGET
     all_articles = []
     seen = set()
     for page in range(1, pages + 1):

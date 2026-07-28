@@ -228,6 +228,10 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
     provider = (provider or LLM_PROVIDER or "deepseek").lower()
     if provider == "anthropic":
         key = _load_secret("PARKIO_CLIPROXY_KEY", "cliproxy-key")
+        if not key:
+            raise LLMNonRetryable(
+                f"missing anthropic LLM key: set PARKIO_CLIPROXY_KEY or {parkio_secret_path('cliproxy-key')}"
+            )
         headers = {
             "Content-Type": "application/json",
             "anthropic-version": "2023-06-01",
@@ -242,6 +246,10 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
         raise LLMNonRetryable(f"unknown LLM provider: {provider}")
     # default: deepseek (OpenAI-compatible)
     key = _load_secret("PARKIO_DEEPSEEK_KEY", "deepseek-key")
+    if not key:
+        raise LLMNonRetryable(
+            f"missing deepseek LLM key: set PARKIO_DEEPSEEK_KEY or {parkio_secret_path('deepseek-key')}"
+        )
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {key}",
