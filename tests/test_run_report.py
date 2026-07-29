@@ -161,6 +161,54 @@ def test_report_surfaces_pending_x_saved_raw(tmp_path):
         to_md_run.PROCESSED_DIR = original_processed
 
 
+def test_wewe_auth_problem_returns_invalid_status():
+    original_wewe_auth_alert_path = run_report.WEWE_AUTH_ALERT_PATH
+    try:
+        run_report.WEWE_AUTH_ALERT_PATH = _temp_json(
+            {
+                "status": "invalid",
+                "checked_at": f"{TODAY}T10:00:00",
+                "error": "bad cookie",
+            }
+        )
+        result = run_report.wewe_auth_problem(TODAY)
+        assert result == {
+            "name": "公众号登录态",
+            "status": "failed",
+            "detail": "WeWe 读书账号失效；请扫码重新登录",
+        }
+    finally:
+        try:
+            run_report.WEWE_AUTH_ALERT_PATH.unlink()
+        except OSError:
+            pass
+        run_report.WEWE_AUTH_ALERT_PATH = original_wewe_auth_alert_path
+
+
+def test_wewe_auth_problem_returns_failed_status_with_error_message():
+    original_wewe_auth_alert_path = run_report.WEWE_AUTH_ALERT_PATH
+    try:
+        run_report.WEWE_AUTH_ALERT_PATH = _temp_json(
+            {
+                "status": "failed",
+                "checked_at": f"{TODAY}T11:30:00",
+                "error": "token expired",
+            }
+        )
+        result = run_report.wewe_auth_problem(TODAY)
+        assert result == {
+            "name": "公众号登录态",
+            "status": "failed",
+            "detail": "WeWe 状态检测失败：token expired",
+        }
+    finally:
+        try:
+            run_report.WEWE_AUTH_ALERT_PATH.unlink()
+        except OSError:
+            pass
+        run_report.WEWE_AUTH_ALERT_PATH = original_wewe_auth_alert_path
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):
