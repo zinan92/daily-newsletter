@@ -22,7 +22,7 @@ def test_daily_bundle_merges_three_processed_products(tmp_path):
         encoding="utf-8",
     )
     (batch / "product-radar-26-06-20.md").write_text(
-        "# 产品雷达 — 2026-06-20\n\n## Top 5 Products To Build Today\n\n### 1. AI workflow builder\n\n- **可以 build 什么**：一个垂直 Agent。\n",
+        "# 产品雷达 — 2026-06-20\n\n## Top Three Products to Build Today\n\n1. 销售通话复盘助手：自动找出客户异议和下一步动作。\n",
         encoding="utf-8",
     )
 
@@ -36,7 +36,8 @@ def test_daily_bundle_merges_three_processed_products(tmp_path):
     assert "## 快讯" in md
     assert "## 深读" in md
     assert "## 产品雷达" in md
-    assert "AI workflow builder" in md
+    assert "销售通话复盘助手" in md
+    assert "### Top Three Products to Build Today" in md
     assert "product-radar-26-06-20.md" not in md
     assert "/Users/wendy" not in md
 

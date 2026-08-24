@@ -54,7 +54,7 @@ Daily Newsletter 是一个 umbrella 单文件，每天固定组织三个 section
 
 - `## 快讯`：回答“今天有哪些新信号值得知道”。
 - `## 深读`：只在当天有 `deep_candidates` 时展开，回答“哪些内容值得花 10-30 分钟理解”。
-- `## 产品雷达`：读取 Product Hunt / Hacker News / TrustMRR，只回答“今天最值得 build 的产品方向是什么，以及证据是什么”；最多给 5 个，少于 5 个时不硬凑。
+- `## 产品雷达`：后台读取 Product Hunt / Hacker News / TrustMRR，但读者版只回答“今天最值得优先 build 的具体产品是什么”；固定显示 `Top Three Products to Build Today`，最多给 3 个，每个产品只写名称和一句价值，不展示来源、证据、抓取统计或其他 OPS data。
 
 中间层仍会在 `~/park-io/_inbox/processed/<YY-MM-DD>/` 保留 `000-*`、`deep-*`、`product-radar-*` Markdown 方便 debug；长期读者归档只保存 `~/park-io/006_ai daily newsletter/<YY-MM-DD>.md`。
 
@@ -82,8 +82,9 @@ Daily Newsletter 是一个 umbrella 单文件，每天固定组织三个 section
 文章级判断与可迁移启发。
 
 ## 产品雷达
-### 1. AI workflow builder
-- **可以 build 什么**：一个垂直 Agent。
+### Top Three Products to Build Today
+
+1. 销售通话复盘助手：自动找出客户异议和下一步动作，帮助小型销售团队缩短成交周期。
 ```
 
 > 终端运行时每个阶段都会打印进度，例如：
@@ -176,7 +177,7 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 | 运行报告 | `run_report.py` | script | 为同一个 batch 生成 `run-report.json`；日报、status、health alert 共用这一份健康事实 |
 | 归档 | `stages/archive/run.py` | script | 按 `ai/03-selection.json` 归档 `brief_universe` / `deep_candidates`；discard 只保留 decision log |
 | 本地定稿 | `build-daily-bundle.py` | script | 合并 processed 快讯、深读和产品雷达，写 `~/park-io/006_ai daily newsletter/YY-MM-DD.md` |
-| 产品雷达 | `build-product-radar.py` | script | 独立抓取 Product Hunt / HN / TrustMRR，输出当天新的 Top N build choices，写 processed 中间 Markdown 和 raw snapshot |
+| 产品雷达 | `build-product-radar.py` | script + AI | 独立抓取 Product Hunt / HN / TrustMRR，由 DeepSeek（临时故障时可切 Claude）生成最多 3 个具体产品；读者 Markdown 只保留产品名和一句价值，证据与 source health 留在 processed JSON/raw snapshot |
 | Legacy split finalize | `finalize-local.py` | script | 仅兼容旧 split-artifact 调试，不在生产链路中调用 |
 | Reader QA | `reader_quality.py` | script | 检查实际读者 Markdown：禁止 raw transcript、机器 marker、本地路径泄漏、缺失核心 section；失败则停止推送 |
 | 飞书推送 | `send-feishu-digest.py` | script | 发送完整正文，不依赖本地 Markdown 链接；写 `processed/receipts/feishu/*.json` delivery receipt |

@@ -23,8 +23,22 @@ MACHINE_COMMENT_RE = re.compile(r"<!--\s*parkio-[\s\S]*?-->", re.M)
 LOCAL_PATH_RE = re.compile(r"/Users/[^\s>)]+")
 RAW_TRANSCRIPT_RE = re.compile(r"\bTranscript\b|转录原文|原始转录", re.I)
 FILLER_RE = re.compile(r"(干杯|就是这样|我知道|是的)[。.\s，,、]*(?:\1[。.\s，,、]*){2,}")
-PRODUCT_HEADING_RE = re.compile(r"^###\s+\d+\.", re.M)
-TOP_N_RE = re.compile(r"Top\s+(\d+)\s+Products?", re.I)
+PRODUCT_RADAR_SECTION_RE = re.compile(r"^## 产品雷达\s*$([\s\S]*?)(?=^##\s|\Z)", re.M)
+PRODUCT_CHOICE_RE = re.compile(r"^\d+\.\s+[^：:\n]+[：:].+", re.M)
+PRODUCT_RADAR_EMPTY = "今天没有新的产品值得优先考虑。"
+PRODUCT_RADAR_UNAVAILABLE = "今天产品雷达暂不可用。"
+PRODUCT_RADAR_BANNED = (
+    "Product Hunt",
+    "TrustMRR",
+    "Hacker News",
+    "数据质量",
+    "可以 build 什么",
+    "为什么是今天",
+    "MVP 切入",
+    "新产品供给",
+    "真实收入",
+    "用户讨论",
+)
 
 
 def date_label(run_date: str) -> str:
@@ -84,22 +98,21 @@ def check_required_sections(name: str, path: Path, text: str) -> list[dict[str, 
         for heading in ("# AI Daily Newsletter", "## 快讯", "## 深读", "## 产品雷达"):
             if heading not in text:
                 issues.append(_issue("fail", name, "missing_section", f"daily newsletter is missing required heading: {heading}", path))
-        if "数据质量" not in text:
-            issues.append(_issue("warn", name, "missing_data_quality", "daily newsletter is missing product radar data quality", path))
-        headings = PRODUCT_HEADING_RE.findall(text)
-        match = TOP_N_RE.search(text)
-        if match and headings:
-            advertised = int(match.group(1))
-            if advertised != len(headings):
-                issues.append(
-                    _issue(
-                        "warn",
-                        name,
-                        "top_n_mismatch",
-                        f"product radar advertises Top {advertised} but renders {len(headings)} choices",
-                        path,
-                    )
-                )
+        section_match = PRODUCT_RADAR_SECTION_RE.search(text)
+        if section_match:
+            section = section_match.group(1)
+            if "### Top Three Products to Build Today" not in section:
+                issues.append(_issue("fail", name, "product_radar_heading", "product radar is missing the Top Three reader heading", path))
+            choices = PRODUCT_CHOICE_RE.findall(section)
+            if len(choices) > 3:
+                issues.append(_issue("fail", name, "product_radar_count", "product radar renders more than three products", path))
+            if not choices and PRODUCT_RADAR_EMPTY not in section and PRODUCT_RADAR_UNAVAILABLE not in section:
+                issues.append(_issue("fail", name, "product_radar_empty_state", "product radar has neither products nor the explicit empty state", path))
+            if "**" in section or re.search(r"^###\s+\d+\.", section, flags=re.M):
+                issues.append(_issue("fail", name, "product_radar_format", "product radar contains legacy emphasis or nested product headings", path))
+            exposed = [term for term in PRODUCT_RADAR_BANNED if term in section]
+            if exposed:
+                issues.append(_issue("fail", name, "product_radar_ops_data", f"product radar exposes internal fields: {', '.join(exposed)}", path))
     return issues
 
 
