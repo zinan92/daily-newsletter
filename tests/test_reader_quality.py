@@ -19,7 +19,7 @@ def write_artifacts(sent: Path, label: str = "26-06-25") -> None:
         "# AI Daily Newsletter — 2026-06-25\n\n"
         "## 快讯\n\n### 底层工具\n\n- **A** | [T](https://example.com)\n  summary\n\n### 工作流\n\n### 内容\n\n"
         "## 深读\n\n### [A](https://example.com)\n\nbody\n\n"
-        "## 产品雷达\n\n### Top 1 Products To Build Today\n\n### 1. A\n\n### 数据质量\n\n- OK\n",
+        "## 产品雷达\n\n### Top Three Products to Build Today\n\n1. 销售通话复盘助手：自动找出客户异议和下一步动作。\n",
         encoding="utf-8",
     )
 
@@ -44,7 +44,7 @@ def test_reader_quality_fails_raw_transcript_and_machine_markers(tmp_path):
         "# AI Daily Newsletter — 2026-06-25\n\n"
         "## 快讯\n\n### 底层工具\n\n- **A** | T\n  Transcript 是的。就是这样。就是这样。就是这样。\n\n### 工作流\n\n### 内容\n\n"
         "本地路径：/Users/wendy/park-io/001_daily newsletter/ai/26-06-25.md\n\n"
-        "## 深读\n\n### A\n\nbody\n\n## 产品雷达\n\n### 1. A\n\n### 数据质量\n\n- OK\n\n"
+        "## 深读\n\n### A\n\nbody\n\n## 产品雷达\n\n### Top Three Products to Build Today\n\n1. A：解决一个具体问题。\n\n"
         "<!-- parkio-push-items:[] -->\n",
         encoding="utf-8",
     )
@@ -54,3 +54,20 @@ def test_reader_quality_fails_raw_transcript_and_machine_markers(tmp_path):
     assert report["status"] == "fail"
     codes = {row["code"] for row in report["issues"] if row["severity"] == "fail"}
     assert {"machine_comment", "raw_transcript", "repeated_filler", "local_path"} <= codes
+
+
+def test_reader_quality_rejects_product_radar_ops_data_and_more_than_three_products(tmp_path):
+    rq = load_reader_quality()
+    sent = tmp_path / "sent"
+    write_artifacts(sent)
+    path = sent / "26-06-25.md"
+    text = path.read_text(encoding="utf-8").replace(
+        "1. 销售通话复盘助手：自动找出客户异议和下一步动作。",
+        "1. A：价值。\n2. B：价值。\n3. C：价值。\n4. D：TrustMRR 已验证收入。",
+    )
+    path.write_text(text, encoding="utf-8")
+
+    report = rq.check_artifacts("2026-06-25", sent)
+
+    codes = {row["code"] for row in report["issues"] if row["severity"] == "fail"}
+    assert {"product_radar_count", "product_radar_ops_data"} <= codes

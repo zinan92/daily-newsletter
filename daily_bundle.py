@@ -180,7 +180,6 @@ def product_radar_section(markdown: str) -> str:
         return ""
     body = re.sub(r"^##\s+(Top\s+.+)$", r"### \1", body, flags=re.M)
     body = re.sub(r"^##\s+(No New Build Choices Today)\s*$", r"### \1", body, flags=re.M)
-    body = re.sub(r"^##\s+数据质量\s*$", "### 数据质量", body, flags=re.M)
     return "## 产品雷达\n\n" + body.strip()
 
 
@@ -197,7 +196,7 @@ def render_markdown(run_date: str, sent_dir: Path = SENT_DIR, extra_warnings: li
     lines.extend(["", deep or "## 深读\n\n今日没有达到深读标准的内容。"])
 
     radar = product_radar_section(_read(by_key["product_radar"].md))
-    lines.extend(["", radar or "## 产品雷达\n\n今天没有足够新的产品/需求/收入信号形成新的 build choice。"])
+    lines.extend(["", radar or "## 产品雷达\n\n### Top Three Products to Build Today\n\n今天产品雷达暂不可用。"])
 
     text = "\n".join(part.strip() for part in lines if part.strip()).strip() + "\n"
     # Preserve summary calculation for run-report/status consumers.
