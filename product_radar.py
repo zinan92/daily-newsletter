@@ -554,16 +554,15 @@ def generate_product_choices(
 def render_markdown(choices: list[ProductChoice], run_date: str) -> str:
     if len(choices) > MAX_PRODUCT_CHOICES:
         raise ValueError(f"Product Radar supports at most {MAX_PRODUCT_CHOICES} reader choices")
+    heading = "## Top Three Products to Build Today" if choices else "## No New Build Choices Today"
     lines = [
         f"# 产品雷达 — {run_date}",
         "",
-        "## Top Three Products to Build Today",
+        heading,
         "",
     ]
     if choices:
         lines.extend(f"{idx}. {choice.name}：{choice.value}" for idx, choice in enumerate(choices, 1))
-    else:
-        lines.append("今天没有新的产品值得优先考虑。")
     return "\n".join(lines).rstrip() + "\n"
 
 

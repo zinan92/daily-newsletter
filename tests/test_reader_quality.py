@@ -71,3 +71,36 @@ def test_reader_quality_rejects_product_radar_ops_data_and_more_than_three_produ
 
     codes = {row["code"] for row in report["issues"] if row["severity"] == "fail"}
     assert {"product_radar_count", "product_radar_ops_data"} <= codes
+
+
+def test_reader_quality_accepts_empty_product_radar_heading_only(tmp_path):
+    rq = load_reader_quality()
+    sent = tmp_path / "sent"
+    write_artifacts(sent)
+    path = sent / "26-06-25.md"
+    text = path.read_text(encoding="utf-8").replace(
+        "### Top Three Products to Build Today\n\n1. 销售通话复盘助手：自动找出客户异议和下一步动作。",
+        "### No New Build Choices Today",
+    )
+    path.write_text(text, encoding="utf-8")
+
+    report = rq.check_artifacts("2026-06-25", sent)
+
+    assert report["status"] == "pass"
+
+
+def test_reader_quality_rejects_empty_product_radar_explanation(tmp_path):
+    rq = load_reader_quality()
+    sent = tmp_path / "sent"
+    write_artifacts(sent)
+    path = sent / "26-06-25.md"
+    text = path.read_text(encoding="utf-8").replace(
+        "### Top Three Products to Build Today\n\n1. 销售通话复盘助手：自动找出客户异议和下一步动作。",
+        "### No New Build Choices Today\n\n只回答一个问题。",
+    )
+    path.write_text(text, encoding="utf-8")
+
+    report = rq.check_artifacts("2026-06-25", sent)
+
+    codes = {row["code"] for row in report["issues"] if row["severity"] == "fail"}
+    assert "product_radar_empty_state" in codes
