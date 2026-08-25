@@ -25,7 +25,6 @@ RAW_TRANSCRIPT_RE = re.compile(r"\bTranscript\b|转录原文|原始转录", re.I
 FILLER_RE = re.compile(r"(干杯|就是这样|我知道|是的)[。.\s，,、]*(?:\1[。.\s，,、]*){2,}")
 PRODUCT_RADAR_SECTION_RE = re.compile(r"^## 产品雷达\s*$([\s\S]*?)(?=^##\s|\Z)", re.M)
 PRODUCT_CHOICE_RE = re.compile(r"^\d+\.\s+[^：:\n]+[：:].+", re.M)
-PRODUCT_RADAR_EMPTY = "今天没有新的产品值得优先考虑。"
 PRODUCT_RADAR_UNAVAILABLE = "今天产品雷达暂不可用。"
 PRODUCT_RADAR_BANNED = (
     "Product Hunt",
@@ -101,13 +100,17 @@ def check_required_sections(name: str, path: Path, text: str) -> list[dict[str, 
         section_match = PRODUCT_RADAR_SECTION_RE.search(text)
         if section_match:
             section = section_match.group(1)
-            if "### Top Three Products to Build Today" not in section:
-                issues.append(_issue("fail", name, "product_radar_heading", "product radar is missing the Top Three reader heading", path))
             choices = PRODUCT_CHOICE_RE.findall(section)
             if len(choices) > 3:
                 issues.append(_issue("fail", name, "product_radar_count", "product radar renders more than three products", path))
-            if not choices and PRODUCT_RADAR_EMPTY not in section and PRODUCT_RADAR_UNAVAILABLE not in section:
-                issues.append(_issue("fail", name, "product_radar_empty_state", "product radar has neither products nor the explicit empty state", path))
+            if choices and "### Top Three Products to Build Today" not in section:
+                issues.append(_issue("fail", name, "product_radar_heading", "product radar is missing the Top Three reader heading", path))
+            if not choices and "### No New Build Choices Today" not in section and PRODUCT_RADAR_UNAVAILABLE not in section:
+                issues.append(_issue("fail", name, "product_radar_empty_state", "product radar has neither the explicit empty heading nor unavailable state", path))
+            if not choices and "### No New Build Choices Today" in section:
+                empty_body = section.split("### No New Build Choices Today", 1)[1].strip()
+                if empty_body:
+                    issues.append(_issue("fail", name, "product_radar_empty_state", "empty Product Radar must not include explanatory reader text", path))
             if "**" in section or re.search(r"^###\s+\d+\.", section, flags=re.M):
                 issues.append(_issue("fail", name, "product_radar_format", "product radar contains legacy emphasis or nested product headings", path))
             exposed = [term for term in PRODUCT_RADAR_BANNED if term in section]

@@ -70,8 +70,7 @@ def test_render_markdown_contract_sections():
 def test_render_markdown_allows_empty_without_faking_products():
     md = product_radar.render_markdown([], "2026-06-18")
 
-    assert "## Top Three Products to Build Today" in md
-    assert "今天没有新的产品值得优先考虑。" in md
+    assert md == "# 产品雷达 — 2026-06-18\n\n## No New Build Choices Today\n"
     assert "1." not in md
 
 

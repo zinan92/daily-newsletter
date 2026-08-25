@@ -53,7 +53,7 @@ Daily Newsletter 是一个 umbrella 单文件，每天固定组织三个 section
 
 - `## 快讯`：回答“今天有哪些新信号值得知道”。
 - `## 深读`：只在当天有 `deep_candidates` 时展开，回答“哪些内容值得花 10-30 分钟理解”。
-- `## 产品雷达`：后台读取 Product Hunt / Hacker News / TrustMRR，但读者版只回答“今天最值得优先 build 的具体产品是什么”；固定显示 `Top Three Products to Build Today`，最多给 3 个，每个产品只写名称和一句价值，不展示来源、证据、抓取统计或其他 OPS data。
+- `## 产品雷达`：后台读取 Product Hunt / Hacker News / TrustMRR，但读者版只回答“今天最值得优先 build 的具体产品是什么”；有候选时显示 `Top Three Products to Build Today`，最多给 3 个，每个产品只写名称和一句价值；没有候选时只显示 `No New Build Choices Today` 标题。不展示来源、证据、抓取统计或其他 OPS data。
 
 中间层仍会在 `~/park-io/_inbox/processed/<YY-MM-DD>/` 保留 `000-*`、`deep-*`、`product-radar-*` Markdown 方便 debug；长期读者归档只保存 `~/park-io/006_ai daily newsletter/<YY-MM-DD>.md`。
 
