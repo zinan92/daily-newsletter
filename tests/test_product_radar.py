@@ -45,57 +45,70 @@ def test_parse_trustmrr_homepage_card():
 
 
 def test_render_markdown_contract_sections():
-    signals = [
-        product_radar.score_signal(product_radar.Signal(
-            source="Product Hunt",
-            title="AI Workflow Builder",
-            url="https://www.producthunt.com/products/ai-workflow-builder",
-            summary="Build agent workflow automations",
-        )),
-        product_radar.score_signal(product_radar.Signal(
-            source="TrustMRR",
-            title="Leadbomb",
-            url="https://trustmrr.com/startup/leadbomb",
-            summary="SaaS; Revenue/MRR $2.6k",
-            metric="Revenue/MRR $2.6k",
-        )),
-        product_radar.score_signal(product_radar.Signal(
-            source="Hacker News",
-            title="Ask HN: What developer tools do you pay for?",
-            url="https://news.ycombinator.com/item?id=1",
-            summary="Developers discuss paid tools",
-            metric="120 points · 88 comments · askstories",
-        )),
+    choices = [
+        product_radar.ProductChoice(
+            name="AI 销售通话复盘助手",
+            value="自动找出销售通话中的异议和下一步动作，帮助小团队缩短成交周期。",
+            evidence_ids=("signal-001",),
+        ),
+        product_radar.ProductChoice(
+            name="独立开发者退款风险台",
+            value="在退款发生前识别高风险用户，并给出可以挽回订阅的服务动作。",
+            evidence_ids=("signal-002",),
+        ),
     ]
-    md = product_radar.render_markdown(signals, [{"source": "x", "method": "fixture", "fetched": 1}], "2026-06-18")
+    md = product_radar.render_markdown(choices, "2026-06-18")
     assert md.startswith("# 产品雷达 — 2026-06-18")
-    assert "Products To Build Today" in md
-    assert "### 1." in md
-    assert "- **可以 build 什么**：" in md
-    assert "- **为什么是今天**：" in md
-    assert "- **证据**：" in md
-    assert "- **MVP 切入**：" in md
-    assert "## 可行动机会" not in md
-    assert "## 新产品雷达（Product Hunt）" not in md
-    assert "## 真实收入信号（TrustMRR）" not in md
-    assert "## 需求与痛点（Hacker News）" not in md
-    assert "TrustMRR 当前使用公开页面抓取" in md
+    assert "## Top Three Products to Build Today" in md
+    assert "1. AI 销售通话复盘助手：自动找出销售通话中的异议" in md
+    assert "2. 独立开发者退款风险台：在退款发生前识别高风险用户" in md
+    assert "**" not in md
+    for hidden in ("Product Hunt", "TrustMRR", "Hacker News", "数据质量", "可以 build 什么", "为什么是今天", "证据", "MVP 切入"):
+        assert hidden not in md
 
 
-def test_render_markdown_advertises_actual_opportunity_count():
+def test_render_markdown_allows_empty_without_faking_products():
+    md = product_radar.render_markdown([], "2026-06-18")
+
+    assert md == "# 产品雷达 — 2026-06-18\n\n## No New Build Choices Today\n"
+    assert "1." not in md
+
+
+def test_generate_product_choices_uses_ai_json_and_keeps_sources_internal():
     signal = product_radar.score_signal(product_radar.Signal(
-        source="Product Hunt",
-        title="AI Sales Coach",
-        url="https://example.com/sales",
-        summary="AI teammate for sales conversations",
+        source="TrustMRR",
+        title="ClinicScribe",
+        url="https://example.com/clinic-scribe",
+        summary="Medical note workflow",
+        metric="Revenue/MRR $8k",
     ))
+    seen = {}
 
-    md = product_radar.render_markdown([signal], [{"source": "x", "method": "fixture", "fetched": 1}], "2026-06-18")
+    def fake_client(prompt, **kwargs):
+        seen["prompt"] = prompt
+        return '{"products":[{"name":"小诊所病历整理助手","value":"把问诊录音整理成可审核病历，减少医生下班后的文书时间。","evidence_ids":["signal-001"]}]}'
 
-    opportunity_count = md.count("\n### ")
-    assert f"## Top {opportunity_count} Products To Build Today" in md
-    assert f"今天只有 {opportunity_count} 个足够新的方向" in md
-    assert "## Top 5 Products To Build Today" not in md
+    choices, raw, rows = product_radar.generate_product_choices([signal], {"旧产品"}, client=fake_client)
+
+    assert choices == [product_radar.ProductChoice(
+        name="小诊所病历整理助手",
+        value="把问诊录音整理成可审核病历，减少医生下班后的文书时间。",
+        evidence_ids=("signal-001",),
+    )]
+    assert raw.startswith('{"products"')
+    assert rows[0]["source"] == "TrustMRR"
+    assert '"recent_product_names": ["旧产品"]' in seen["prompt"]
+
+
+def test_parse_product_choices_fails_loudly_on_reader_ops_data():
+    raw = '{"products":[{"name":"AI 工具","value":"TrustMRR 显示它已有收入。","evidence_ids":["signal-001"]}]}'
+
+    try:
+        product_radar.parse_product_choices(raw, {"signal-001"})
+    except product_radar.ProductRadarAIError as exc:
+        assert "source names" in str(exc)
+    else:
+        raise AssertionError("reader-facing source data should fail validation")
 
 
 def test_fetch_product_hunt_uses_official_feed(monkeypatch):
@@ -287,40 +300,87 @@ def test_build_product_radar_renders_only_new_signals_but_snapshots_all(tmp_path
         "collect_signals",
         lambda: ([old, fresh], [{"source": "fixture", "method": "mock", "fetched": 2}]),
     )
+    seen = {}
+
+    def fake_generate(signals, recent_names):
+        seen["signals"] = signals
+        return (
+            [product_radar.ProductChoice(
+                name="产品需求变化监控器",
+                value="持续追踪用户讨论中的新痛点，帮助创始人更早发现可验证的产品切口。",
+                evidence_ids=("signal-001",),
+            )],
+            '{"products":[]}',
+            [{"id": "signal-001", "title": "Fresh Pain"}],
+        )
+
+    monkeypatch.setattr(product_radar, "generate_product_choices", fake_generate)
 
     result = product_radar.build_product_radar("2026-06-21", with_png=False)
     markdown = Path(result["markdown"]).read_text(encoding="utf-8")
     raw = Path(result["raw"]).read_text(encoding="utf-8")
+    selection = Path(result["selection"]).read_text(encoding="utf-8")
 
     assert result["signals"] == 2
     assert result["reader_signals"] == 1
     assert result["repeated_signals"] == 1
-    assert "Fresh Pain" in markdown
+    assert result["products"] == 1
+    assert seen["signals"] == [fresh]
+    assert "产品需求变化监控器" in markdown
+    assert "Fresh Pain" not in markdown
     assert "Old Tool" not in markdown
-    assert "读者版新增信号：1 条；完整抓取快照：2 条；隐藏近期重复：1 条" in markdown
+    assert "数据质量" not in markdown
+    assert "Fresh Pain" in selection
     assert "Old Tool" in raw
     assert "Fresh Pain" in raw
 
 
-def test_product_radar_hides_recently_repeated_opportunity_titles():
+def test_build_product_radar_records_ai_failure_without_reader_fallback(tmp_path, monkeypatch):
+    processed = tmp_path / "processed"
+    batch = processed / "26-06-21"
+    batch.mkdir(parents=True)
+    (batch / "product-radar-26-06-21.md").write_text("stale reader output", encoding="utf-8")
+    monkeypatch.setattr(product_radar, "INBOX", tmp_path)
+    monkeypatch.setattr(product_radar, "SENT_DIR", tmp_path / "sent")
+    monkeypatch.setattr(product_radar, "PROCESSED_DIR", processed)
     signal = product_radar.score_signal(product_radar.Signal(
         source="Product Hunt",
-        title="AI Agent Builder",
-        url="https://example.com/agent-builder",
-        summary="Build AI agents and automate workflows",
+        title="Specific Product",
+        url="https://example.com/specific-product",
+        summary="A specific workflow product",
     ))
-    repeated_title = product_radar.opportunity_title("ai_agents")
+    monkeypatch.setattr(product_radar, "collect_signals", lambda: ([signal], []))
 
-    markdown = product_radar.render_markdown(
-        [signal],
-        [{"source": "fixture", "method": "mock", "fetched": 1}],
-        "2026-06-26",
-        recent_opportunity_titles={repeated_title},
+    def fail_generation(signals, recent_names):
+        raise product_radar.ProductRadarAIError("invalid JSON", raw_response="not-json")
+
+    monkeypatch.setattr(product_radar, "generate_product_choices", fail_generation)
+
+    try:
+        product_radar.build_product_radar("2026-06-21")
+    except product_radar.ProductRadarAIError:
+        pass
+    else:
+        raise AssertionError("invalid AI output must fail the Product Radar build")
+
+    assert (batch / "product-radar-error.json").exists()
+    assert (batch / "product-radar-raw-response.md").read_text(encoding="utf-8") == "not-json"
+    assert not (batch / "product-radar-26-06-21.md").exists()
+
+
+def test_previous_product_names_reads_only_product_radar_section(tmp_path, monkeypatch):
+    sent = tmp_path / "sent"
+    sent.mkdir()
+    (sent / "26-06-25.md").write_text(
+        "# AI Daily Newsletter — 2026-06-25\n\n"
+        "## 快讯\n\n1. 不是产品雷达\n\n"
+        "## 产品雷达\n\n### Top Three Products to Build Today\n\n"
+        "1. 销售异议复盘助手：把通话变成跟进动作。\n",
+        encoding="utf-8",
     )
+    monkeypatch.setattr(product_radar, "SENT_DIR", sent)
 
-    assert repeated_title not in markdown
-    assert "没有必要把同样的 5 个方向换顺序再推一次" in markdown
-    assert "隐藏近期重复产品方向：1 个" in markdown
+    assert product_radar.previous_product_names("2026-06-26") == {"销售异议复盘助手"}
 
 
 def test_product_radar_tag_matching_does_not_match_inside_words():

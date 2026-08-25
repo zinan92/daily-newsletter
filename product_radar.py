@@ -23,8 +23,9 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, Callable
 
-from lib import INBOX, PROCESSED_DIR, SENT_DIR
+from lib import INBOX, PROCESSED_DIR, SENT_DIR, llm_call
 
 
 PRODUCT_HUNT_FEED = "https://www.producthunt.com/feed"
@@ -33,6 +34,9 @@ TRUSTMRR_FAQ = "https://trustmrr.com/faq"
 HN_API = "https://hacker-news.firebaseio.com/v0"
 
 USER_AGENT = "Park-IO Product Radar/1.0 (+local source monitor)"
+PRODUCT_RADAR_PROMPT = Path(__file__).resolve().parent / "prompts" / "product-radar" / "top-three.md"
+MAX_PRODUCT_CHOICES = 3
+MAX_SIGNALS_PER_SOURCE = 12
 
 
 TAG_PATTERNS: dict[str, tuple[str, list[str]]] = {
@@ -79,6 +83,21 @@ class Signal:
     score: int = 0
     tags: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ProductChoice:
+    name: str
+    value: str
+    evidence_ids: tuple[str, ...] = ()
+
+
+class ProductRadarAIError(RuntimeError):
+    """Raised when the AI cannot produce a valid Product Radar selection."""
+
+    def __init__(self, message: str, *, raw_response: str = ""):
+        super().__init__(message)
+        self.raw_response = raw_response
 
 
 def fetch_text(url: str, timeout: int = 30) -> str:
@@ -421,228 +440,129 @@ def top_signals(signals: list[Signal], source: str, limit: int = 8) -> list[Sign
     return rows[:limit]
 
 
-def tag_label(tag: str) -> str:
-    return TAG_PATTERNS.get(tag, (tag, []))[0]
+GENERIC_PRODUCT_FRAGMENTS = (
+    "把 AI 从“能生成”推进到“能代办、能复盘、能交付”",
+    "AI coding 后链路基础设施",
+    "为 AI 生成代码后的运行、测试、安全和部署补基础设施",
+)
+SOURCE_NAMES = ("Product Hunt", "TrustMRR", "Hacker News")
 
 
-def group_tag_counts(signals: list[Signal]) -> list[tuple[str, int]]:
-    counts: dict[str, int] = {}
-    for sig in signals:
-        for tag in sig.tags:
-            counts[tag] = counts.get(tag, 0) + 1
-    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
-
-
-def format_metric(sig: Signal) -> str:
-    pieces = []
-    if sig.metric:
-        pieces.append(sig.metric)
-    if sig.reasons:
-        pieces.append(" / ".join(sig.reasons[:2]))
-    return "；".join(pieces)
-
-
-def source_item_line(sig: Signal) -> str:
-    summary = sig.summary.strip()
-    if len(summary) > 110:
-        summary = summary[:107].rstrip() + "..."
-    metric = format_metric(sig)
-    suffix = f"｜{metric}" if metric else ""
-    return f"- **[{sig.title}]({sig.url})**：{summary or sig.kind}{suffix}"
-
-
-def opportunity_title(tag: str) -> str:
-    return {
-        "ai_agents": "把 AI 从“能生成”推进到“能代办、能复盘、能交付”",
-        "devtools": "为 AI 生成代码后的运行、测试、安全和部署补基础设施",
-        "growth_sales": "用 AI 做更窄的获客、线索和内容转化工作台",
-        "revenue_saas": "从已收钱的微 SaaS 反推小而硬的付费问题",
-        "consumer_productivity": "把个人效率产品做成更低摩擦的日常入口",
-        "security_privacy": "围绕可信执行、隐私和权限边界做开发者级产品",
-        "data_research": "把数据监控、搜索和变化发现做成决策前置雷达",
-    }.get(tag, tag_label(tag))
-
-
-def opportunity_action(tag: str) -> str:
-    return {
-        "ai_agents": "先选一个高频工作流，做“输入源 → 自动处理 → 人审 → 输出”的端到端闭环，避免只做聊天壳。",
-        "devtools": "优先做 AI coding 后链路：sandbox、日志、测试、权限、部署或回滚，而不是再做一个编辑器。",
-        "growth_sales": "用垂直行业的公开数据和真实销售动作定义产品，先证明线索能转化，再补自动化。",
-        "revenue_saas": "用 TrustMRR 的收入/售价/倍数找低估的小产品，再拆解它们解决的刚需和获客来源。",
-        "consumer_productivity": "切入口要足够日常，最好能拿到用户已有内容或日程作为输入，而不是让用户重新建系统。",
-        "security_privacy": "把“AI 生成内容不可完全信任”作为需求起点，卖可信执行、隔离和审计能力。",
-        "data_research": "做面向产品经理/创始人的监控面板：从新产品、讨论热度和收入信号中自动产出 build brief。",
-    }.get(tag, "先做一个小闭环验证付费意愿，再扩大源和自动化。")
-
-
-def product_to_build(tag: str) -> str:
-    return {
-        "ai_agents": "一个能接管具体业务流程的垂直 Agent，而不是通用聊天助手。",
-        "devtools": "AI coding 后链路基础设施：运行、测试、权限、日志、部署或回滚。",
-        "growth_sales": "面向单一行业的获客/线索/内容转化工作台。",
-        "revenue_saas": "一个解决小而硬付费问题的微 SaaS，可从已有收入项目反推需求。",
-        "consumer_productivity": "一个低摩擦、每日会打开的个人效率入口。",
-        "security_privacy": "围绕 AI 生成代码和自动化操作的可信执行、隔离和审计产品。",
-        "data_research": "一个把公开数据变化变成产品/市场决策的监控雷达。",
-    }.get(tag, f"围绕{tag_label(tag)}做一个小闭环产品。")
-
-
-def opportunity_reason(tag: str) -> str:
-    return {
-        "ai_agents": "新产品供给、开发者讨论和企业部署都在把 AI 从“生成内容”推向“完成工作”。",
-        "devtools": "AI 写代码的速度已经上来，新的瓶颈变成生成后能否安全运行、测试和上线。",
-        "growth_sales": "获客和转化仍然是愿意付费的刚需，AI 可以把人工销售动作产品化。",
-        "revenue_saas": "TrustMRR 上已有小产品持续收钱，说明微小但明确的工作流问题仍有购买力。",
-        "consumer_productivity": "用户不缺新系统，缺的是能嵌入日常入口、减少切换成本的工具。",
-        "security_privacy": "Agent 和 AI coding 普及后，权限、隔离、审计会从边缘问题变成默认需求。",
-        "data_research": "产品机会越来越分散，能持续监控新供给、讨论热度和收入信号本身就是工作流入口。",
-    }.get(tag, "今天的多源信号显示这个方向同时有供给变化和需求讨论。")
-
-
-def evidence_line(sig: Signal) -> str:
-    summary = sig.summary.strip()
-    if sig.source == "TrustMRR" and sig.metric:
-        summary = sig.kind or "收入已验证项目"
-    if len(summary) > 96:
-        summary = summary[:93].rstrip() + "..."
-    metric = format_metric(sig)
-    detail = summary or sig.kind or "相关信号"
-    if metric and metric not in detail:
-        detail += f"；{metric}"
-    return f"  - **{sig.source}**：[{sig.title}]({sig.url}) — {detail}"
-
-
-def build_opportunities(signals: list[Signal], limit: int = 5, suppress_titles: set[str] | None = None) -> list[dict]:
-    suppress_titles = suppress_titles or set()
-    by_tag: dict[str, list[Signal]] = {}
-    for sig in signals:
-        for tag in sig.tags:
-            by_tag.setdefault(tag, []).append(sig)
-    ranked = []
-    for tag, rows in by_tag.items():
-        source_bonus = len({r.source for r in rows}) * 12
-        score = sum(r.score for r in rows[:8]) + source_bonus
-        ranked.append((score, tag, rows))
-    ranked.sort(reverse=True, key=lambda x: x[0])
-
-    out = []
-    used_urls: set[str] = set()
-    for _, tag, rows in ranked:
-        title = opportunity_title(tag)
-        if title in suppress_titles:
-            continue
-        rows.sort(key=lambda s: s.score, reverse=True)
-        evidence = []
-        used_sources = set()
-        for source in ["Product Hunt", "TrustMRR", "Hacker News"]:
-            source_rows = [r for r in rows if r.source == source and r.url not in used_urls]
-            if not source_rows:
-                source_rows = [r for r in rows if r.source == source]
-            if source_rows:
-                evidence.append(source_rows[0])
-                used_sources.add(source)
-        if len(evidence) < 2:
-            for row in rows:
-                if row not in evidence and row.url not in used_urls:
-                    evidence.append(row)
-                if len(evidence) >= 3:
-                    break
-        if len(evidence) < 2:
-            for row in rows:
-                if row not in evidence:
-                    evidence.append(row)
-                if len(evidence) >= 3:
-                    break
-        used_urls.update(e.url for e in evidence)
-        out.append({
-            "tag": tag,
-            "title": title,
-            "action": opportunity_action(tag),
-            "evidence": evidence[:3],
-            "sources": sorted(used_sources),
-        })
-        if len(out) >= limit:
-            break
-    return out
-
-
-def data_quality_lines(meta: list[dict]) -> list[str]:
-    lines = []
-    for row in meta:
-        errors = row.get("errors") or []
-        status = "OK" if row.get("fetched", 0) else "PARTIAL"
-        detail = f"{row['source']}：{status}，{row.get('method')}，抓到 {row.get('fetched', 0)} 条"
-        if errors:
-            detail += f"，错误 {len(errors)} 个"
-        lines.append(f"- {detail}。")
-    lines.append("- TrustMRR 当前使用公开页面抓取；它有 API，但需要登录生成 `tmrr_` key，未配置前不假装是 API 数据。")
-    return lines
-
-
-def render_markdown(
-    signals: list[Signal],
-    meta: list[dict],
-    run_date: str,
-    *,
-    total_signals: int | None = None,
-    repeated_signals: int = 0,
-    recent_opportunity_titles: set[str] | None = None,
-) -> str:
-    recent_opportunity_titles = recent_opportunity_titles or set()
-    all_opportunities = build_opportunities(signals, limit=5)
-    opportunities = build_opportunities(signals, limit=5, suppress_titles=recent_opportunity_titles)
-    repeated_opportunities = max(0, len(all_opportunities) - len(opportunities))
-    generated = datetime.now().strftime("%Y-%m-%d %H:%M")
-    if opportunities:
-        choices_heading = (
-            "## Top 5 Products To Build Today"
-            if len(opportunities) == 5
-            else f"## Top {len(opportunities)} Products To Build Today"
-        )
-        choices_intro = (
-            "只回答一个问题：**如果今天要 build，一个值得优先考虑的产品是什么？** "
-            "下面每个选择都把新产品供给、真实收入和用户讨论合并成同一个判断。"
-        )
-        if len(opportunities) < 5:
-            choices_intro += f" 今天只有 {len(opportunities)} 个足够新的方向，不为了凑满 5 个而重复昨天的判断。"
-    else:
-        choices_heading = "## No New Build Choices Today"
-        choices_intro = "只回答一个问题：**如果今天要 build，有没有新的产品方向值得优先考虑？**"
-
-    lines: list[str] = [
-        f"# 产品雷达 — {run_date}",
-        "",
-        choices_heading,
-        "",
-        choices_intro,
-        "",
+def prompt_signals(signals: list[Signal]) -> list[dict[str, Any]]:
+    selected: list[Signal] = []
+    for source in SOURCE_NAMES:
+        rows = sorted((s for s in signals if s.source == source), key=lambda s: s.score, reverse=True)
+        selected.extend(rows[:MAX_SIGNALS_PER_SOURCE])
+    selected.sort(key=lambda s: s.score, reverse=True)
+    return [
+        {
+            "id": f"signal-{idx:03d}",
+            "source": sig.source,
+            "title": sig.title,
+            "summary": sig.summary,
+            "metric": sig.metric,
+            "kind": sig.kind,
+            "url": sig.url,
+        }
+        for idx, sig in enumerate(selected, 1)
     ]
 
-    if opportunities:
-        for idx, opp in enumerate(opportunities, 1):
-            lines.append(f"### {idx}. {opp['title']}")
-            lines.append(f"- **可以 build 什么**：{product_to_build(opp['tag'])}")
-            lines.append(f"- **为什么是今天**：{opportunity_reason(opp['tag'])}")
-            lines.append("- **证据**：")
-            lines.extend(evidence_line(e) for e in opp["evidence"])
-            lines.append(f"- **MVP 切入**：{opp['action']}")
-            lines.append("")
-    else:
-        lines.append("今天没有足够新的产品/需求/收入信号形成新的 Top 5 build choices。")
-        if recent_opportunity_titles:
-            lines.append("最近几天已经反复出现过的方向已隐藏；没有必要把同样的 5 个方向换顺序再推一次。")
-        lines.append("")
 
-    lines.extend([
+def extract_json_object(raw: str) -> dict[str, Any]:
+    text = (raw or "").strip()
+    if not text:
+        raise ProductRadarAIError("empty Product Radar AI response")
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}", text)
+        if not match:
+            raise ProductRadarAIError("Product Radar AI response did not contain JSON")
+        try:
+            data = json.loads(match.group(0))
+        except json.JSONDecodeError as exc:
+            raise ProductRadarAIError("Product Radar AI response contained invalid JSON") from exc
+    if not isinstance(data, dict):
+        raise ProductRadarAIError("Product Radar AI response must be a JSON object")
+    return data
+
+
+def parse_product_choices(raw: str, valid_evidence_ids: set[str]) -> list[ProductChoice]:
+    data = extract_json_object(raw)
+    rows = data.get("products")
+    if not isinstance(rows, list):
+        raise ProductRadarAIError("Product Radar AI response must contain a products array")
+    if len(rows) > MAX_PRODUCT_CHOICES:
+        raise ProductRadarAIError(f"Product Radar AI returned more than {MAX_PRODUCT_CHOICES} products")
+
+    choices: list[ProductChoice] = []
+    seen_names: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ProductRadarAIError("each Product Radar product must be an object")
+        name = str(row.get("name") or "").strip()
+        value = str(row.get("value") or "").strip()
+        if not name or not value or "\n" in name or "\n" in value:
+            raise ProductRadarAIError("each Product Radar product needs a one-line name and value")
+        if "*" in name or "*" in value:
+            raise ProductRadarAIError("Product Radar reader text cannot contain Markdown emphasis")
+        if any(source.lower() in f"{name} {value}".lower() for source in SOURCE_NAMES):
+            raise ProductRadarAIError("Product Radar reader text cannot expose source names")
+        if any(fragment in f"{name} {value}" for fragment in GENERIC_PRODUCT_FRAGMENTS):
+            raise ProductRadarAIError("Product Radar AI returned a banned generic product direction")
+        name_key = name.casefold()
+        if name_key in seen_names:
+            raise ProductRadarAIError("Product Radar AI returned duplicate products")
+        seen_names.add(name_key)
+
+        evidence = row.get("evidence_ids") or []
+        if not isinstance(evidence, list) or any(not isinstance(item, str) for item in evidence):
+            raise ProductRadarAIError("Product Radar evidence_ids must be an array of strings")
+        unknown = set(evidence) - valid_evidence_ids
+        if unknown:
+            raise ProductRadarAIError(f"Product Radar AI referenced unknown evidence ids: {sorted(unknown)}")
+        choices.append(ProductChoice(name=name, value=value, evidence_ids=tuple(evidence)))
+    return choices
+
+
+def generate_product_choices(
+    signals: list[Signal],
+    recent_product_names: set[str] | None = None,
+    *,
+    client: Callable[..., str] | None = None,
+) -> tuple[list[ProductChoice], str, list[dict[str, Any]]]:
+    rows = prompt_signals(signals)
+    if not rows:
+        return [], "", []
+    prompt = PRODUCT_RADAR_PROMPT.read_text(encoding="utf-8")
+    payload = {
+        "recent_product_names": sorted(recent_product_names or set()),
+        "signals": rows,
+    }
+    client = client or llm_call
+    raw = client(prompt + "\n\nINPUT JSON:\n" + json.dumps(payload, ensure_ascii=False), max_tokens=1800, timeout=180)
+    try:
+        choices = parse_product_choices(raw, {row["id"] for row in rows})
+    except ProductRadarAIError as exc:
+        raise ProductRadarAIError(str(exc), raw_response=raw) from exc
+    return choices, raw, rows
+
+
+def render_markdown(choices: list[ProductChoice], run_date: str) -> str:
+    if len(choices) > MAX_PRODUCT_CHOICES:
+        raise ValueError(f"Product Radar supports at most {MAX_PRODUCT_CHOICES} reader choices")
+    heading = "## Top Three Products to Build Today" if choices else "## No New Build Choices Today"
+    lines = [
+        f"# 产品雷达 — {run_date}",
         "",
-        "## 数据质量",
+        heading,
         "",
-        *data_quality_lines(meta),
-        f"- 读者版新增信号：{len(signals)} 条；完整抓取快照：{total_signals if total_signals is not None else len(signals)} 条；隐藏近期重复：{repeated_signals} 条。",
-        f"- 隐藏近期重复产品方向：{repeated_opportunities} 个。",
-        f"- 生成时间：{generated}。",
-        "",
-    ])
+    ]
+    if choices:
+        lines.extend(f"{idx}. {choice.name}：{choice.value}" for idx, choice in enumerate(choices, 1))
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -788,7 +708,7 @@ def previous_signal_keys(run_date: str, *, lookback_days: int = 14) -> set[str]:
     return keys
 
 
-def previous_opportunity_titles(run_date: str, *, lookback_days: int = 3) -> set[str]:
+def previous_product_names(run_date: str, *, lookback_days: int = 3) -> set[str]:
     try:
         current = datetime.strptime(run_date, "%Y-%m-%d").date()
     except ValueError:
@@ -810,7 +730,13 @@ def previous_opportunity_titles(run_date: str, *, lookback_days: int = 3) -> set
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        titles.update(re.findall(r"^###\s+\d+\.\s+(.+?)\s*$", text, flags=re.M))
+        section_match = re.search(r"^## 产品雷达\s*$([\s\S]*?)(?=^##\s|\Z)", text, flags=re.M)
+        if not section_match:
+            continue
+        section = section_match.group(1)
+        titles.update(re.findall(r"^\d+\.\s+([^：:\n]+)[：:]", section, flags=re.M))
+        # Read the pre-Top-Three format during the three-day migration window.
+        titles.update(re.findall(r"^###\s+\d+\.\s+(.+?)\s*$", section, flags=re.M))
     return titles
 
 
@@ -844,19 +770,43 @@ def product_radar_paths(run_date: str) -> tuple[Path, Path, Path]:
 def build_product_radar(run_date: str, *, with_html: bool = False, with_png: bool = False) -> dict:
     signals, meta = collect_signals()
     previous_keys = previous_signal_keys(run_date)
-    recent_titles = previous_opportunity_titles(run_date)
+    recent_names = previous_product_names(run_date)
     reader_signals = new_signals_only(signals, previous_keys)
-    markdown = render_markdown(
-        reader_signals,
-        meta,
-        run_date,
-        total_signals=len(signals),
-        repeated_signals=len(signals) - len(reader_signals),
-        recent_opportunity_titles=recent_titles,
-    )
     md_path, html_path, png_path = product_radar_paths(run_date)
     md_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path = md_path.parent / "product-radar-selection.json"
+    raw_response_path = md_path.parent / "product-radar-raw-response.md"
+    error_path = md_path.parent / "product-radar-error.json"
+    for stale_path in (md_path, selection_path, raw_response_path, error_path):
+        stale_path.unlink(missing_ok=True)
+    try:
+        choices, raw_response, prompt_rows = generate_product_choices(reader_signals, recent_names)
+    except Exception as exc:
+        error_path.write_text(json.dumps({
+            "date": run_date,
+            "error": f"{type(exc).__name__}: {exc}",
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        raw_response = getattr(exc, "raw_response", "")
+        if raw_response:
+            raw_response_path.write_text(raw_response, encoding="utf-8")
+        raise
+    markdown = render_markdown(choices, run_date)
     md_path.write_text(markdown, encoding="utf-8")
+    selection_path.write_text(json.dumps({
+        "date": run_date,
+        "generated_at": datetime.now().isoformat(),
+        "products": [asdict(choice) for choice in choices],
+        "input_signals": prompt_rows,
+        "recent_product_names": sorted(recent_names),
+        "source_health": meta,
+        "signal_counts": {
+            "fetched": len(signals),
+            "new": len(reader_signals),
+            "repeated": len(signals) - len(reader_signals),
+        },
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    if raw_response:
+        raw_response_path.write_text(raw_response, encoding="utf-8")
     html_ok = False
     if with_html or with_png:
         write_html(markdown, html_path, run_date)
@@ -868,6 +818,8 @@ def build_product_radar(run_date: str, *, with_html: bool = False, with_png: boo
         "html": str(html_path) if html_ok else "",
         "png": str(png_path) if png_ok else "",
         "raw": str(raw_path),
+        "selection": str(selection_path),
+        "products": len(choices),
         "signals": len(signals),
         "reader_signals": len(reader_signals),
         "repeated_signals": len(signals) - len(reader_signals),

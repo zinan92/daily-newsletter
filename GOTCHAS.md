@@ -75,8 +75,10 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 - **#29 Daily Newsletter umbrella contract** — the daily reader routine now
   ships three products: 快讯, 深读, 产品雷达. Product Radar stays outside the
   快讯/深读 AI selection universe and is linked by `daily-YY-MM-DD.*`. Product
-  Radar should render one Top 5 build-choices list, not separate Product Hunt /
-  HN / TrustMRR sections; do not merge those rows into the main signal selection.
+  Radar should render `Top Three Products to Build Today` with at most three
+  concrete products and one value sentence each. Source names, evidence lists,
+  fetch counts, data quality and other OPS fields stay in processed/raw
+  artifacts; do not merge those rows into the main signal selection.
 - **#30 Recoverable source auth is non-blocking** — WeChat / YouTube cookie or
   QR/login problems must be surfaced in status/run-report/daily bundle, but the
   scheduled daily artifact still generates from available sources by default.
