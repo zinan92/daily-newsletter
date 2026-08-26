@@ -19,7 +19,8 @@
 in   官方渠道 (Anthropic/OpenAI/Claude/Codex) + X 关注账号 + 播客/YouTube/抖音 + 手动链接/公众号
 out  一份中文日报 Markdown → `~/park-io/006_ai daily newsletter/<YY-MM-DD>.md`，每天 08:30
 
-fail LLM 端点 502/SSL    → DeepSeek 重试 3 次；仍失败则自动转 CLIProxy/Sonnet；配置错误不兜底
+fail LLM 端点 502/SSL    → DeepSeek 重试 3 次；仍失败则自动转 Codex CLI；配置错误不兜底
+fail DeepSeek HTTP 402   → 自动转 Codex CLI；Codex 也失败则停止并记录错误
 fail AI 结构化输出失败   → 写 processed/<YY-MM-DD>/ai/error.json + raw-response.md，直接停止，不 fallback
 fail 最终 Markdown 缺栏目 → build-digest 失败，不生成假成功产物
 fail 某来源抓取失败      → 跳过并在状态页标记，不影响其他来源
@@ -228,13 +229,15 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 
 ## 配置
 
-LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 SSL/429/5xx 这类临时故障时，默认自动转 **CLIProxy/Sonnet**；401/400 等配置错误不兜底，直接暴露。Key 从 env 或 `~/park-io/_secrets/<name>` 读取，**不进代码、不进 git**。
+LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 HTTP 402（余额/额度不足）或 SSL/429/5xx 这类可恢复故障时，默认自动转 **Codex CLI**。Codex 通过 `codex exec --ephemeral --sandbox read-only` 在 `/tmp` 工作目录中运行，stdout 才会进入日报处理；401/400 等配置错误仍直接暴露，不会被静默隐藏。Key 从 env 或 `~/park-io/_secrets/<name>` 读取，**不进代码、不进 git**。
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PARKIO_HOME` | Park-IO 数据根目录 | `~/park-io` |
-| `PARKIO_LLM_PROVIDER` | LLM 提供方：`deepseek` 或 `anthropic` | `deepseek` |
-| `PARKIO_LLM_FALLBACK_PROVIDER` | 主 LLM 临时故障时的备用 provider；设为 `none` 可关闭 | `anthropic` |
+| `PARKIO_LLM_PROVIDER` | LLM 提供方：`deepseek`、`anthropic` 或 `codex` | `deepseek` |
+| `PARKIO_LLM_FALLBACK_PROVIDER` | 主 LLM 余额/临时故障时的备用 provider；可选 `codex`、`anthropic`、`none` | `codex`（主 provider 为 DeepSeek 时） |
+| `PARKIO_CODEX_BIN` | Codex CLI 可执行文件 | `codex` |
+| `PARKIO_CODEX_WORKDIR` | Codex fallback 的工作目录；应保持为只读、隔离目录 | `/tmp` |
 | `PARKIO_DEEPSEEK_KEY` | DeepSeek API key（或写入 `~/park-io/_secrets/deepseek-key`） | 无（必填） |
 | `PARKIO_DEEPSEEK_MODEL` | DeepSeek 模型 | `deepseek-v4-flash` |
 | `PARKIO_DEEPSEEK_ENDPOINT` | DeepSeek 端点 | `https://api.deepseek.com/v1/chat/completions` |
