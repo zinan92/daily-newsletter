@@ -83,6 +83,10 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
   QR/login problems must be surfaced in status/run-report/daily bundle, but the
   scheduled daily artifact still generates from available sources by default.
   Use `PARKIO_PREFLIGHT_BLOCK=1` only for an explicit debugging run.
+- **#31 DeepSeek billing fallback** — HTTP 402 from DeepSeek means billing/quota
+  exhaustion and may fall through to the local Codex CLI; 401/400 and malformed
+  requests still fail fast. Codex runs through `codex exec` with ephemeral,
+  read-only, isolated settings, and a failed fallback must remain visible.
 
 ---
 

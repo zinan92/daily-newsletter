@@ -1,6 +1,7 @@
 """Regression tests for service-level LLM provider failover."""
 import json
 import os
+import subprocess
 import sys
 import urllib.error
 from unittest.mock import patch
@@ -35,6 +36,7 @@ def test_transient_primary_failure_falls_back_to_anthropic():
 
     with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
             patch.object(lib, "LLM_FALLBACK_PROVIDER", "anthropic"), \
+            patch.object(lib, "_load_secret", lambda *_args: "test-key"), \
             patch("urllib.request.urlopen", fake_urlopen), \
             patch("time.sleep", lambda *_args: None):
         out = lib.llm_call("hello", max_tokens=20, retries=3, timeout=1)
@@ -54,6 +56,7 @@ def test_non_retryable_primary_error_does_not_fallback():
 
     with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
             patch.object(lib, "LLM_FALLBACK_PROVIDER", "anthropic"), \
+            patch.object(lib, "_load_secret", lambda *_args: "test-key"), \
             patch("urllib.request.urlopen", fake_urlopen):
         try:
             lib.llm_call("hello", max_tokens=20, retries=3, timeout=1)
@@ -63,6 +66,60 @@ def test_non_retryable_primary_error_does_not_fallback():
             raise AssertionError("401 must fail fast instead of falling back")
 
     assert calls == [lib.DEEPSEEK_ENDPOINT]
+
+
+def test_deepseek_billing_error_falls_back_to_codex_cli():
+    api_calls = []
+    cli_calls = []
+
+    def fake_urlopen(req, timeout):
+        api_calls.append(req.full_url)
+        raise urllib.error.HTTPError(req.full_url, 402, "Payment Required", hdrs=None, fp=None)
+
+    def fake_run(command, *, input, text, capture_output, timeout):
+        cli_calls.append({
+            "command": command,
+            "input": input,
+            "text": text,
+            "capture_output": capture_output,
+            "timeout": timeout,
+        })
+        return subprocess.CompletedProcess(command, 0, stdout='{"ok":true}', stderr="codex progress")
+
+    with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
+            patch.object(lib, "LLM_FALLBACK_PROVIDER", "codex"), \
+            patch.object(lib, "_load_secret", lambda *_args: "test-key"), \
+            patch("urllib.request.urlopen", fake_urlopen), \
+            patch("subprocess.run", fake_run):
+        out = lib.llm_call("return JSON", max_tokens=20, retries=1, timeout=7)
+
+    assert out == '{"ok":true}'
+    assert api_calls == [lib.DEEPSEEK_ENDPOINT]
+    assert len(cli_calls) == 1
+    call = cli_calls[0]
+    assert call["command"][:2] == [lib.CODEX_BIN, "exec"]
+    assert "--ephemeral" in call["command"]
+    assert "--sandbox" in call["command"]
+    assert "read-only" in call["command"]
+    assert call["input"] == "return JSON"
+    assert call["text"] is True
+    assert call["capture_output"] is True
+    assert call["timeout"] == 180
+
+
+def test_codex_cli_nonzero_exit_fails_explicitly():
+    def fake_run(command, *, input, text, capture_output, timeout):
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr="codex unavailable")
+
+    with patch.object(lib, "LLM_PROVIDER", "codex"), \
+            patch.object(lib, "LLM_FALLBACK_PROVIDER", "none"), \
+            patch("subprocess.run", fake_run):
+        try:
+            lib.llm_call("hello", max_tokens=20, retries=1, timeout=1)
+        except lib.LLMUnavailable as exc:
+            assert "codex CLI" in str(exc)
+        else:
+            raise AssertionError("Codex CLI failure must remain visible")
 
 
 def test_deepseek_thinking_flag_logic():
