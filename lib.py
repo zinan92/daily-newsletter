@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+import subprocess
 import time
 import hashlib
 import urllib.error
@@ -41,15 +42,16 @@ PROFILE_LIBRARY_DIR = PARKIO / ".system" / "source-profiles"
 #   "deepseek"  (default) — OpenAI-compatible: /chat/completions, Bearer auth
 #   "anthropic"           — CLIProxyAPI: /v1/messages, x-api-key
 # Fallback is switchable via PARKIO_LLM_FALLBACK_PROVIDER:
-#   "anthropic" (default when primary is deepseek) — CLIProxyAPI / Sonnet
-#   "" / "none"                                — disabled
+#   "codex" (default when primary is deepseek) — local Codex CLI
+#   "anthropic"                                  — CLIProxyAPI / Sonnet
+#   "" / "none"                                  — disabled
 # Keys are read from env or a local untracked secret file — never hardcoded, so
 # the repo carries no credential.
 # -----------------------------------------------------------------------------
 LLM_PROVIDER = os.environ.get("PARKIO_LLM_PROVIDER", "deepseek").lower()
 LLM_FALLBACK_PROVIDER = os.environ.get(
     "PARKIO_LLM_FALLBACK_PROVIDER",
-    "anthropic" if LLM_PROVIDER == "deepseek" else "",
+    "codex" if LLM_PROVIDER == "deepseek" else "",
 ).lower()
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
@@ -75,6 +77,8 @@ DEEPSEEK_MAX_OUTPUT = int(os.environ.get("PARKIO_DEEPSEEK_MAX_OUTPUT", "8000"))
 # Anthropic via CLIProxyAPI (legacy / fallback)
 CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost:8317/v1/messages")
 CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
+CODEX_BIN = os.environ.get("PARKIO_CODEX_BIN", "codex")
+CODEX_WORKDIR = os.environ.get("PARKIO_CODEX_WORKDIR", "/tmp")
 
 
 def _deepseek_is_v4(model: str) -> bool:
@@ -168,6 +172,10 @@ class LLMNonRetryable(RuntimeError):
     """Raised when a provider returns a configuration/request error."""
 
 
+class LLMBillingError(LLMNonRetryable):
+    """Raised when a provider rejects a request because billing/quota is exhausted."""
+
+
 def send_telegram(text: str) -> bool:
     """Send a plain-text Telegram message (owner alerts). Token/chat from env or
     ~/park-io/_secrets/telegram-*. Returns True on success, never raises."""
@@ -254,8 +262,46 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
     return DEEPSEEK_ENDPOINT, DEEPSEEK_MODEL, headers, parse
 
 
+def _codex_cli_call(prompt: str, *, timeout: int) -> str:
+    """Run Codex as a read-only, non-persistent text provider."""
+    command = [
+        CODEX_BIN,
+        "exec",
+        "--ephemeral",
+        "--sandbox",
+        "read-only",
+        "--skip-git-repo-check",
+        "--color",
+        "never",
+        "-C",
+        CODEX_WORKDIR,
+        "-",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            input=prompt,
+            text=True,
+            capture_output=True,
+            timeout=max(timeout, 180),
+        )
+    except FileNotFoundError as exc:
+        raise LLMNonRetryable(f"codex CLI not found: {CODEX_BIN}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise LLMUnavailable(f"codex CLI timed out after {max(timeout, 180)} seconds") from exc
+    if result.returncode != 0:
+        raise LLMUnavailable(f"codex CLI exited with status {result.returncode}")
+    output = (result.stdout or "").strip()
+    if not output:
+        raise LLMUnavailable("codex CLI returned empty output")
+    return output
+
+
 def _llm_call_provider(provider: str, prompt: str, max_tokens: int, *, retries: int, timeout: int) -> str:
     """Call one provider. Raises LLMUnavailable only for transient failures."""
+    provider = (provider or "").lower()
+    if provider == "codex":
+        return _codex_cli_call(prompt, timeout=timeout)
     url, model, headers, parse = _llm_endpoint_config(max_tokens, provider)
     payload: dict = {
         "model": model,
@@ -284,6 +330,8 @@ def _llm_call_provider(provider: str, prompt: str, max_tokens: int, *, retries: 
             return parse(resp)
         except urllib.error.HTTPError as exc:
             last_exc = exc
+            if exc.code == 402:
+                raise LLMBillingError(f"{provider} LLM billing/quota HTTP 402: {exc}") from exc
             if exc.code not in _RETRYABLE_STATUS:
                 raise LLMNonRetryable(f"{provider} LLM non-retryable HTTP {exc.code}: {exc}") from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
@@ -305,6 +353,12 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
     primary = LLM_PROVIDER or "deepseek"
     try:
         return _llm_call_provider(primary, prompt, max_tokens, retries=retries, timeout=timeout)
+    except LLMBillingError as primary_exc:
+        fallback = (LLM_FALLBACK_PROVIDER or "").strip().lower()
+        if not fallback or fallback in {"none", "off", "false"} or fallback == primary:
+            raise
+        print(f"[llm] primary {primary} billing/quota exhausted; fail over to {fallback}: {primary_exc}", file=sys.stderr)
+        return _llm_call_provider(fallback, prompt, max_tokens, retries=1, timeout=max(timeout, 180))
     except LLMNonRetryable:
         raise
     except LLMUnavailable as primary_exc:
