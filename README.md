@@ -21,6 +21,7 @@ out  一份中文日报 Markdown → `~/park-io/006_ai daily newsletter/<YY-MM-D
 
 fail LLM 端点 502/SSL    → DeepSeek 重试 3 次；仍失败则自动转 Codex CLI；配置错误不兜底
 fail DeepSeek HTTP 402   → 自动转 Codex CLI；Codex 也失败则停止并记录错误
+fail AI card coverage     → 只重试缺失 item；仍缺失、重复或未知 id 则停止，不生成半成品
 fail AI 结构化输出失败   → 写 processed/<YY-MM-DD>/ai/error.json + raw-response.md，直接停止，不 fallback
 fail 最终 Markdown 缺栏目 → build-digest 失败，不生成假成功产物
 fail 某来源抓取失败      → 跳过并在状态页标记，不影响其他来源
@@ -173,7 +174,7 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 | To MD | `stages/to_md/run.py` | script + local_model | raw artifact 统一成 `inbox/unprocessed/<YYYY-MM-DD>/items/*.md`，一个 item 一个 markdown；默认处理今天和昨天尚未转写的 pending raw，避免 X 收藏等 late-arriving raw 永久卡在 raw；视频/音频转录在这里完成 |
 | Coarse Filter | `stages/coarse_filter/run.py` | script | 只删明显垃圾，写 `processed/<YY-MM-DD>/coarse-rejects.jsonl`；不打分、不合并、不做产品判断 |
 | 选题工作台 | `build-topics.py` | script | 手动/独立读取 `inbox/unprocessed`，生成 `topics.html` / `topics.md`；不参与生产 digest |
-| AI Process | `stages/ai_process/run.py` | ai | AI：item cards → events → selection → 快讯写作 + optional 深读写作；失败直接停止，不 fallback |
+| AI Process | `stages/ai_process/run.py` | ai | AI：item cards → events → selection → 快讯写作 + optional 深读写作；item card 缺失时只补缺失 id，覆盖仍不完整则停止 |
 | 运行报告 | `run_report.py` | script | 为同一个 batch 生成 `run-report.json`；日报、status、health alert 共用这一份健康事实 |
 | 归档 | `stages/archive/run.py` | script | 按 `ai/03-selection.json` 归档 `brief_universe` / `deep_candidates`；discard 只保留 decision log |
 | 本地定稿 | `build-daily-bundle.py` | script | 合并 processed 快讯、深读和产品雷达，写 `~/park-io/006_ai daily newsletter/YY-MM-DD.md` |

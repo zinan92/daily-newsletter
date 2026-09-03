@@ -7,6 +7,7 @@ import json
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -1079,6 +1080,48 @@ def test_item_understanding_chunks_large_batches():
     assert len(chunks) > 1
     assert sum(len(chunk) for chunk in chunks) == len(items)
     assert all(sum(ai_process.item_content_size(item) for item in chunk) <= ai_process.ITEM_UNDERSTANDING_MAX_CONTENT_CHARS for chunk in chunks)
+
+
+def test_item_understanding_repairs_missing_card_for_a_chunk():
+    items = [
+        {"id": "item-a", "title": "A", "content": "A content"},
+        {"id": "item-b", "title": "B", "content": "B content"},
+    ]
+    calls = []
+
+    def fake_call_json_stage(ai_dir, stage_name, prompt_file, payload, max_tokens=8000):
+        calls.append((stage_name, prompt_file, payload, max_tokens))
+        if stage_name == "item_understanding_01":
+            return [{"id": "item-a"}]
+        assert stage_name == "item_understanding_01_repair"
+        assert payload == [items[1]]
+        return [{"id": "item-b"}]
+
+    with tempfile.TemporaryDirectory() as td:
+        with patch.object(ai_process, "call_json_stage", fake_call_json_stage):
+            cards = ai_process.item_understanding(Path(td) / "ai", items)
+
+    assert [card["id"] for card in cards] == ["item-a", "item-b"]
+    assert len(calls) == 2
+
+
+def test_item_understanding_rejects_unknown_card_id():
+    items = [
+        {"id": "item-a", "title": "A", "content": "A content"},
+        {"id": "item-b", "title": "B", "content": "B content"},
+    ]
+
+    def fake_call_json_stage(*_args, **_kwargs):
+        return [{"id": "item-a"}, {"id": "unknown"}]
+
+    with tempfile.TemporaryDirectory() as td:
+        with patch.object(ai_process, "call_json_stage", fake_call_json_stage):
+            try:
+                ai_process.item_understanding(Path(td) / "ai", items)
+            except ai_process.AIProcessError as exc:
+                assert "unknown" in str(exc)
+            else:
+                raise AssertionError("unknown item card ids must fail")
 
 
 def test_collect_processed_items_ignores_ai_debug_dirs():
