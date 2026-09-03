@@ -115,32 +115,30 @@ def test_broken_sources_uses_current_channel_health_not_stale_sla():
     assert any("海外独角兽" in problem and "30d" in problem for problem in problems)
 
 
-def test_main_refreshes_wewe_auth_before_reading_sidecar():
-    calls = []
-    old_refresh = ph.refresh_wewe_auth_state
+def test_main_does_not_probe_wewe_auth():
+    def fail_if_called():
+        raise AssertionError("WeWe auth must no longer be probed")
+
+    old_refresh = getattr(ph, "refresh_wewe_auth_state", None)
     old_latest_report = ph.latest_run_report
     old_digest_sent = ph.digest_sent_today
     old_problem_lines = ph.problem_lines
-    old_wewe_auth_issue = ph.wewe_auth_issue
     old_write_health_alert = ph.write_health_alert
     try:
-        ph.refresh_wewe_auth_state = lambda: calls.append("refresh")
+        ph.refresh_wewe_auth_state = fail_if_called
         ph.latest_run_report = lambda date: {"date": date}
         ph.digest_sent_today = lambda: True
         ph.problem_lines = lambda report: []
-        ph.wewe_auth_issue = lambda: None
         ph.write_health_alert = lambda *args, **kwargs: True
 
         assert ph.main() == 0
     finally:
-        ph.refresh_wewe_auth_state = old_refresh
+        if old_refresh is not None:
+            ph.refresh_wewe_auth_state = old_refresh
         ph.latest_run_report = old_latest_report
         ph.digest_sent_today = old_digest_sent
         ph.problem_lines = old_problem_lines
-        ph.wewe_auth_issue = old_wewe_auth_issue
         ph.write_health_alert = old_write_health_alert
-
-    assert calls == ["refresh"]
 
 
 if __name__ == "__main__":

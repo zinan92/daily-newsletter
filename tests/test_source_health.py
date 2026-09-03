@@ -49,6 +49,10 @@ def test_bridge_connection_refused_is_failed():
     assert "Connection refused" in detail, f"detail should surface the error, got: {detail}"
 
 
+def test_legacy_rss_metadata_is_not_a_wewe_fetch_dependency():
+    assert sh.fetch_component(WECHAT) == "fetch-wechat"
+
+
 def test_bridge_ok_when_imported_cleanly():
     """Ran today, no error recorded → 'ok'."""
     st = {"last_fetch": DAY, "status": "ok", "entries": 11, "imported": 2}

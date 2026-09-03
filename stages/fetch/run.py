@@ -24,8 +24,6 @@ STAGES = [
     "fetch-twitter-saved.py",
     "fetch-scrape.py",
     "fetch-wechat.py",
-    "fetch-wechat-rss.py",
-    "wewe-auth-monitor.py",
     "fetch-wechat-exporter.py",
     "fetch-douyin.py",
 ]

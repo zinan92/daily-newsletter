@@ -4,8 +4,7 @@
 Why this exists: state.json / source-health collapsed three different situations
 into one green "成功无新增":
   - DOWN   : the fetch errored (timeout / connection refused / auth-cookie expired)
-  - STALE  : the fetch "succeeded" but the upstream feed is frozen (e.g. wewe-rss
-             bridge answers, but its newest article is weeks old)
+  - STALE  : the fetch "succeeded" but an upstream feed is frozen
   - QUIET  : the fetch succeeded against a fresh source, there is simply nothing new
   - NEW    : n new items were ingested
 A green "无新增" that actually means DOWN is the bug this module removes — the logs
@@ -21,8 +20,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import urllib.request
-from datetime import datetime, timezone
 
 from lib import ROOT, load_sources, today  # noqa: F401
 
@@ -34,15 +31,12 @@ LOG_FOR = {
     "scrape": "fetch-scrape",
     "twitter": "fetch-twitter",
     "douyin": "fetch-douyin",
-    "wechat-rss": "fetch-wechat-rss",
+    "wechat": "fetch-wechat",
 }
 
 
 def log_basename(src: dict) -> str:
-    platform = src.get("platform", "")
-    if platform == "wechat" and "rss_url " in src.get("notes", ""):
-        return "fetch-wechat-rss"
-    return LOG_FOR.get(platform, "fetch")
+    return LOG_FOR.get(src.get("platform", ""), "fetch")
 
 
 def channel_needle(src: dict) -> str:
@@ -99,43 +93,13 @@ def classify(parsed: dict | None, feed_age_days: int | None) -> str:
     return "QUIET"
 
 
-def pending_setup_error(src: dict) -> str | None:
-    """Return an actionable setup error for active WeChat rows with no RSS feed yet."""
-    if src.get("platform") != "wechat":
-        return None
-    notes = src.get("notes", "") or ""
-    m = re.search(r"rss_url\s+pending\b[^|]*", notes, flags=re.I)
-    if not m:
-        return None
-    return f"WeWe RSS 未配置：{m.group(0).strip()}"
-
-
 def classify_source(src: dict, parsed: dict | None, feed_age_days: int | None) -> dict:
-    pending = pending_setup_error(src)
-    if pending:
-        return {"state": "DOWN", "error": pending}
     return {"state": classify(parsed, feed_age_days), "error": (parsed or {}).get("error")}
 
 
 def feed_age_days(src: dict) -> int | None:
-    """For wechat-rss channels: age (days) of the newest item in the bridge feed.
-    Detects a frozen bridge that still answers 200. None if not probeable."""
-    if not (src.get("platform") == "wechat" and "rss_url " in src.get("notes", "")):
-        return None
-    m = re.search(r"rss_url\s+(https?://\S+)", src.get("notes", ""))
-    if not m:
-        return None
-    try:
-        with urllib.request.urlopen(m.group(1), timeout=8) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        items = data.get("items") or []
-        if not items:
-            return 9999
-        raw = items[0].get("date_modified") or items[0].get("date_published") or ""
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        return (datetime.now(timezone.utc) - dt).days
-    except Exception:
-        return None  # probe failed → don't assert staleness (the run-state already covers DOWN)
+    """Manual/seed WeChat sources have no feed freshness probe."""
+    return None
 
 
 def channel_rows() -> list[dict]:

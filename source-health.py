@@ -20,9 +20,7 @@ def source_key(src: dict) -> str:
     if platform == "twitter":
         handle = src.get("url", "").rstrip("/").split("/")[-1]
         return f"twitter:{handle}"
-    if platform == "wechat" and "rss_url " in src.get("notes", ""):
-        return f"wechat-rss:{name}"
-    if platform in {"rss", "scrape", "wechat", "wechat-rss", "douyin"}:
+    if platform in {"rss", "scrape", "wechat", "douyin"}:
         return f"{platform}:{name}"
     return f"{platform}:{name}"
 
@@ -64,8 +62,6 @@ def latest_timeout(component: str, day: str) -> str:
 
 def fetch_component(src: dict) -> str:
     platform = src.get("platform", "")
-    if platform == "wechat" and "rss_url " in src.get("notes", ""):
-        return "fetch-wechat-rss"
     if platform == "twitter":
         return "fetch-twitter"
     if platform == "rss":
@@ -74,8 +70,6 @@ def fetch_component(src: dict) -> str:
         return "fetch-scrape"
     if platform == "wechat":
         return "fetch-wechat"
-    if platform == "wechat-rss":
-        return "fetch-wechat-rss"
     if platform == "douyin":
         return "fetch-douyin"
     return "fetch"
@@ -91,7 +85,7 @@ def classify_source(src: dict, st: dict, day: str) -> tuple[str, str]:
     """
     platform = src.get("platform", "")
     name = src.get("name", "")
-    if platform not in {"twitter", "rss", "scrape", "wechat", "wechat-rss", "douyin"}:
+    if platform not in {"twitter", "rss", "scrape", "wechat", "douyin"}:
         return "unsupported", f"platform={platform} is not fetched automatically"
     ran_today = st.get("last_fetch") == day
     recorded_failure = st.get("status") == "failed" or bool(st.get("error"))
@@ -99,8 +93,6 @@ def classify_source(src: dict, st: dict, day: str) -> tuple[str, str]:
         recorded_status = st.get("status")
         if platform == "twitter" and recorded_status in {"ok_new", "ok_no_new"}:
             return recorded_status, st.get("detail") or f"timeline checked; {st.get('new_count', 0)} new item(s)"
-        if platform == "wechat-rss" or (platform == "wechat" and "rss_url " in src.get("notes", "")):
-            return "ok", f"RSS/JSON bridge checked; {st.get('entries', 0)} entries, {st.get('imported', 0)} imported"
         if platform == "wechat":
             account = st.get("account", "")
             return "ok", f"seed article fetched into library; account={account or 'unknown'}"

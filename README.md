@@ -16,7 +16,7 @@
 ---
 
 ```
-in   官方渠道 (Anthropic/OpenAI/Claude/Codex) + X 关注账号 + 播客/YouTube/抖音 + 手动链接/公众号
+in   官方渠道 (Anthropic/OpenAI/Claude/Codex) + X 关注账号 + 播客/YouTube/抖音 + 手动链接/公众号 seed
 out  一份中文日报 Markdown → `~/park-io/006_ai daily newsletter/<YY-MM-DD>.md`，每天 08:30
 
 fail LLM 端点 502/SSL    → DeepSeek 重试 3 次；仍失败则自动转 Codex CLI；配置错误不兜底
@@ -188,15 +188,15 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 
 ## 渠道健康与可观测性
 
-53 个 source 分布在 5 个平台（scrape / rss / twitter / wechat / douyin）。**核心原则：渠道「挂了」绝不能显示成「没更新」。**
+46 个 source 分布在 5 个平台（scrape / rss / twitter / wechat / douyin）。公众号只保留手动/seed 抓取，不再依赖 WeWe RSS。**核心原则：渠道「挂了」绝不能显示成「没更新」。**
 
 - `channel-health.py` 是健康真值源：读 **fetch 日志**（不是会撒谎的 `state.json`）+ 探测 feed 新鲜度，把每个渠道判成五态之一——
-  - **DOWN**：抓取报错或自动渠道未配置（超时 / 拒连 / cookie 过期 / WeWe RSS pending）
-  - **STALE**：抓取成功但上游 feed 冻结（如 wewe-rss 的微信读书登录过期，feed 多日不更新）
+  - **DOWN**：抓取报错或自动渠道未配置（超时 / 拒连 / cookie 过期）
+  - **STALE**：抓取成功但上游自动 feed 冻结
   - **QUIET**：抓取成功、feed 新鲜、确实没有新内容
   - **NEW**：有新内容入库
   - **FILTERED**（状态页「抓到但过滤」）：抓到了新内容，但 0 条进入当天正文（被 coarse filter 或 AI selection 丢掉）
-- `status.html` 的逐源健康与依赖检查都走 `channel-health` 真值；依赖检查是**功能型**（cookie/登录态按真实抓取结果判定、wewe-rss 检查 feed 新鲜度而非仅可达）。`wewe-auth-monitor.py` 每次 fetch 都会查询 WeWe RSS 的 `account.list`；读书账号失效时写 `~/park-io/_inbox/wewe-auth-alert.json` 和 `wewe-auth-qr.png`，并在 `status.html` 顶部显示扫码恢复入口。
+- `status.html` 的逐源健康与依赖检查都走 `channel-health` 真值；YouTube/X/抖音等自动依赖按真实抓取结果判定，公众号不再进行 WeWe 登录态或 RSS bridge 探测。
 - `processed/<YY-MM-DD>/run-report.json` 是日报、`status.html`、`health-alerts.md` 的共享事实源：同一个 batch 的 AI 输入、粗筛丢弃、合并事件、快讯/深读/产品雷达数量、source 异常、音视频转录失败、Reader QA、Feishu receipt 必须从这里读，不能各自重新计算。
 - `run-report.json` / `status.html` 会显示 pending raw 总数和 pending X 收藏数；如果 X 收藏已经抓到但晚于当天 AI batch，它会显示为 `pending_x_saved_raw`，下一轮 `to_md` 会把它补进 `unprocessed/<date>/items/`。
 - `reader_quality.py` 是最终读者产物 QA，只检查 `sent/` 中实际要被读者看到的 Markdown，不重写正文、不做 fallback；发现 raw transcript、重复 filler、机器 marker 或正文内本地路径会失败。
@@ -209,14 +209,14 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 
 | 依赖 | 服务谁 | 风险 |
 |------|--------|------|
-| `wewe-rss`（Colima/Docker，`localhost:4000`） | 8 个公众号的 RSS | 微信读书登录会过期 → feed 冻结；需偶尔重新扫码。**失效会在 digest/status 红字告警；status 顶部会显示扫码二维码。** |
+| 手动/seed 公众号入口 | 手动链接和 seed 文章 | 不提供自动 RSS；需要内容时通过手动链接或飞书收藏进入 pipeline |
 | `content-toolkit`（`~/content-toolkit/capabilities/download`） | `fetch-douyin` / `fetch-media-transcripts` 的抖音抓取 | 该 repo 已 archive，但仍是运行时依赖 |
 | `twitter-auth.env` | 20 个 X 账号 | 登录态过期会导致全部 X 抓取失败 |
 | `~/park-io/_secrets/youtube-cookies.txt`（Netscape 格式，权限 600，仓库外） | YouTube/播客视频的 yt-dlp 下载+转录 | cookie 过期会触发 "Sign in to confirm you're not a bot" → 视频下不下来。**换法**：浏览器装 cookies.txt 扩展导出 youtube.com cookie，覆盖该文件即可（可用 `PARKIO_YTDLP_COOKIES_FILE` 改路径）。失效会在 status/digest 告警。 |
 
 这些依赖都可通过环境变量替换：`PARKIO_HOME`、`PARKIO_DOWNLOAD_CAPABILITY`、`PARKIO_TWITTER_BIN`、`PARKIO_TWITTER_AUTH_ENV`、`PARKIO_YTDLP_COOKIES_FILE`、`PARKIO_LIVE_DASHBOARD_JSON`。
 
-> 微信公众号没有官方开放 feed，任何方案都得借「微信读书登录」这类会过期的中介——所以策略是：**保留 wewe-rss 作主力 + 登录失效即告警/显示二维码 + RSS 恢复后按 `seen_urls` 回补所有未见过的文章 + 最在乎的号用 `manual-links.md` 兜底**。公众号 RSS 不按“今天日期”截断；桥恢复后，断更期间的 7/8/9 号文章只要之前没记录过，就会进入下一次 newsletter。
+> 微信公众号没有稳定的官方 RSS，所以当前策略是：**不再运行 WeWe 自动桥；保留 `manual-links.md`、飞书好文收藏和 seed 文章入口**。需要某篇文章时手动送入 pipeline，避免失效登录态持续污染每日健康状态。
 
 ## 回归不变量（GOTCHAS）
 
@@ -270,7 +270,7 @@ daily-newsletter/
 │   ├── web_scrape/            # official site scrape
 │   ├── x/                     # X timeline + saved items
 │   ├── douyin/                # Douyin profile monitoring
-│   ├── wechat_rss/            # WeWe RSS + exporter bridge
+│   ├── wechat_rss/            # legacy exporter compatibility module only
 │   └── manual_links/          # manual links + seeded WeChat parser
 ├── enrichment/media/          # transcript + media summary enrichment
 ├── aggregation/digest/        # ai_process/build/summarize/archive/finalize

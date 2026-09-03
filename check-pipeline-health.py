@@ -1,31 +1,24 @@
 #!/usr/bin/env python3
-"""Daily pipeline health check (gotcha #21/#23).
+"""Daily pipeline health check (gotcha #21).
 
 Runs after the morning digest is expected to be sent (scheduled ~10:00, well
 after the slow v4-pro run finishes ~09:10). Alerts the owner via Telegram when:
   1. today's digest was NOT sent (and push-digest is not still running), or
   2. a source FAILED to fetch today, or
   3. a source has not fetched successfully in 7 days (likely broken), or
-  4. the WeChat RSS bridge (wewe-rss / colima) is unreachable — public-account
-     sources go silent when it's down (gotcha #23).
-
 Silent success (fetched OK, no new items) is normal and does NOT alert.
 """
 import json
 import re
-import subprocess
 import sys
-import urllib.error
-import urllib.request
 from datetime import datetime
 
-from lib import PARKIO, ROOT, SENT_DIR, load_sources, today, write_health_alert
+from lib import ROOT, SENT_DIR, today, write_health_alert
 from run_report import latest_run_report, problem_lines
 
 PUSH_LOG = ROOT / "logs" / "push-digest.log"
 MEDIA_SUMMARIES = ROOT / "media-summaries.json"
 SCORING_HEALTH = ROOT / "scoring-health.json"
-WEWE_AUTH_ALERT = PARKIO / "_inbox" / "wewe-auth-alert.json"
 
 
 def channel_health_rows() -> list[dict]:
@@ -43,25 +36,6 @@ def channel_health_rows() -> list[dict]:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.channel_rows()
-
-
-def refresh_wewe_auth_state() -> None:
-    """Refresh WeWe account state before judging it.
-
-    The status page and wewe-auth-alert.json are render artifacts. A health check
-    should probe the bridge/account directly first, then read the sidecar.
-    """
-    script = ROOT / "wewe-auth-monitor.py"
-    if not script.exists():
-        return
-    subprocess.run(
-        [sys.executable, str(script)],
-        cwd=str(ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        timeout=20,
-        check=False,
-    )
 
 
 def failed_transcriptions() -> list[str]:
@@ -99,22 +73,6 @@ def scoring_outage() -> str | None:
         return None  # stale file; today's scoring hasn't run / will be checked elsewhere
     if h.get("status") != "ok" or int(h.get("failed_batches", 0) or 0) > 0:
         return f"打分 LLM 异常（{h.get('failed_batches', '?')} 个批次失败，status={h.get('status')}）— 检查 DeepSeek/fallback"
-    return None
-
-
-def wewe_auth_issue() -> str | None:
-    """WeWe bridge is reachable but the reader account itself is invalid."""
-    if not WEWE_AUTH_ALERT.exists():
-        return None
-    try:
-        data = json.loads(WEWE_AUTH_ALERT.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if data.get("status") == "invalid":
-        names = "、".join(str(row.get("name") or "未知账号") for row in data.get("invalid_accounts", [])[:4])
-        return f"公众号登录态失效（{names or 'WeWe 读书账号'}）— 打开 inbox/status.html 扫码重新登录"
-    if data.get("status") == "failed":
-        return f"公众号登录态检测失败（{data.get('error', '未知错误')}）"
     return None
 
 
@@ -179,41 +137,8 @@ def broken_sources() -> list[str]:
     return problems
 
 
-def wechat_bridge_down() -> str | None:
-    """If WeChat sources rely on a local RSS bridge (wewe-rss on colima), probe
-    it. When the bridge is down (e.g. colima not started after a reboot), all
-    public-account feeds go silent — alert instead of failing quietly."""
-    feed = None
-    try:
-        for row in load_sources():
-            m = re.search(r"rss_url\s+(\S+)", row.get("notes", ""))
-            if m:
-                feed = m.group(1)
-                break
-    except Exception:
-        return None
-    if not feed:
-        return None
-    # Probe the bridge HOST (its dashboard), not one feed — a single feed 404 is
-    # a per-account issue, not the bridge being down.
-    host = feed.split("/feeds")[0].rstrip("/")
-    req = urllib.request.Request(f"{host}/dash", headers={"User-Agent": "parkio-health/1"})
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            resp.read(1)
-        return None
-    except urllib.error.HTTPError:
-        return None  # host responded (even 401/404) → bridge is up
-    except Exception:
-        return f"微信 RSS bridge 不可达（{host}）— 公众号源已停摆，检查 colima / wewe-rss"
-
-
 def main() -> int:
     problems: list[str] = []
-    try:
-        refresh_wewe_auth_state()
-    except Exception as exc:
-        problems.append(f"公众号登录态检测刷新失败（{type(exc).__name__}: {exc}）")
     report = latest_run_report(today())
 
     if not digest_sent_today():
@@ -224,21 +149,11 @@ def main() -> int:
 
     if report:
         problems.extend(problem_lines(report))
-        wewe = wewe_auth_issue()
-        if wewe and not any("公众号登录态" in p for p in problems):
-            problems.append(wewe)
     else:
         try:
             problems.extend(broken_sources())
         except Exception as exc:  # never let source-health crash the check
             print(f"[health] source check skipped: {type(exc).__name__}: {exc}", file=sys.stderr)
-
-        bridge = wechat_bridge_down()
-        if bridge:
-            problems.append(bridge)
-        wewe = wewe_auth_issue()
-        if wewe:
-            problems.append(wewe)
 
         try:
             problems.extend(failed_transcriptions())

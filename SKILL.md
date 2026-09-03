@@ -27,7 +27,7 @@ Do not use this skill for unrelated newsletter copywriting, generic RSS advice, 
 - Runtime data: `$PARKIO_HOME/_inbox/{raw,unprocessed,processed}`.
 - Sent artifacts: `$PARKIO_HOME/001_daily newsletter/ai/`.
 - Secrets: env vars or `$PARKIO_HOME/_secrets/*`.
-- Optional auth/runtime tools: X auth env, YouTube cookies, WeWe RSS, content-toolkit, Chrome, MLX Whisper.
+- Optional auth/runtime tools: X auth env, YouTube cookies, content-toolkit, Chrome, MLX Whisper. WeWe RSS is retired and is not a production dependency.
 
 Default `$PARKIO_HOME` is `~/park-io`.
 
