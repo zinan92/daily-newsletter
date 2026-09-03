@@ -17,7 +17,6 @@ EXPECTED_CONTRACTS = [
     "ingestion/x/CONTRACT.md",
     "ingestion/youtube/CONTRACT.md",
     "ingestion/douyin/CONTRACT.md",
-    "ingestion/wechat_rss/CONTRACT.md",
     "ingestion/manual_links/CONTRACT.md",
     "enrichment/media/CONTRACT.md",
     "enrichment/quoted_article/CONTRACT.md",
@@ -31,7 +30,6 @@ EXPECTED_WORKFLOW_IDS = [
     "x",
     "youtube",
     "douyin",
-    "wechat_rss",
     "manual_links",
     "media_enrichment",
     "quoted_article",
@@ -67,6 +65,8 @@ def test_workflow_spec_covers_all_paths_and_keeps_repo_as_source_of_truth():
     assert "recoverable_source_auth_is_non_blocking: true" in text
     assert "build-product-radar.py" in text
     assert "build-daily-bundle.py" in text
+    assert "id: wechat_rss" not in text
+    assert "fetch-wechat-rss.py" not in text
     for workflow_id in EXPECTED_WORKFLOW_IDS:
         assert f"id: {workflow_id}" in text, workflow_id
 

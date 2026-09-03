@@ -14,7 +14,6 @@ WRAPPERS = {
     "fetch-twitter.py": ["main", "extract_handle", "fetch_tweets", "tweet_text"],
     "fetch-twitter-saved.py": ["main", "item_from_tweet", "content_for"],
     "fetch-douyin.py": ["main", "item_from_aweme", "awemes_to_deliver"],
-    "fetch-wechat-rss.py": ["main", "parse_xml_feed", "parse_json_feed", "feed_url_for_source"],
     "fetch-wechat-exporter.py": ["main", "item_from_json", "match_source"],
     "fetch-manual-links.py": ["main", "load_fetch_wechat", "urls_from_pending"],
     "fetch-wechat.py": ["main", "fetch_url", "parse_article", "save_article_to_library"],
@@ -56,7 +55,6 @@ def test_folderized_modules_exist():
         "ingestion/x/timeline.py",
         "ingestion/x/saved.py",
         "ingestion/douyin/run.py",
-        "ingestion/wechat_rss/run.py",
         "ingestion/wechat_rss/exporter.py",
         "ingestion/manual_links/run.py",
         "ingestion/manual_links/wechat_seed.py",
@@ -86,6 +84,9 @@ def test_fetch_stage_does_not_schedule_retired_manual_links():
     from stages.fetch import run
 
     assert "fetch-manual-links.py" not in run.STAGES
+    assert "fetch-wechat-rss.py" not in run.STAGES
+    assert "wewe-auth-monitor.py" not in run.STAGES
+    assert "fetch-wechat.py" in run.STAGES
 
 
 if __name__ == "__main__":

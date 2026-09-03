@@ -22,7 +22,7 @@ def load_generate_status():
 generate_status = load_generate_status()
 
 
-BLOCKING_DEP_NAMES = ("WeWe", "公众号", "YouTube")
+BLOCKING_DEP_NAMES = ("YouTube",)
 
 
 def blocking_rows() -> list[dict]:

@@ -15,11 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from lib import PARKIO, PROCESSED_DIR, ROOT, SENT_DIR, batch_id, batch_label, processed_batch_dir, today
+from lib import PROCESSED_DIR, ROOT, SENT_DIR, batch_id, batch_label, processed_batch_dir, today
 
 MEDIA_SUMMARIES_PATH = ROOT / "media-summaries.json"
 SCORING_HEALTH_PATH = ROOT / "scoring-health.json"
-WEWE_AUTH_ALERT_PATH = PARKIO / "_inbox" / "wewe-auth-alert.json"
 
 
 def report_path(batch: str | None = None) -> Path:
@@ -268,28 +267,6 @@ def scoring_problem_for_date(date: str) -> dict[str, Any] | None:
     }
 
 
-def wewe_auth_problem(date: str | None = None) -> dict[str, str] | None:
-    data = _load_json(WEWE_AUTH_ALERT_PATH)
-    if not isinstance(data, dict):
-        return None
-    if date and str(data.get("checked_at") or "")[:10] != date:
-        return None
-    status = data.get("status")
-    if status == "invalid":
-        return {
-            "name": "公众号登录态",
-            "status": "failed",
-            "detail": "WeWe 读书账号失效；请扫码重新登录",
-        }
-    if status == "failed":
-        return {
-            "name": "公众号登录态",
-            "status": "failed",
-            "detail": f"WeWe 状态检测失败：{data.get('error', '未知错误')}",
-        }
-    return None
-
-
 def source_problems(health: list[dict[str, Any]]) -> list[dict[str, str]]:
     rows = []
     for row in health:
@@ -309,9 +286,6 @@ def source_problems(health: list[dict[str, Any]]) -> list[dict[str, str]]:
 
 def dependency_summary(media_failures: list[dict[str, str]], source_issues: list[dict[str, str]], date: str | None = None) -> list[dict[str, str]]:
     deps: list[dict[str, str]] = []
-    wewe_issue = wewe_auth_problem(date)
-    if wewe_issue:
-        deps.append(wewe_issue)
     if media_failures:
         cookie_related = [row for row in media_failures if "cookie" in row.get("error", "").lower() or "登录态" in row.get("error", "")]
         detail = "YouTube cookie/登录态可能失效" if cookie_related else "存在音视频转录未完成"
@@ -319,7 +293,7 @@ def dependency_summary(media_failures: list[dict[str, str]], source_issues: list
     if any(row["platform"] == "twitter" for row in source_issues):
         deps.append({"name": "X 抓取", "status": "failed", "detail": "存在 X 来源抓取失败或上游冻结"})
     if any(row["platform"] == "wechat" for row in source_issues):
-        deps.append({"name": "公众号 RSS", "status": "failed", "detail": "存在公众号来源抓取失败或上游冻结"})
+        deps.append({"name": "公众号抓取", "status": "failed", "detail": "存在手动/seed 公众号来源抓取失败"})
     if any(row["platform"] == "douyin" for row in source_issues):
         deps.append({"name": "抖音抓取", "status": "failed", "detail": "存在抖音来源抓取失败或上游冻结"})
     return deps

@@ -49,6 +49,24 @@ def test_douyin_cookie_check_uses_canonical_secret_path():
     assert douyin == [{"name": "抖音 Cookie", "status": "ok", "detail": "cookie 存在，最近抓取正常"}]
 
 
+def test_dependency_checks_do_not_include_wewe():
+    module = load_generate_status()
+    original_check_command = module.check_command
+    original_summarize = module.summarize
+    original_media_failures = module.media_failures_for_date
+    try:
+        module.check_command = lambda *args, **kwargs: (True, "ok")
+        module.summarize = type("FakeSummarize", (), {"_channel_health_states": staticmethod(lambda: {})})()
+        module.media_failures_for_date = lambda date: []
+        rows = module.dependency_checks()
+    finally:
+        module.check_command = original_check_command
+        module.summarize = original_summarize
+        module.media_failures_for_date = original_media_failures
+
+    assert not any("WeWe" in row["name"] or "WeWe" in row.get("detail", "") for row in rows)
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):
