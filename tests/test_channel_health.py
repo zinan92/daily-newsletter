@@ -54,17 +54,14 @@ def test_absent_is_unknown():
     assert ch.classify(None, None) == "UNKNOWN"
 
 
-def test_wechat_pending_rss_setup_is_down():
+def test_wechat_sources_have_no_rss_setup_state():
     src = {
         "name": "克劳德猎手",
         "platform": "wechat",
         "notes": "seed article; rss_url pending WeWe subscription",
     }
-    assert ch.pending_setup_error(src) == "WeWe RSS 未配置：rss_url pending WeWe subscription"
-    assert ch.classify_source(src, None, None) == {
-        "state": "DOWN",
-        "error": "WeWe RSS 未配置：rss_url pending WeWe subscription",
-    }
+    assert ch.log_basename(src) == "fetch-wechat"
+    assert ch.classify_source(src, None, None) == {"state": "UNKNOWN", "error": None}
 
 
 if __name__ == "__main__":

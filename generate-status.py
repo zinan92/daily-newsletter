@@ -18,9 +18,8 @@ from run_report import build_run_report, latest_run_report, media_failures_for_d
 
 PUSH_RE = re.compile(r"<!-- parkio-push-items:(.*?) -->", re.S)
 WECHAT_URL_RE = re.compile(r"https://mp\.weixin\.qq\.com/s/[A-Za-z0-9_-]+")
-WEWE_AUTH_ALERT = PARKIO / "_inbox" / "wewe-auth-alert.json"
 MANUAL_PUSH_SCRIPT = ROOT / "manual-push.command"
-BLOCKING_DEP_TOKENS = ("WeWe", "公众号", "YouTube")
+BLOCKING_DEP_TOKENS = ("YouTube",)
 LIVE_DASHBOARD_JSON = Path(
     os.environ.get(
         "PARKIO_LIVE_DASHBOARD_JSON",
@@ -69,66 +68,6 @@ def load_json(path: Path) -> dict:
         return {}
 
 
-def load_wewe_auth_alert() -> dict:
-    data = load_json(WEWE_AUTH_ALERT)
-    return data if isinstance(data, dict) else {}
-
-
-def wewe_auth_problem(data: dict | None = None) -> dict | None:
-    data = data or load_wewe_auth_alert()
-    status = data.get("status")
-    if status == "invalid":
-        names = "、".join(row.get("name", "未知账号") for row in data.get("invalid_accounts", [])[:4])
-        return {
-            "name": "WeWe 读书账号",
-            "status": "failed",
-            "detail": f"{names or '读书账号'} 已失效；需要扫码重新登录",
-        }
-    if status == "failed":
-        return {
-            "name": "WeWe 读书账号",
-            "status": "failed",
-            "detail": f"账号状态检测失败：{data.get('error', '未知错误')}",
-        }
-    return None
-
-
-def render_wewe_auth_alert() -> str:
-    data = load_wewe_auth_alert()
-    problem = wewe_auth_problem(data)
-    if not problem:
-        return ""
-    login = data.get("login", {}) if isinstance(data.get("login"), dict) else {}
-    scan_url = login.get("scanUrl", "")
-    qr_path = Path(str(login.get("qr_path") or ""))
-    qr_html = ""
-    if qr_path.exists():
-        qr_html = "<img src='wewe-auth-qr.png' alt='WeWe RSS 登录二维码'>"
-    elif scan_url:
-        qr_html = f"<a class='auth-button' href='{escape(scan_url)}'>打开扫码链接</a>"
-    account_rows = "".join(
-        f"<li>{escape(str(row.get('name') or '未知账号'))}：{escape(str(row.get('status_label') or row.get('status') or '失效'))}</li>"
-        for row in data.get("accounts", [])
-    )
-    checked_at = escape(str(data.get("checked_at") or "未知"))
-    base_url = escape(str(data.get("base_url") or "http://localhost:4000"))
-    return f"""
-    <section class="auth-alert">
-      <div class="auth-copy">
-        <span class="alert-kicker">公众号登录态异常</span>
-        <h2>WeWe RSS 读书账号失效，需要扫码恢复</h2>
-        <p>检测时间：{checked_at}。恢复后，公众号 RSS 会按未见过的文章做 delta 回补，断更期间的新文章会进入下一次日报。</p>
-        <ul>{account_rows or "<li>账号状态未知</li>"}</ul>
-        <div class="pill-row">
-          <a class="auth-button" href="{base_url}/dash/accounts">打开 WeWe 账号页</a>
-          <span class="pill">二维码约 60 秒过期；若过期，等待下一次 fetch 自动刷新。</span>
-        </div>
-      </div>
-      <div class="auth-qr">{qr_html}</div>
-    </section>
-    """
-
-
 def check_command(cmd: list[str], timeout: int = 8) -> tuple[bool, str]:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -159,19 +98,6 @@ def dependency_checks() -> list[dict]:
     }]
     ok, detail = check_command([sys.executable, "-c", "import mlx_whisper; print('mlx_whisper ok')"])
     checks.append({"name": "MLX Whisper", "status": "ok" if ok else "failed", "detail": detail})
-
-    # WeWe RSS: reachable AND fresh (a frozen-but-reachable bridge is NOT healthy)
-    auth_issue = wewe_auth_problem()
-    reachable, detail = check_command(["/usr/bin/curl", "-fsS", "http://localhost:4000/feeds/MP_WXS_3223096120.json"])
-    frozen = [v["name"] for v in by_platform("wechat") if v.get("state") == "STALE"]
-    if auth_issue:
-        checks.append(auth_issue)
-    elif not reachable:
-        checks.append({"name": "WeWe RSS", "status": "failed", "detail": f"bridge 不可达：{detail}"})
-    elif frozen:
-        checks.append({"name": "WeWe RSS", "status": "stale", "detail": f"bridge 可达，但 {len(frozen)} 个公众号 feed 冻结（需重登微信读书）：{'、'.join(frozen[:4])}"})
-    else:
-        checks.append({"name": "WeWe RSS", "status": "ok", "detail": "localhost:4000 可达，feed 新鲜"})
 
     ok, detail = check_command([
         sys.executable, "-c",
@@ -234,8 +160,8 @@ def render_blocking_dependency_alert(rows: list[dict]) -> str:
     <section class="auth-alert manual-alert">
       <div class="auth-copy">
         <span class="alert-kicker">定时推送已暂停</span>
-        <h2>公众号或 YouTube 需要手动恢复</h2>
-        <p>9 点定时推送遇到可恢复依赖异常时会先暂停，避免发出缺内容的日报。恢复登录态或 cookies 后，点击下面的按钮手动跑完整流程。</p>
+        <h2>YouTube 需要手动恢复</h2>
+        <p>9 点定时推送遇到可恢复的 YouTube 依赖异常时会先暂停，避免发出缺内容的日报。恢复 cookies 后，点击下面的按钮手动跑完整流程。</p>
         <ul>{items}</ul>
         <div class="pill-row">
           <a class="auth-button" href="{escape(script_url)}">手动推送</a>
@@ -1119,7 +1045,6 @@ def render() -> str:
       <p>生成时间：{escape(generated)} · 日期：{escape(date)} · 这个页面面向维护者，用来检查抓取、筛选、推送和长期资料库。</p>
     </header>
 
-    {render_wewe_auth_alert()}
     {render_blocking_dependency_alert(blocking_deps)}
 
     <section class="hero">

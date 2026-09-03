@@ -39,14 +39,14 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 | 20 | Structural AI output failure is the only production gate: invalid JSON or missing required final sections must stop the run and write `ai/error.json` | 🟢🧪 | `aggregation/digest/ai_process.py` · `tests/test_ai_process.py` |
 | 21 | AI endpoint/JSON failure is not silent and never creates a fake successful newsletter | 🟢🔵 | `ai/error.json` + `ai/raw-response.md` |
 | 22 | Source health stays in status/alerts, not inside final newsletter body | 🧪🔵 | `summarize.main()` · `generate-status.py` |
-| 23 | WeChat auto-fetch is fragile; manual links reliable | 🟡 | manual path reliable; RSS bridge health must surface in digest/status |
+| 23 | Automated WeChat RSS is retired; manual/seed links remain supported | 🟢 | `fetch-wechat.py` · `ingestion/manual_links/`; no RSS bridge health check |
 | 24 | Empty-content X items don't enter consumer body | 🧪 | `x_item_has_content()` skips link-only single-X events · `test_empty_x.py` |
 | 25 | Source health must not mention disabled sources | 🟡 | `digest_config.py` / `sources.md`; e.g. disabled `海外独角兽` must not leak into health |
-| 26 | Dependency health should hide personal account names in consumer output | 🔵 | `run_report.py`; show "WeWe 读书账号失效", not the login account name |
-| 27 | Automatic and manual WeChat items must pass the same AI selection path before inclusion | 🧪🔵 | `aggregation/digest/ai_process.py` · `tests/test_ai_process.py` |
+| 26 | Dependency health should hide personal account names in consumer output | 🔵 | `run_report.py`; source-health details stay out of consumer body |
+| 27 | Manual/seed WeChat items pass the same AI selection path before inclusion | 🧪🔵 | `aggregation/digest/ai_process.py` · `tests/test_ai_process.py` |
 | 28 | Reader surface has default 快讯 plus optional 深读; deep_candidates must be a traceable subset of brief_universe and preserve article-level substance | 🟢🧪 | `prompts/ai-process/03-selection.md` · `prompts/ai-process/05-deep-writing.md` · `validate_selection_references()` |
 | 29 | Daily Newsletter umbrella ships three products: 快讯, 深读, 产品雷达; `daily-YY-MM-DD.*` links them without rewriting their bodies | 🧪🔵 | `build-daily-bundle.py` · `daily_bundle.py` · `tests/test_daily_bundle.py` |
-| 30 | Recoverable source auth is non-blocking by default; WeChat / YouTube problems are health warnings, not reasons to skip daily artifact generation | 🧪🔵 | `push-digest.sh` · `tests/test_daily_routine_contract.py` |
+| 30 | Recoverable YouTube auth is non-blocking by default; it is a health warning, not a reason to skip daily artifact generation | 🧪🔵 | `push-digest.sh` · `tests/test_daily_routine_contract.py` |
 | 31 | Unprocessed raw and AI selection are not the personal-collection boundary: only explicit saves/manual links/X saved enter `002_个人收藏`; normal daily candidates stay in daily artifacts or `.system/source-profiles` | 🧪🔵 | `stages/archive/run.py` · `ingestion/manual_links/run.py` |
 | 32 | The five pipeline stages have physical folders; root scripts are compatibility wrappers only | 🧪🔵 | `stages/*/run.py` · `tests/test_ai_process.py` |
 
@@ -103,11 +103,10 @@ These are evaluated libraries / approaches. Do not re-introduce them blindly as
 | [`yizhiyanhua-ai/youtube-ai-digest`](https://github.com/yizhiyanhua-ai/youtube-ai-digest) | YouTube digest / subtitles | 🟡 reference only | Good shape for channel list -> transcript -> Chinese digest, but still based on `yt-dlp`; it does not bypass YouTube login/bot failures beyond normal subtitle fetching. |
 | [`ComposioHQ/awesome-claude-skills/video-downloader`](https://github.com/ComposioHQ/awesome-claude-skills/blob/master/video-downloader/SKILL.md) | YouTube download | ⚪ not a fix | Thin downloader wrapper around `yt-dlp`. Useful as UX reference, not a root-cause fix for `Sign in to confirm you're not a bot`. |
 | [`op7418/Youtube-clipper-skill`](https://github.com/op7418/Youtube-clipper-skill) | YouTube download/subtitle/clip workflow | 🟡 reference only | Good for environment checks, ffmpeg, subtitle parsing, and chaptering. Still depends on successful YouTube download/subtitle acquisition. |
-| [`D4Vinci/Scrapling`](https://github.com/D4Vinci/Scrapling) | Generic anti-bot scraping | ⚪ not for current YouTube/WeChat root cause | Useful for ordinary web pages and selector drift. Does not solve YouTube media acquisition or WeChat subscription/RSS state by itself. |
+| [`D4Vinci/Scrapling`](https://github.com/D4Vinci/Scrapling) | Generic anti-bot scraping | ⚪ not for current YouTube/retired WeChat RSS path | Useful for ordinary web pages and selector drift. Does not solve YouTube media acquisition or provide a reason to restore automated WeChat RSS. |
 | [`NanmiCoder/MediaCrawler`](https://github.com/NanmiCoder/MediaCrawler) | Douyin / XHS / self-media crawling | 🟡 possible Douyin/XHS reference | Strong for Chinese social platforms with Playwright/CDP login-state patterns. It does not cover YouTube transcription or WeChat public-account RSS as the main product path. |
 | [`jackwener/opencli`](https://github.com/jackwener/opencli) | Logged-in browser automation | 🟡 useful support layer | Can help operate real Chrome, inspect pages, click QR/login flows, and build site commands. It is not the ingestion backend; use for health recovery / QR / manual auth workflows. |
 | [`Panniantong/Agent-Reach`](https://github.com/Panniantong/Agent-Reach) | Agent internet toolkit | 🟡 tool-selection reference | Useful map of upstream tools: YouTube still uses `yt-dlp`; WeChat uses search/read style tools rather than a durable subscription feed. Good diagnostic scaffold, not a drop-in replacement. |
-| [`rachelos/we-mp-rss`](https://github.com/rachelos/we-mp-rss) | WeChat public-account RSS | 🟢 best replacement candidate | Purpose-built for WeChat public account RSS, supports scheduled updates, auth expiry reminders, notifications, RSS output, and full-content options. Still requires auth/session maintenance; not "set and forget". |
 
 ### YouTube root-cause rule
 
@@ -126,17 +125,13 @@ acquisition/cookies. Fix order:
 
 ### WeChat root-cause rule
 
-There is no truly stable public official WeChat RSS. Any automated feed depends
-on a bridge/session that can expire. Correct strategy:
+There is no truly stable public official WeChat RSS. The production pipeline no
+longer depends on an automated bridge. Correct strategy:
 
 1. Keep manual links as the reliable fallback.
-2. Track `seen_urls` / identities so bridge recovery backfills every unseen
-   article since last success, not only "today".
-3. Surface auth expiry in the daily digest and status page.
-4. Prefer a purpose-built WeChat RSS bridge (`we-mp-rss` or current WeWe bridge)
-   over generic scraping frameworks.
-5. If migrating bridge, test delta recovery and auth expiry alerts before
-   replacing the production feed.
+2. Keep source provenance and article content separate so manual input remains
+   safe for the same AI selection path.
+3. Do not add a replacement RSS bridge without a new product decision and issue.
 
 ## How this maps to the workflow contract
 
