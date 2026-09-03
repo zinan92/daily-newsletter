@@ -87,6 +87,9 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
   exhaustion and may fall through to the local Codex CLI; 401/400 and malformed
   requests still fail fast. Codex runs through `codex exec` with ephemeral,
   read-only, isolated settings, and a failed fallback must remain visible.
+- **#32 Exact item-card coverage** — each item-understanding chunk must cover its
+  input ids exactly; a missing card gets a focused AI retry, while duplicate,
+  unknown, or still-missing ids stop the stage. Never accept count-only coverage.
 
 ---
 
