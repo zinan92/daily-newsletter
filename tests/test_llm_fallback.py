@@ -122,6 +122,21 @@ def test_codex_cli_nonzero_exit_fails_explicitly():
             raise AssertionError("Codex CLI failure must remain visible")
 
 
+def test_codex_cli_uses_longer_timeout_for_large_prompts():
+    captured = {}
+
+    def fake_run(command, *, input, text, capture_output, timeout):
+        captured["timeout"] = timeout
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="progress")
+
+    with patch.object(lib, "CODEX_LARGE_PROMPT_CHARS", 10), \
+            patch.object(lib, "CODEX_LARGE_PROMPT_TIMEOUT", 600), \
+            patch("subprocess.run", fake_run):
+        assert lib._codex_cli_call("x" * 11, timeout=240) == "ok"
+
+    assert captured["timeout"] == 600
+
+
 def test_deepseek_thinking_flag_logic():
     # Fast non-thinking by default; reasoner is fixed-thinking; chat is fixed-fast.
     with patch.object(lib, "DEEPSEEK_THINKING", "disabled"):

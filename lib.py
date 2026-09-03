@@ -79,6 +79,8 @@ CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost
 CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
 CODEX_BIN = os.environ.get("PARKIO_CODEX_BIN", "codex")
 CODEX_WORKDIR = os.environ.get("PARKIO_CODEX_WORKDIR", "/tmp")
+CODEX_LARGE_PROMPT_CHARS = int(os.environ.get("PARKIO_CODEX_LARGE_PROMPT_CHARS", "24000"))
+CODEX_LARGE_PROMPT_TIMEOUT = int(os.environ.get("PARKIO_CODEX_LARGE_PROMPT_TIMEOUT", "600"))
 
 
 def _deepseek_is_v4(model: str) -> bool:
@@ -264,6 +266,8 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
 
 def _codex_cli_call(prompt: str, *, timeout: int) -> str:
     """Run Codex as a read-only, non-persistent text provider."""
+    minimum_timeout = CODEX_LARGE_PROMPT_TIMEOUT if len(prompt) >= CODEX_LARGE_PROMPT_CHARS else 180
+    effective_timeout = max(timeout, minimum_timeout)
     command = [
         CODEX_BIN,
         "exec",
@@ -283,12 +287,12 @@ def _codex_cli_call(prompt: str, *, timeout: int) -> str:
             input=prompt,
             text=True,
             capture_output=True,
-            timeout=max(timeout, 180),
+            timeout=effective_timeout,
         )
     except FileNotFoundError as exc:
         raise LLMNonRetryable(f"codex CLI not found: {CODEX_BIN}") from exc
     except subprocess.TimeoutExpired as exc:
-        raise LLMUnavailable(f"codex CLI timed out after {max(timeout, 180)} seconds") from exc
+        raise LLMUnavailable(f"codex CLI timed out after {effective_timeout} seconds") from exc
     if result.returncode != 0:
         raise LLMUnavailable(f"codex CLI exited with status {result.returncode}")
     output = (result.stdout or "").strip()

@@ -450,11 +450,33 @@ def chunk_items_for_understanding(items: list[dict]) -> list[list[dict]]:
     return chunks
 
 
+def validate_item_card_ids(ai_dir: Path, stage_name: str, cards: Any, expected_ids: list[str]) -> dict[str, dict]:
+    if not isinstance(cards, list):
+        fail_schema(ai_dir, stage_name, "item understanding must return a JSON array")
+    expected = set(expected_ids)
+    by_id: dict[str, dict] = {}
+    for idx, card in enumerate(cards, 1):
+        if not isinstance(card, dict):
+            fail_schema(ai_dir, stage_name, f"item card {idx} must be an object")
+        card_id = str(card.get("id") or "").strip()
+        if not card_id:
+            fail_schema(ai_dir, stage_name, f"item card {idx} missing id")
+        if card_id not in expected:
+            fail_schema(ai_dir, stage_name, f"item card {idx} has unknown id: {card_id}")
+        if card_id in by_id:
+            fail_schema(ai_dir, stage_name, f"duplicate item card id: {card_id}")
+        by_id[card_id] = card
+    return by_id
+
+
 def item_understanding(ai_dir: Path, items: list[dict]) -> list[dict]:
     chunks = chunk_items_for_understanding(items)
     cards: list[dict] = []
     for idx, chunk in enumerate(chunks, 1):
         log("ai-process", f"item_understanding chunk {idx}/{len(chunks)} — {len(chunk)} items")
+        expected_ids = [str(item.get("id") or "").strip() for item in chunk]
+        if any(not item_id for item_id in expected_ids):
+            fail_schema(ai_dir, f"item_understanding_{idx:02d}", "input item missing id")
         data = call_json_stage(
             ai_dir,
             f"item_understanding_{idx:02d}",
@@ -462,10 +484,45 @@ def item_understanding(ai_dir: Path, items: list[dict]) -> list[dict]:
             chunk,
             max_tokens=12000,
         )
-        if not isinstance(data, list):
-            fail_schema(ai_dir, f"item_understanding_{idx:02d}", "item_understanding chunk must return a JSON array")
-        cards.extend(data)
+        stage_name = f"item_understanding_{idx:02d}"
+        cards_by_id = validate_item_card_ids(ai_dir, stage_name, data, expected_ids)
+        missing_items = [item for item in chunk if str(item.get("id") or "").strip() not in cards_by_id]
+        if missing_items:
+            missing_ids = [str(item["id"]) for item in missing_items]
+            log("ai-process", f"{stage_name}: missing {len(missing_items)} card(s) {', '.join(missing_ids[:10])}; retrying missing items only")
+            repaired = call_json_stage(
+                ai_dir,
+                f"{stage_name}_repair",
+                "01-item-understanding.md",
+                missing_items,
+                max_tokens=12000,
+            )
+            repaired_by_id = validate_item_card_ids(
+                ai_dir,
+                f"{stage_name}_repair",
+                repaired,
+                [str(item["id"]) for item in missing_items],
+            )
+            cards_by_id.update(repaired_by_id)
+        if set(cards_by_id) != set(expected_ids):
+            missing = sorted(set(expected_ids) - set(cards_by_id))
+            fail_schema(ai_dir, stage_name, f"item_understanding still missing card ids: {', '.join(missing[:10])}")
+        cards.extend(cards_by_id[item_id] for item_id in expected_ids)
     return cards
+
+
+def validate_item_card_coverage(ai_dir: Path, items: list[dict], cards: list[dict]) -> None:
+    expected_ids = [str(item.get("id") or "").strip() for item in items]
+    if any(not item_id for item_id in expected_ids):
+        fail_schema(ai_dir, "item_understanding", "input item missing id")
+    cards_by_id = validate_item_card_ids(ai_dir, "item_understanding", cards, expected_ids)
+    if len(cards_by_id) != len(expected_ids):
+        missing = sorted(set(expected_ids) - set(cards_by_id))
+        fail_schema(
+            ai_dir,
+            "item_understanding",
+            f"item_understanding coverage mismatch: expected {len(expected_ids)}, got {len(cards_by_id)}; missing {', '.join(missing[:10])}",
+        )
 
 
 def validate_selection(selection: Any) -> dict:
@@ -1049,8 +1106,7 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
 
     log("ai-process", f"item_understanding START — {len(items)} items")
     cards = item_understanding(ai_dir, items)
-    if len(cards) < len(items):
-        fail_schema(ai_dir, "item_understanding", f"item_understanding returned {len(cards)} cards for {len(items)} items")
+    validate_item_card_coverage(ai_dir, items, cards)
     write_json(ai_dir / "01-item-cards.json", cards)
 
     log("ai-process", f"event_merge START — {len(cards)} cards")
