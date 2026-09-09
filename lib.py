@@ -81,6 +81,11 @@ CODEX_BIN = os.environ.get("PARKIO_CODEX_BIN", "codex")
 CODEX_WORKDIR = os.environ.get("PARKIO_CODEX_WORKDIR", "/tmp")
 CODEX_LARGE_PROMPT_CHARS = int(os.environ.get("PARKIO_CODEX_LARGE_PROMPT_CHARS", "24000"))
 CODEX_LARGE_PROMPT_TIMEOUT = int(os.environ.get("PARKIO_CODEX_LARGE_PROMPT_TIMEOUT", "600"))
+# Codex defaults to a reasoning effort that spends minutes thinking before it
+# answers. These are summarisation and scoring calls with a fixed shape, not
+# problems that need deliberation, and the default made every call exceed the
+# 180s floor. "low" answers the same prompts in roughly twenty seconds.
+CODEX_REASONING_EFFORT = os.environ.get("PARKIO_CODEX_REASONING_EFFORT", "low")
 
 
 def _deepseek_is_v4(model: str) -> bool:
@@ -279,8 +284,10 @@ def _codex_cli_call(prompt: str, *, timeout: int) -> str:
         "never",
         "-C",
         CODEX_WORKDIR,
-        "-",
     ]
+    if CODEX_REASONING_EFFORT:
+        command += ["-c", f'model_reasoning_effort="{CODEX_REASONING_EFFORT}"']
+    command.append("-")
     try:
         result = subprocess.run(
             command,
