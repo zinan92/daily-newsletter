@@ -81,7 +81,7 @@ def artifact_summary(artifact: Artifact) -> dict[str, object]:
             count = 0
         detail = f"{count} 条深读候选" if exists else "未生成"
     else:
-        count = _line_count(text, r"^###\s+\d+\.")
+        count = _line_count(text, r"^\d+\.\s+[^：:\n]+[：:]")
         detail = f"{count} 个可 build 产品方向" if exists else "未生成"
     return {
         "key": artifact.key,

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "project": {
+    "project_id": "input-to-park",
+    "codex_project": "daily-newsletter",
+    "repository": "zinan92/daily-newsletter",
+    "local_path": "/Users/wendy/work/input-to-park",
+    "tokenrouter_group": "input-to-park",
+    "project_registry": "REGISTRY.md",
+    "state_authority": "project_registry",
+    "lifecycle": "active"
+  },
+  "created_by": "park-os onboard"
+}

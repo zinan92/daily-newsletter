@@ -122,6 +122,21 @@ def test_codex_cli_nonzero_exit_fails_explicitly():
             raise AssertionError("Codex CLI failure must remain visible")
 
 
+def test_missing_deepseek_key_fails_before_http():
+    def fake_urlopen(_req, _timeout):
+        raise AssertionError("missing key should fail before HTTP")
+
+    with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
+            patch.object(lib, "_load_secret", lambda *_args: ""), \
+            patch("urllib.request.urlopen", fake_urlopen):
+        try:
+            lib.llm_call("hello", max_tokens=20, retries=1, timeout=1)
+        except lib.LLMNonRetryable as exc:
+            assert "missing deepseek LLM key" in str(exc)
+        else:
+            raise AssertionError("missing key must fail clearly")
+
+
 def test_codex_cli_uses_longer_timeout_for_large_prompts():
     captured = {}
 

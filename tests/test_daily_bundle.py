@@ -73,3 +73,16 @@ def test_daily_bundle_writes_one_markdown_and_no_html_or_png(tmp_path):
     assert result["png"] == ""
     assert not (sent / "26-06-20.html").exists()
     assert not (sent / "26-06-20.png").exists()
+
+
+def test_daily_bundle_counts_new_product_radar_lines(tmp_path):
+    radar = tmp_path / "product-radar.md"
+    radar.write_text(
+        "# 产品雷达\n\n## Top Three Products to Build Today\n\n"
+        "1. 产品 A：一句价值。\n2. 产品 B：另一句价值。\n",
+        encoding="utf-8",
+    )
+
+    artifact = daily_bundle.Artifact("product_radar", "产品雷达", radar)
+
+    assert daily_bundle.artifact_summary(artifact)["detail"] == "2 个可 build 产品方向"
