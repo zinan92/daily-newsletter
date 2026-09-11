@@ -277,6 +277,29 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
     return DEEPSEEK_ENDPOINT, DEEPSEEK_MODEL, headers, parse
 
 
+USAGE_LOG = Path.home() / "park-data" / "llm-usage" / "ai-daily.jsonl"
+_TOKENS_USED_RE = re.compile(r"tokens used\s*\n\s*([\d,]+)")
+
+
+def _log_codex_usage(stderr: str) -> None:
+    """Codex prints a rounded 'tokens used' total to stderr on every call.
+    Nothing here read it before, so there was no record of what the AI daily
+    pipeline actually spends. Best-effort: a log miss never breaks the call."""
+    m = _TOKENS_USED_RE.search(stderr or "")
+    if not m:
+        return
+    try:
+        USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with USAGE_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "provider": "codex",
+                "tokens": int(m.group(1).replace(",", "")),
+            }, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 def _codex_cli_call(prompt: str, *, timeout: int) -> str:
     """Run Codex as a read-only, non-persistent text provider."""
     minimum_timeout = CODEX_LARGE_PROMPT_TIMEOUT if len(prompt) >= CODEX_LARGE_PROMPT_CHARS else 180
@@ -308,6 +331,7 @@ def _codex_cli_call(prompt: str, *, timeout: int) -> str:
         raise LLMNonRetryable(f"codex CLI not found: {CODEX_BIN}") from exc
     except subprocess.TimeoutExpired as exc:
         raise LLMUnavailable(f"codex CLI timed out after {effective_timeout} seconds") from exc
+    _log_codex_usage(result.stderr)
     if result.returncode != 0:
         raise LLMUnavailable(f"codex CLI exited with status {result.returncode}")
     output = (result.stdout or "").strip()

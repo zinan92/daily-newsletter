@@ -194,3 +194,26 @@ if __name__ == "__main__":
                 print(f"FAIL {name}: {exc}")
     print(f"\n{'ALL PASS' if not failed else f'{failed} FAILED'}")
     sys.exit(1 if failed else 0)
+
+
+def test_codex_usage_is_logged_from_stderr_tokens_used_line(tmp_path):
+    def fake_run(command, *, input, text, capture_output, timeout):
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="codex\nok\ntokens used\n36,677\nok\n")
+
+    log_path = tmp_path / "ai-daily.jsonl"
+    with patch.object(lib, "USAGE_LOG", log_path), patch("subprocess.run", fake_run):
+        assert lib._codex_cli_call("hello", timeout=240) == "ok"
+
+    row = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
+    assert row["provider"] == "codex" and row["tokens"] == 36677
+
+
+def test_missing_tokens_used_line_does_not_raise_or_log(tmp_path):
+    def fake_run(command, *, input, text, capture_output, timeout):
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="no usage info here")
+
+    log_path = tmp_path / "ai-daily.jsonl"
+    with patch.object(lib, "USAGE_LOG", log_path), patch("subprocess.run", fake_run):
+        assert lib._codex_cli_call("hello", timeout=240) == "ok"
+
+    assert not log_path.exists()
