@@ -87,6 +87,25 @@ AI_OR_PRODUCT_TERMS = (
 )
 
 
+# Lanes that only exist to surface "many people are saying it" signals (the X
+# home timeline, category ai-timeline). They are noisy by construction, so an
+# item must carry a real AI/product term to enter the AI batch; the raw copy
+# stays on disk for the term radar either way.
+TIMELINE_CATEGORIES = {"ai-timeline"}
+STRONG_DOMAIN_SIGNAL = re.compile(
+    r"\b(ai|agents?|agentic|llms?|gpt(?:-?\d+)?|claude|codex|chatgpt|openai|anthropic|gemini|deepseek|qwen|kimi|"
+    r"mistral|llama|cursor|copilot|mcp|prompt(?:s|ing)?|rag|transformer|diffusion|inference|fine-?tun\w*|"
+    r"benchmark|hugging ?face|open-?source|github|api|sdk|cli|workflow|automation|startup|saas|"
+    r"model(?:s)?|token(?:s)?|waitlist|launch(?:ed|es)?)\b"
+    r"|模型|大模型|智能体|提示词|代码|编程|开发|工具|自动化|工作流|产品|创业|开源|发布|上线|内测|增长|变现|流量",
+    re.I,
+)
+
+
+def has_strong_domain_signal(text: str) -> bool:
+    return bool(STRONG_DOMAIN_SIGNAL.search(text or ""))
+
+
 def source_is_protected(fm: dict, item: dict) -> bool:
     source = (item.get("source") or fm.get("source_name") or "").strip()
     platform = (fm.get("platform") or "").strip().lower()
@@ -126,6 +145,9 @@ def should_keep_item(fm: dict, item: dict) -> tuple[bool, str]:
 
     text = item_text(item)
     compact = compact_content_without_urls(text)
+
+    if (fm.get("category") or "").strip().lower() in TIMELINE_CATEGORIES and not has_strong_domain_signal(compact):
+        return False, "timeline_no_domain_signal"
 
     # Plain links or tiny reactions are not useful enough to process/archive.
     if len(compact) < 18 and not has_domain_signal(compact):
