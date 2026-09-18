@@ -72,6 +72,8 @@ def fetch_component(src: dict) -> str:
         return "fetch-wechat"
     if platform == "douyin":
         return "fetch-douyin"
+    if platform == "github":
+        return "fetch-github-trending"
     return "fetch"
 
 
@@ -85,14 +87,14 @@ def classify_source(src: dict, st: dict, day: str) -> tuple[str, str]:
     """
     platform = src.get("platform", "")
     name = src.get("name", "")
-    if platform not in {"twitter", "rss", "scrape", "wechat", "douyin"}:
+    if platform not in {"twitter", "rss", "scrape", "wechat", "douyin", "github"}:
         return "unsupported", f"platform={platform} is not fetched automatically"
     ran_today = st.get("last_fetch") == day
     recorded_failure = st.get("status") == "failed" or bool(st.get("error"))
     if ran_today and not recorded_failure:
         recorded_status = st.get("status")
-        if platform == "twitter" and recorded_status in {"ok_new", "ok_no_new"}:
-            return recorded_status, st.get("detail") or f"timeline checked; {st.get('new_count', 0)} new item(s)"
+        if platform in {"twitter", "github"} and recorded_status in {"ok_new", "ok_no_new"}:
+            return recorded_status, st.get("detail") or f"checked; {st.get('new_count', 0)} new item(s)"
         if platform == "wechat":
             account = st.get("account", "")
             return "ok", f"seed article fetched into library; account={account or 'unknown'}"

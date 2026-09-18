@@ -65,6 +65,16 @@ dirs as stale instead of skipping them silently. Regression:
 `pending_unprocessed` by day; a non-zero count on a day older than today after
 a batch means the batch did not read it.
 
+## GitHub Trending is a source, not just a radar signal (2026-09-18, #20)
+
+`fetch-github-trending.py` parses the public daily board (no token). A repo's
+first appearance, or a comeback after 7 days off the board, is one raw item
+under `raw/<date>/github-trending/`; `state.json["github:GitHub Trending"].seen`
+holds repo → last board date (pruned at 60 days). A parse that yields 0 repos
+is recorded as `failed` so source health goes red instead of quietly empty.
+The same parser feeds `product_radar.fetch_github_trending`. Fixture:
+`tests/fixtures/github-trending-daily.html`.
+
 ## Open items (tracked)
 
 - **#23** — Surface WeChat auto-feed success/failure in the status dashboard

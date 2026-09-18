@@ -26,6 +26,7 @@ STAGES = [
     "fetch-wechat.py",
     "fetch-wechat-exporter.py",
     "fetch-douyin.py",
+    "fetch-github-trending.py",
 ]
 FETCHER_TIMEOUT_SECONDS = int(os.environ.get("PARKIO_FETCHER_TIMEOUT_SECONDS", "900"))
 

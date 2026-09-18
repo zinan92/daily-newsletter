@@ -32,6 +32,7 @@ PRODUCT_HUNT_FEED = "https://www.producthunt.com/feed"
 TRUSTMRR_HOME = "https://trustmrr.com/"
 TRUSTMRR_FAQ = "https://trustmrr.com/faq"
 HN_API = "https://hacker-news.firebaseio.com/v0"
+GITHUB_TRENDING_URL = "https://github.com/trending?since=daily"
 
 USER_AGENT = "Park-IO Product Radar/1.0 (+local source monitor)"
 PRODUCT_RADAR_PROMPT = Path(__file__).resolve().parent / "prompts" / "product-radar" / "top-three.md"
@@ -195,6 +196,12 @@ def score_signal(signal: Signal) -> Signal:
     if signal.source == "Product Hunt":
         score += 12
         reasons.append("新产品供给")
+    elif signal.source == "GitHub Trending":
+        score += 10
+        m_stars = re.search(r"\+([0-9,]+)\s+stars", signal.metric)
+        stars_today = int(m_stars.group(1).replace(",", "")) if m_stars else 0
+        score += min(20, stars_today // 250)
+        reasons.append("开发者今日在 star")
     elif signal.source == "Hacker News":
         score += 8
         m_score = re.search(r"([0-9]+)\s+points?", signal.metric)
@@ -339,6 +346,36 @@ def fetch_hacker_news(max_items: int = 140) -> tuple[list[Signal], dict]:
         "url": "https://github.com/HackerNews/API",
         "fetched": len(signals),
         "errors": errors[:8],
+    }
+
+
+def fetch_github_trending() -> tuple[list[Signal], dict]:
+    """GitHub Trending daily board as build-direction signals (what developers star today)."""
+    from ingestion.github_trending.run import parse_trending
+
+    page = fetch_text(GITHUB_TRENDING_URL)
+    repos = parse_trending(page)
+    signals: list[Signal] = []
+    for repo in repos:
+        metric = f"+{repo['stars_today']:,} stars today · {repo['stars_total']:,} total · rank {repo['rank']}"
+        if repo["language"]:
+            metric += f" · {repo['language']}"
+        signals.append(score_signal(Signal(
+            source="GitHub Trending",
+            title=repo["full_name"],
+            url=repo["url"],
+            summary=repo["description"][:240] or "GitHub repository",
+            published=datetime.now(timezone.utc).isoformat(),
+            metric=metric,
+            kind="trending-daily",
+        )))
+    errors = [] if repos else ["trending page parsed to 0 repos"]
+    return signals, {
+        "source": "GitHub Trending",
+        "method": "public HTML page",
+        "url": GITHUB_TRENDING_URL,
+        "fetched": len(signals),
+        "errors": errors,
     }
 
 
@@ -633,7 +670,7 @@ def render_png(html_path: Path, png_path: Path) -> bool:
 
 
 def collect_signals() -> tuple[list[Signal], list[dict]]:
-    collectors = [fetch_product_hunt, fetch_trustmrr, fetch_hacker_news]
+    collectors = [fetch_product_hunt, fetch_trustmrr, fetch_hacker_news, fetch_github_trending]
     all_signals: list[Signal] = []
     meta: list[dict] = []
     for collector in collectors:

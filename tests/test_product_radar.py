@@ -229,6 +229,7 @@ def test_collect_signals_degrades_when_one_fetcher_fails(monkeypatch):
     monkeypatch.setattr(product_radar, "fetch_product_hunt", failing_product_hunt)
     monkeypatch.setattr(product_radar, "fetch_trustmrr", lambda: ([trust_signal], {"source": "TrustMRR", "fetched": 1}))
     monkeypatch.setattr(product_radar, "fetch_hacker_news", lambda: ([hn_signal], {"source": "Hacker News", "fetched": 1}))
+    monkeypatch.setattr(product_radar, "fetch_github_trending", lambda: ([], {"source": "GitHub Trending", "fetched": 0}))
 
     signals, meta = product_radar.collect_signals()
 
