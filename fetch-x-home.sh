@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# fetch-x-home.sh — Park's X home timeline, run by launchd at 08:00 and 20:00.
+# fetch-x-home.sh — Park's X home timeline, run by launchd at 02:00, 08:00, 14:00 and 20:00.
 # Shares logs/fetch.lock with fetch-all.sh so the 08:30 digest waits for it.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

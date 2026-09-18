@@ -14,10 +14,12 @@ the daily batch, not to read every tweet:
   posts with likes below PARKIO_X_HOME_MIN_LIKES (default 20) are tagged
   category ai-timeline-low, which the coarse filter keeps out of the AI batch.
 
-Schedule: launchd runs this at 08:00 and 20:00. The 08:00 run lands in
-raw/<today>/ and is normalized by the 08:30 batch; the 20:00 run lands in the
-same raw day and is normalized the next morning (to_md looks back one day) and
-drained by the coarse filter (#17), so neither run is lost.
+Schedule: launchd runs this at 02:00, 08:00, 14:00 and 20:00 (Park,
+2026-09-18: one pull sees at most ~200 following + ~170 for-you posts, so two
+pulls a day cannot cover the timeline). The 02:00 and 08:00 runs land in
+raw/<today>/ and are normalized by the 08:30 batch; the 14:00 and 20:00 runs
+are normalized the next morning (to_md looks back one day) and drained by the
+coarse filter (#17), so no run is lost.
 """
 from __future__ import annotations
 
