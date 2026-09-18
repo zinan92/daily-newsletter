@@ -997,7 +997,7 @@ def write_source_output(source: dict, new_items: list) -> Path:
             "profile_name": source.get("profile_name") or source["name"],
             "channel": channel,
             "platform": platform,
-            "category": source["category"],
+            "category": item.get("category") or source["category"],
             "content_type": platform,
             "fetched_at": now_utc(),
         }
