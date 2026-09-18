@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Open a digest batch by moving pending raw files into processed/<batch>/."""
+from datetime import datetime
 from pathlib import Path
 import json
+import os
 import shutil
 import sys
 
@@ -81,16 +83,64 @@ def destination_for(src: Path, target: Path) -> Path:
     return target / rel
 
 
+DEFAULT_PENDING_LOOKBACK_DAYS = 3
+
+
+def pending_lookback_days() -> int:
+    raw = os.environ.get("PARKIO_PENDING_LOOKBACK_DAYS", "").strip()
+    try:
+        return max(0, int(raw)) if raw else DEFAULT_PENDING_LOOKBACK_DAYS
+    except ValueError:
+        return DEFAULT_PENDING_LOOKBACK_DAYS
+
+
+def pending_dated_dirs(today_str: str, lookback_days: int) -> tuple[list[Path], list[Path]]:
+    """Dated unprocessed dirs the batch should drain, and stale ones it leaves alone.
+
+    Fetch runs hourly and files every item under unprocessed/<fetch date>/. The
+    morning batch used to read only unprocessed/<today>/, so anything fetched
+    after the previous morning's batch sat in yesterday's dir forever (about two
+    thirds of every day's fetch, 2026-09-14..17). Everything under unprocessed/
+    is pending by construction, so drain every dated dir inside the lookback
+    window, oldest first, and report anything older instead of silently
+    skipping it.
+    """
+    if not UNPROCESSED_DIR.exists():
+        return [], []
+    today_dt = datetime.strptime(today_str, "%Y-%m-%d")
+    fresh: list[Path] = []
+    stale: list[Path] = []
+    for child in sorted(UNPROCESSED_DIR.iterdir()):
+        if not child.is_dir():
+            continue
+        try:
+            child_dt = datetime.strptime(child.name, "%Y-%m-%d")
+        except ValueError:
+            continue
+        age = (today_dt - child_dt).days
+        if age < 0:
+            continue
+        if age <= lookback_days:
+            fresh.append(child)
+        else:
+            stale.append(child)
+    return fresh, stale
+
+
 def main() -> int:
     bid = batch_id()
     today_str = today()
     legacy_prefix = today_str[2:]
     target = processed_batch_dir(bid)
     pending = []
+    fresh_dirs, stale_dirs = pending_dated_dirs(today_str, pending_lookback_days())
+    for dated_dir in fresh_dirs:
+        pending.extend(sorted(p for p in dated_dir.rglob("*.md")))
+    for dated_dir in stale_dirs:
+        count = sum(1 for _ in dated_dir.rglob("*.md"))
+        if count:
+            log("open-batch", f"stale pending dir left alone (older than lookback): {dated_dir} ({count} item(s))")
     if UNPROCESSED_DIR.exists():
-        dated_dir = UNPROCESSED_DIR / today_str
-        if dated_dir.exists():
-            pending.extend(sorted(p for p in dated_dir.rglob("*.md")))
         pending.extend(
             sorted(
                 p
@@ -120,11 +170,11 @@ def main() -> int:
         merge_or_move(src, dst)
         moved += 1
 
-    dated_dir = UNPROCESSED_DIR / today_str
-    if dated_dir.exists() and not any(dated_dir.rglob("*.md")):
-        shutil.rmtree(dated_dir)
+    for dated_dir in fresh_dirs:
+        if dated_dir.exists() and not any(dated_dir.rglob("*.md")):
+            shutil.rmtree(dated_dir)
 
-    log("open-batch", f"opened batch {bid}: moved {moved} processed file(s) to {target}; rejected {rejected_count} low-value item(s)")
+    log("open-batch", f"opened batch {bid}: moved {moved} processed file(s) to {target} from {len(fresh_dirs)} pending day dir(s); rejected {rejected_count} low-value item(s)")
     print(bid)
     return 0
 

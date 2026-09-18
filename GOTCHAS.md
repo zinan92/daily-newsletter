@@ -52,6 +52,19 @@ Run all tests: `for t in tests/test_*.py; do python3 "$t"; done`
 
 ---
 
+## Pending queue must be drained by day window, not by today's dir (2026-09-18, #17)
+
+Fetch runs hourly and files every item under `unprocessed/<fetch date>/`. The
+08:30 batch used to read only `unprocessed/<today>/`, so everything fetched after
+the previous morning's batch (about two thirds of a day's fetch) sat in
+yesterday's dir forever; 09-14..09-17 lost 100/105/89/97 items that way,
+including the Jev launch posts. `stages/coarse_filter/run.py` now drains every
+dated dir within `PARKIO_PENDING_LOOKBACK_DAYS` (default 3) and logs older
+dirs as stale instead of skipping them silently. Regression:
+`tests/test_coarse_filter_pending.py`. `run-report.json` reports
+`pending_unprocessed` by day; a non-zero count on a day older than today after
+a batch means the batch did not read it.
+
 ## Open items (tracked)
 
 - **#23** — Surface WeChat auto-feed success/failure in the status dashboard
