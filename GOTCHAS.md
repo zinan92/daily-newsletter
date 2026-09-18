@@ -75,6 +75,22 @@ is recorded as `failed` so source health goes red instead of quietly empty.
 The same parser feeds `product_radar.fetch_github_trending`. Fixture:
 `tests/fixtures/github-trending-daily.html`.
 
+## X home timeline is a signal lane, gated at the coarse filter (2026-09-18, #21)
+
+`fetch-twitter-home.py` (launchd `com.wendy.parkio-x-home`, 08:00 and 20:00)
+merges `twitter feed -t following` and `-t for-you`, skips accounts already
+in sources.md, retweets collapse to the original id, likes < 20 are dropped,
+seen ids roll off after 48 h. It is NOT in sources.md on purpose: a
+`https://x.com/home` row would make fetch-twitter call `user-posts home`.
+Its items carry `category: ai-timeline`; the coarse filter rejects any
+`ai-timeline` item without a strong AI/product term
+(`timeline_no_domain_signal`), because the raw feed is two-thirds crypto and
+politics (live 2026-09-18: 250 fetched → 128 kept by engagement → 32 with a
+domain signal). The raw copy stays on disk for the term radar regardless.
+The 20:00 run is normalized next morning (to_md lookback 1 day) and drained by
+the coarse filter's pending window (#17); do not tighten either without the
+other.
+
 ## Open items (tracked)
 
 - **#23** — Surface WeChat auto-feed success/failure in the status dashboard
