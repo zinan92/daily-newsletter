@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Archive processed item files into the long-term profile library."""
+import os
 import re
 import shutil
 import sys
@@ -324,13 +325,23 @@ def batch_date_from_name(name: str) -> datetime | None:
         return None
 
 
-def cleanup_old_processed(retention_hours: int = 72) -> int:
+def cleanup_old_processed(retention_hours: int | None = None, keep: Path | None = None) -> int:
+    """Remove processed batches whose label date is past retention.
+
+    Never removes the batch being archived right now: a backfill labelled for
+    an older day (26-09-14-晚 run on 09-18) used to delete its own output the
+    moment it finished, and took the next day's pending batch with it.
+    """
+    if retention_hours is None:
+        raw = os.environ.get("PARKIO_PROCESSED_RETENTION_HOURS", "").strip()
+        retention_hours = int(raw) if raw.isdigit() else 72
     cutoff = datetime.now() - timedelta(hours=retention_hours)
+    keep = (keep or processed_batch_dir()).resolve()
     removed = 0
     if not PROCESSED_DIR.exists():
         return removed
     for child in PROCESSED_DIR.iterdir():
-        if not child.is_dir():
+        if not child.is_dir() or child.resolve() == keep:
             continue
         day = batch_date_from_name(child.name)
         if day and day < cutoff:
