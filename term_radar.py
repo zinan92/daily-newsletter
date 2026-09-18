@@ -71,6 +71,12 @@ KNOWN_TERMS = {
     "grok", "xai", "perplexity", "midjourney", "runway", "sora", "veo", "kling", "hailuo", "suno", "elevenlabs",
     "afaict", "afaik", "iirc", "imho", "tl;dr", "tldr", "ip", "learn", "learning", "edit", "update", "thread",
     "usd", "cny", "rmb", "eur", "jpy", "hkd", "q1", "q2", "q3", "q4", "h1", "h2", "fy", "yoy", "qoq", "mom",
+    # Established products that show up every week; not "new terms".
+    "shopify", "stripe", "markdown", "openrouter", "cognition", "devin", "vibe coding", "vibecoding", "replit",
+    "lovable", "bolt", "windsurf", "cline", "aider", "ollama", "langchain", "llamaindex", "huggingface",
+    "hugging face", "openclaw", "hermes", "n8n", "zapier", "make", "airtable", "supabase", "firebase", "postgres",
+    "duckdb", "sqlite", "redis", "kafka", "spark", "pytorch", "tensorflow", "jax", "cuda", "arm", "intel", "amd",
+    "qualcomm", "samsung", "sony", "netflix", "disney", "uber", "airbnb", "stripe", "paypal", "visa",
 }
 
 # Hosting domains are not products.
@@ -103,6 +109,17 @@ STOPWORDS = {
     "introducing", "launch", "launched", "launching", "release", "released", "available", "coming", "soon",
     "part", "step", "steps", "tip", "tips", "guide", "list", "top", "why", "what", "here's", "there's",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    # Unigrams left over from list prefixes and generic nouns ("Show HN", "Ask HN", "System One").
+    "show", "ask", "tell", "hacker", "word", "words", "bring", "since", "system", "systems", "desktop", "design",
+    "self", "active", "store", "must", "pace", "model", "models", "agent", "agents", "tool", "tools", "code",
+    "data", "cloud", "search", "chat", "voice", "vision", "image", "images", "audio", "music", "game", "games",
+    "home", "office", "work", "life", "world", "future", "past", "history", "science", "math", "art", "book",
+    "books", "paper", "papers", "course", "class", "school", "student", "students", "teacher", "doctor", "law",
+    "money", "price", "prices", "cost", "costs", "market", "markets", "stock", "stocks", "trade", "trading",
+    "team", "teams", "user", "users", "human", "humans", "machine", "machines", "robot", "robots", "car", "cars",
+    "phone", "phones", "computer", "computers", "internet", "email", "mail", "web", "site", "sites", "page",
+    "pages", "file", "files", "text", "texts", "image", "photo", "photos", "camera", "screen", "window",
+    "english", "chinese", "japanese", "korean", "french", "german", "spanish",
 }
 
 CAMEL_RE = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b")
