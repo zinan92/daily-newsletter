@@ -8,9 +8,11 @@ the daily batch, not to read every tweet:
 
 - following (chronological) and for-you (algorithmic) feeds are merged.
 - Tweets by accounts already in sources.md are skipped (fetched separately).
-- Retweets collapse to the original tweet id; likes below
-  PARKIO_X_HOME_MIN_LIKES (default 20) are skipped; seen ids roll off after
+- Retweets collapse to the original tweet id; seen ids roll off after
   48 hours so a tweet surfacing in both feeds or both runs is written once.
+- Every post is written to raw (the term radar counts small accounts too);
+  posts with likes below PARKIO_X_HOME_MIN_LIKES (default 20) are tagged
+  category ai-timeline-low, which the coarse filter keeps out of the AI batch.
 
 Schedule: launchd runs this at 08:00 and 20:00. The 08:00 run lands in
 raw/<today>/ and is normalized by the 08:30 batch; the 20:00 run lands in the
@@ -132,9 +134,9 @@ def select_tweets(
             reasons["tracked_account"] += 1
             continue
         metrics = tweet_metrics(tweet)
-        if int(metrics["likes"] or 0) < min_likes:
+        low_engagement = int(metrics["likes"] or 0) < min_likes
+        if low_engagement:
             reasons["low_engagement"] += 1
-            continue
         if tid in seen or tid in picked:
             reasons["seen"] += 1
             continue
@@ -158,6 +160,10 @@ def select_tweets(
                 "likes": metrics["likes"],
                 "rts": metrics["rts"],
                 "feed": raw.get("_feed", ""),
+                # Low-engagement posts still count for the term radar (many
+                # small accounts saying "Hypit" IS the signal), but they must
+                # not enter the AI batch: the coarse filter rejects this category.
+                "category": "ai-timeline-low" if low_engagement else "ai-timeline",
             }
         )
     return items, reasons

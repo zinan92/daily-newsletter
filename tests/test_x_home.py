@@ -48,10 +48,13 @@ def test_select_skips_tracked_low_engagement_and_seen():
     ]
     seen = {"4": (NOW - timedelta(hours=3)).isoformat(timespec="seconds")}
     items, reasons = home.select_tweets(tweets, tracked={"vista8"}, seen=seen, min_likes=20, now=NOW)
-    assert [i["id"] for i in items] == ["3"]
+    assert [i["id"] for i in items] == ["2", "3"]  # low-engagement post is kept for the radar…
+    assert items[0]["category"] == "ai-timeline-low"  # …but tagged so the coarse filter drops it
+    assert items[1]["category"] == "ai-timeline"
+    items = items[1:]
     assert items[0]["url"] == "https://x.com/builder/status/3"
     assert items[0]["published"] == "2026-09-18"
-    assert reasons == {"tracked_account": 1, "low_engagement": 1, "seen": 1, "empty": 1, "kept": 1}
+    assert reasons == {"tracked_account": 1, "low_engagement": 1, "seen": 1, "empty": 1, "kept": 2}
     assert "3" in seen  # newly kept ids are stamped so the next run skips them
 
 
@@ -109,3 +112,12 @@ def test_timeline_items_need_a_strong_ai_signal_to_enter_the_batch():
     # Other lanes keep the old, looser behaviour.
     keep, _ = should_keep_item({"category": "ai", "platform": "twitter"}, item("As a Catholic I wish there was a more persuasive argument, again and again, for a long long time, longer than ninety characters."))
     assert keep
+
+
+def test_low_engagement_timeline_items_never_enter_the_batch():
+    from stages.coarse_filter.filter import should_keep_item
+
+    fm = {"category": "ai-timeline-low", "platform": "twitter", "source_name": "X 首页时间线"}
+    keep, reason = should_keep_item(fm, {"title": "Hypit", "content": "使用 Hypit 复刻小Lin说的视频教程，agent 一键出片", "source": "X 首页时间线", "url": "https://x.com/a/status/2"})
+    assert not keep
+    assert reason == "timeline_low_engagement_radar_only"

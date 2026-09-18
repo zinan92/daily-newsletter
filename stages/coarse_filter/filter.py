@@ -92,6 +92,8 @@ AI_OR_PRODUCT_TERMS = (
 # item must carry a real AI/product term to enter the AI batch; the raw copy
 # stays on disk for the term radar either way.
 TIMELINE_CATEGORIES = {"ai-timeline"}
+# Written to raw for the term radar only; never enters the AI batch.
+RADAR_ONLY_CATEGORIES = {"ai-timeline-low"}
 STRONG_DOMAIN_SIGNAL = re.compile(
     r"\b(ai|agents?|agentic|llms?|gpt(?:-?\d+)?|claude|codex|chatgpt|openai|anthropic|gemini|deepseek|qwen|kimi|"
     r"mistral|llama|cursor|copilot|mcp|prompt(?:s|ing)?|rag|transformer|diffusion|inference|fine-?tun\w*|"
@@ -146,7 +148,10 @@ def should_keep_item(fm: dict, item: dict) -> tuple[bool, str]:
     text = item_text(item)
     compact = compact_content_without_urls(text)
 
-    if (fm.get("category") or "").strip().lower() in TIMELINE_CATEGORIES and not has_strong_domain_signal(compact):
+    category = (fm.get("category") or "").strip().lower()
+    if category in RADAR_ONLY_CATEGORIES:
+        return False, "timeline_low_engagement_radar_only"
+    if category in TIMELINE_CATEGORIES and not has_strong_domain_signal(compact):
         return False, "timeline_no_domain_signal"
 
     # Plain links or tiny reactions are not useful enough to process/archive.
