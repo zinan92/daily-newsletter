@@ -127,6 +127,9 @@ if [ "$EXIT" -ne 0 ]; then
   exit "$EXIT"
 fi
 
+echo "[$(ts)] >>> coverage_ledger.py --write" >> "$LOG"
+python3 "$SCRIPT_DIR/coverage_ledger.py" --date "$RUN_DATE" --write >> "$LOG" 2>&1 || echo "[$(ts)] !!! coverage_ledger.py failed; continue" >> "$LOG"
+
 echo "[$(ts)] >>> reader-quality.py" >> "$LOG"
 python3 "$SCRIPT_DIR/reader_quality.py" --date "$RUN_DATE" >> "$LOG" 2>&1
 EXIT=$?
