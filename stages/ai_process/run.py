@@ -1094,6 +1094,27 @@ render();
 """
 
 
+def cached_item_cards(ai_dir: Path, items: list[dict]) -> list[dict] | None:
+    """Reuse 01-item-cards.json when a previous run already understood every
+    current item (e.g. event_merge failed afterwards). Cards are the expensive
+    stage; a rerun must not pay for them twice. Returns None when any item is
+    missing a card, so partial or stale caches fall through to a fresh run."""
+    path = ai_dir / "01-item-cards.json"
+    if not path.exists():
+        return None
+    try:
+        cards = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(cards, list):
+        return None
+    by_id = {str(card.get("id") or ""): card for card in cards if isinstance(card, dict)}
+    wanted = [str(item.get("id") or "") for item in items]
+    if not wanted or any(item_id not in by_id for item_id in wanted):
+        return None
+    return [by_id[item_id] for item_id in wanted]
+
+
 def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AIProcessResult:
     date = date or today()
     root = batch_dir or processed_batch_dir()
@@ -1104,8 +1125,13 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
         raise AIProcessError(f"no processed markdown items found in {root}")
     write_json(ai_dir / "00-input-items.json", items)
 
-    log("ai-process", f"item_understanding START — {len(items)} items")
-    cards = item_understanding(ai_dir, items)
+    cached = cached_item_cards(ai_dir, items)
+    if cached is not None:
+        log("ai-process", f"item_understanding SKIP — reusing {len(cached)} cached cards from a previous run")
+        cards = cached
+    else:
+        log("ai-process", f"item_understanding START — {len(items)} items")
+        cards = item_understanding(ai_dir, items)
     validate_item_card_coverage(ai_dir, items, cards)
     write_json(ai_dir / "01-item-cards.json", cards)
 
