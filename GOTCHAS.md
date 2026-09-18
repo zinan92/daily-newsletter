@@ -77,7 +77,7 @@ The same parser feeds `product_radar.fetch_github_trending`. Fixture:
 
 ## X home timeline is a signal lane, gated at the coarse filter (2026-09-18, #21)
 
-`fetch-twitter-home.py` (launchd `com.wendy.parkio-x-home`, 08:00 and 20:00)
+`fetch-twitter-home.py` (launchd `com.wendy.parkio-x-home`, every 6 h: 02:00 / 08:00 / 14:00 / 20:00; Park 2026-09-18)
 merges `twitter feed -t following` and `-t for-you`, skips accounts already
 in sources.md, retweets collapse to the original id, likes < 20 are dropped,
 seen ids roll off after 48 h. It is NOT in sources.md on purpose: a
