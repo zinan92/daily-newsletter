@@ -114,6 +114,9 @@ if [ "$EXIT" -ne 0 ]; then
   PREFLIGHT_WARNINGS+=("Product Radar 生成失败：build-product-radar.py exit=$EXIT")
 fi
 
+echo "[$(ts)] >>> term_radar.py --write" >> "$LOG"
+python3 "$SCRIPT_DIR/term_radar.py" --date "$RUN_DATE" --write >> "$LOG" 2>&1 || echo "[$(ts)] !!! term_radar.py failed; continue" >> "$LOG"
+
 echo "[$(ts)] >>> build-daily-bundle.py" >> "$LOG"
 BUNDLE_ARGS=(--date "$RUN_DATE")
 for warning in ${PREFLIGHT_WARNINGS[@]+"${PREFLIGHT_WARNINGS[@]}"}; do

@@ -155,6 +155,23 @@ def run_report_lines(run_date: str) -> list[str]:
     return lines
 
 
+def term_radar_section(run_date: str) -> str:
+    """Cross-source new terms for the run day, from term-candidates/<date>.md
+    (written by term_radar.py --write in push-digest); computed live as a fallback."""
+    try:
+        from term_radar import CANDIDATES_DIR, run as run_term_radar
+    except Exception:
+        return ""
+    path = CANDIDATES_DIR / f"{run_date}.md"
+    if path.exists():
+        return _read(path).strip()
+    try:
+        _, markdown = run_term_radar(run_date)
+    except Exception:
+        return ""
+    return markdown.strip()
+
+
 def coverage_section(run_date: str) -> str:
     """Fetched → batched → published for the run day, from coverage_ledger."""
     try:
@@ -209,6 +226,10 @@ def render_markdown(run_date: str, sent_dir: Path = SENT_DIR, extra_warnings: li
 
     radar = product_radar_section(_read(by_key["product_radar"].md))
     lines.extend(["", radar or "## 产品雷达\n\n### Top Three Products to Build Today\n\n今天产品雷达暂不可用。"])
+
+    terms = term_radar_section(run_date)
+    if terms:
+        lines.extend(["", terms])
 
     coverage = coverage_section(run_date)
     if coverage:
