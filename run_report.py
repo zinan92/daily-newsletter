@@ -128,6 +128,35 @@ def pending_raw_summary(date: str) -> dict[str, Any]:
     return {"total": total, "by_profile": dict(by_profile), "examples": examples}
 
 
+def pending_unprocessed_summary(date: str) -> dict[str, Any]:
+    """Items sitting in unprocessed/<day>/ that no batch has drained yet, by day.
+
+    After a batch this should be ~0 for every day inside the coarse-filter
+    lookback; a non-zero count on an older day means the batch never read it.
+    """
+    try:
+        from lib import UNPROCESSED_DIR
+        from stages.coarse_filter.run import pending_dated_dirs, pending_lookback_days
+    except Exception:
+        return {"total": 0, "by_day": {}, "stale_days": []}
+    if not UNPROCESSED_DIR.exists():
+        return {"total": 0, "by_day": {}, "stale_days": []}
+    try:
+        fresh, stale = pending_dated_dirs(date, pending_lookback_days())
+    except Exception:
+        return {"total": 0, "by_day": {}, "stale_days": []}
+    by_day: dict[str, int] = {}
+    for child in fresh + stale:
+        count = sum(1 for _ in child.rglob("*.md"))
+        if count:
+            by_day[child.name] = count
+    return {
+        "total": sum(by_day.values()),
+        "by_day": by_day,
+        "stale_days": [c.name for c in stale if by_day.get(c.name)],
+    }
+
+
 def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
     """Read the current 5-stage artifacts and expose the real product funnel."""
     root = processed_batch_dir(batch)
@@ -161,6 +190,7 @@ def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
     daily_path = SENT_DIR / f"{label}.md"
     product_directions = _line_count(daily_path, r"^###\s+\d+\.") if daily_path.exists() else 0
     pending_raw = pending_raw_summary(date)
+    pending_unprocessed = pending_unprocessed_summary(date)
     source_markdown_files = [
         p
         for p in root.rglob("*.md")
@@ -190,6 +220,7 @@ def artifact_funnel(date: str, batch: str | None = None) -> dict[str, Any]:
         "reader_quality": reader_quality,
         "feishu": feishu,
         "pending_raw": pending_raw,
+        "pending_unprocessed": pending_unprocessed,
     }
 
 
@@ -355,6 +386,7 @@ def build_run_report(
             "discard": funnel.get("discard", 0),
             "pending_raw": (funnel.get("pending_raw") or {}).get("total", 0),
             "pending_x_saved_raw": (funnel.get("pending_raw") or {}).get("by_profile", {}).get("x-saved", 0),
+            "pending_unprocessed": (funnel.get("pending_unprocessed") or {}).get("total", 0),
         },
         "funnel": funnel,
         "health": {
