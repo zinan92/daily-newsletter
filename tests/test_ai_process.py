@@ -1423,3 +1423,21 @@ if __name__ == "__main__":
                 print(f"FAIL {name}: {exc}")
     print(f"\n{'ALL PASS' if not failed else f'{failed} FAILED'}")
     sys.exit(1 if failed else 0)
+
+
+def test_cached_item_cards_reused_only_when_every_item_is_covered():
+    import json as _json
+    from stages.ai_process.run import cached_item_cards
+
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td)
+        items = [{"id": "https://x.com/a/1"}, {"id": "https://x.com/b/2"}]
+        assert cached_item_cards(ai_dir, items) is None
+        (ai_dir / "01-item-cards.json").write_text(_json.dumps([
+            {"id": "https://x.com/b/2", "main_claim": "b"},
+            {"id": "https://x.com/a/1", "main_claim": "a"},
+            {"id": "https://x.com/stale/9", "main_claim": "stale"},
+        ]), encoding="utf-8")
+        cards = cached_item_cards(ai_dir, items)
+        assert [c["main_claim"] for c in cards] == ["a", "b"]
+        assert cached_item_cards(ai_dir, items + [{"id": "https://x.com/c/3"}]) is None
