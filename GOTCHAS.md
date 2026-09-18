@@ -91,6 +91,20 @@ The 20:00 run is normalized next morning (to_md lookback 1 day) and drained by
 the coarse filter's pending window (#17); do not tighten either without the
 other.
 
+## Term radar counts sources, not mentions (2026-09-18, #22)
+
+`term_radar.py --date D --write` (run in push-digest before the bundle)
+extracts Latin proper nouns from everything fetched on D and flags a term when
+≥3 *distinct* sources mention it and it was first seen ≤14 days ago
+(`_source management/term-memory.json`). "Source" is the tweeting handle for
+x-home / x-saved, the profile for tracked sources, the post for Hacker News,
+and ONE source for template-heavy radar feeds (TrustMRR, Product Hunt) so
+boilerplate cannot look like ten mentions. Lowercase standalone usage demotes
+a Capitalized word (sentence starts) but slugs/domains do not (`hypit-ai/hypit`
+must not demote Hypit). Live 2026-09-17: Jev (4 sources), Cowork (3);
+2026-09-18: RLCD, JEV, OpenClaw. Noise words go in `KNOWN_TERMS`, not in a
+per-day override.
+
 ## Open items (tracked)
 
 - **#23** — Surface WeChat auto-feed success/failure in the status dashboard
