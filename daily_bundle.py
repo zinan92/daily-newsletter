@@ -155,6 +155,18 @@ def run_report_lines(run_date: str) -> list[str]:
     return lines
 
 
+def coverage_section(run_date: str) -> str:
+    """Fetched → batched → published for the run day, from coverage_ledger."""
+    try:
+        from coverage_ledger import build_ledger_row, render_markdown as render_ledger
+    except Exception:
+        return ""
+    try:
+        return render_ledger(build_ledger_row(run_date)).strip()
+    except Exception:
+        return ""
+
+
 MACHINE_COMMENT_RE = re.compile(r"\n?<!--\s*parkio-[\s\S]*?-->\s*", re.M)
 
 
@@ -197,6 +209,10 @@ def render_markdown(run_date: str, sent_dir: Path = SENT_DIR, extra_warnings: li
 
     radar = product_radar_section(_read(by_key["product_radar"].md))
     lines.extend(["", radar or "## 产品雷达\n\n### Top Three Products to Build Today\n\n今天产品雷达暂不可用。"])
+
+    coverage = coverage_section(run_date)
+    if coverage:
+        lines.extend(["", coverage])
 
     text = "\n".join(part.strip() for part in lines if part.strip()).strip() + "\n"
     # Preserve summary calculation for run-report/status consumers.

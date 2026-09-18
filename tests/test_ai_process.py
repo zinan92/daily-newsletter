@@ -273,15 +273,20 @@ def test_five_stage_folders_exist():
         assert (ROOT / "stages" / name / "run.py").exists()
 
 
-def test_coarse_filter_only_consumes_current_date_inputs():
+def test_coarse_filter_drains_recent_days_and_leaves_stale_dirs():
+    """Since #17 the batch drains every pending day dir inside the lookback
+    window (default 3 days); only dirs older than that are left alone."""
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         unprocessed = root / "unprocessed"
         today_items = unprocessed / "2026-06-12" / "items"
-        old_items = unprocessed / "2026-06-11" / "items"
+        yesterday_items = unprocessed / "2026-06-11" / "items"
+        old_items = unprocessed / "2026-06-01" / "items"
         today_items.mkdir(parents=True)
+        yesterday_items.mkdir(parents=True)
         old_items.mkdir(parents=True)
         write_item(today_items / "today.md", 1, "AI workflow", "AI workflow 内容", "https://example.com/today")
+        write_item(yesterday_items / "yesterday.md", 3, "AI yesterday", "AI yesterday 内容", "https://example.com/yesterday")
         write_item(old_items / "old.md", 2, "AI old", "AI old 内容", "https://example.com/old")
 
         old_unprocessed = coarse_run.UNPROCESSED_DIR
@@ -302,6 +307,8 @@ def test_coarse_filter_only_consumes_current_date_inputs():
 
         processed = list((root / "processed" / "26-06-12").rglob("*.md"))
         assert any(path.name == "today.md" for path in processed)
+        assert any(path.name == "yesterday.md" for path in processed)
+        assert not (yesterday_items / "yesterday.md").exists()
         assert (old_items / "old.md").exists()
 
 
