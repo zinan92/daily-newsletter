@@ -1590,3 +1590,15 @@ def test_large_selection_repairs_typo_ids_and_caps_brief(monkeypatch):
     assert kept[0] == "c1-event-000-jev-context-compression"
     assert [row["parent_brief_event_id"] for row in out["deep_candidates"]] == ["c1-event-000-jev-context-compression"]
     assert len(out["discard"]) == 100 - ai.SELECTION_LARGE_BRIEF_CAP
+
+
+def test_partial_deep_is_tolerated_only_above_half(monkeypatch):
+    from stages.ai_process import run as ai
+
+    monkeypatch.setattr(ai, "log", lambda *a, **k: None)
+    md = "## 深读\n\n### [A](https://a.example)\n\nx\n\n### [B](https://b.example)\n\ny\n"
+    urls = ["https://a.example", "https://b.example", "https://c.example"]
+    assert ai.tolerate_partial_deep(md, urls) == ["https://a.example", "https://b.example"]
+    ai.validate_deep_markdown(md, ai.tolerate_partial_deep(md, urls))
+    urls4 = urls + ["https://d.example", "https://e.example"]
+    assert ai.tolerate_partial_deep(md, urls4) == urls4  # 2 of 5 → still fails validation

@@ -730,6 +730,21 @@ def validate_deep_markdown(markdown: str, required_heading_urls: list[str] | Non
     return text
 
 
+def tolerate_partial_deep(markdown: str, required_urls: list[str]) -> list[str]:
+    """Deep reading is supplementary: if the writer covered at least half of the
+    required articles, log the missing ones and require only what it wrote,
+    instead of failing the whole paper (2026-09-19: 8 of 9 written → no paper)."""
+    if not required_urls:
+        return required_urls
+    linked = set(markdown_heading_link_urls(clean_markdown(markdown)))
+    present = [url for url in required_urls if url in linked]
+    missing = [url for url in required_urls if url not in linked]
+    if missing and len(present) * 2 >= len(required_urls):
+        log("ai-process", f"deep_writing: {len(missing)} of {len(required_urls)} deep article(s) not written, kept the rest: {', '.join(missing[:3])}")
+        return present
+    return required_urls
+
+
 def event_lookup(events: list[dict]) -> dict[str, dict]:
     return {str(event.get("event_id") or ""): event for event in events if isinstance(event, dict)}
 
@@ -1339,6 +1354,7 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
         try:
             raw = llm_call(deep_prompt + "\n\nINPUT JSON:\n" + json_payload(final_payload), max_tokens=9000, timeout=240)
             deep_markdown = ensure_deep_heading_links(raw, required_deep_urls)
+            required_deep_urls = tolerate_partial_deep(deep_markdown, required_deep_urls)
             deep_markdown = validate_deep_markdown(deep_markdown, required_deep_urls)
         except Exception as exc:
             write_error(ai_dir, "deep_writing", raw, f"{type(exc).__name__}: {exc}")
