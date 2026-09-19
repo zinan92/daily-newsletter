@@ -1441,3 +1441,34 @@ def test_cached_item_cards_reused_only_when_every_item_is_covered():
         cards = cached_item_cards(ai_dir, items)
         assert [c["main_claim"] for c in cards] == ["a", "b"]
         assert cached_item_cards(ai_dir, items + [{"id": "https://x.com/c/3"}]) is None
+
+
+def test_event_merge_unknown_ids_are_dropped_not_fatal():
+    from stages.ai_process.run import validate_event_coverage
+
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td)
+        cards = [{"id": "a"}, {"id": "b"}]
+        events = [
+            {"event_id": "e1", "item_ids": ["a", "invented-1"]},
+            {"event_id": "e2", "item_ids": ["invented-2"]},
+            {"event_id": "e3", "item_ids": ["b"]},
+        ]
+        validate_event_coverage(ai_dir, cards, events)
+        assert [e["event_id"] for e in events] == ["e1", "e3"]
+        assert events[0]["item_ids"] == ["a"]
+
+
+def test_event_merge_still_fails_when_a_real_card_is_missing():
+    from stages.ai_process.run import AIProcessError, validate_event_coverage
+
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td)
+        cards = [{"id": "a"}, {"id": "b"}]
+        events = [{"event_id": "e1", "item_ids": ["a", "invented-1"]}]
+        try:
+            validate_event_coverage(ai_dir, cards, events)
+        except AIProcessError as exc:
+            assert "omitted 1 item card" in str(exc)
+        else:
+            raise AssertionError("missing card must still fail")
