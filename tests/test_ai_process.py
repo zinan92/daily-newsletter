@@ -1565,3 +1565,28 @@ def test_small_selection_still_requires_explicit_discards():
         assert "missing event_id" in str(exc)
     else:
         raise AssertionError("small batches keep the explicit contract")
+
+
+def test_large_selection_repairs_typo_ids_and_caps_brief(monkeypatch):
+    from stages.ai_process import run as ai
+
+    monkeypatch.setattr(ai, "log", lambda *a, **k: None)
+    events = [{"event_id": f"c1-event-{i:03d}-jev-context-compression", "item_ids": [str(i)]} for i in range(100)]
+    brief = [{"event_id": f"c1-event-{i:03d}-jev-context-compression", "subsection": "工作流"} for i in range(1, 60)]
+    brief.insert(0, {"event_id": "c1-event-000-lev-context-compression", "subsection": "内容"})  # typo
+    brief.append({"event_id": "totally-made-up", "subsection": "内容"})
+    selection = {
+        "brief_universe": brief,
+        "deep_candidates": [
+            {"event_id": "c1-event-000-jev-context-compression", "parent_brief_event_id": "c1-event-000-lev-context-compression"},
+            {"event_id": "c1-event-059-jev-context-compression", "parent_brief_event_id": "c1-event-059-jev-context-compression"},
+        ],
+        "discard": [],
+    }
+    with tempfile.TemporaryDirectory() as td:
+        out = ai.validate_selection_with_repair(Path(td), events, selection)
+    kept = [row["event_id"] for row in out["brief_universe"]]
+    assert len(kept) == ai.SELECTION_LARGE_BRIEF_CAP
+    assert kept[0] == "c1-event-000-jev-context-compression"
+    assert [row["parent_brief_event_id"] for row in out["deep_candidates"]] == ["c1-event-000-jev-context-compression"]
+    assert len(out["discard"]) == 100 - ai.SELECTION_LARGE_BRIEF_CAP
