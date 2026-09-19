@@ -49,5 +49,5 @@
 - **Why:** 每一处失败都是"一次 LLM 调用的输入或输出随批次线性增长"。修法统一为：模型只做判断，数量相关的合同由代码确定性补齐。
 - **Alternatives rejected:** 只重试（10:38 用缓存卡片重跑仍失败）；砍掉新源（它们正是 Jev / Hypit 的来源）。
 - **Evidence:** logs/rerun*-0919.log；09-19 日报 11:10 生成，56 条快讯、10 篇深读，QA pass；晨报页 11:1x 重建发布（未重发飞书）。
-- **Gotchas:** item_understanding 仍按条数线性耗时（232 条约 31 分钟），X 首页每天 4 次后次日批次会更大，可能错过 09:00 晨报，靠 09:40 --heal 补；要不要收紧 X 首页进批门槛，先看一周的覆盖率账本再定。
+- **Gotchas:** item_understanding 仍按条数线性耗时（232 条约 31 分钟），X 首页每天 4 次后次日批次会更大，已把 launchd `com.wendy.parkio-push` 从 08:30 提前到 07:00（plist 不在仓库里，改在 ~/Library/LaunchAgents）；要不要收紧 X 首页进批门槛，先看一周的覆盖率账本再定。
 
