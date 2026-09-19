@@ -253,6 +253,10 @@ def build_daily_bundle(
     markdown = render_markdown(run_date, sent_dir, extra_warnings)
     md_path, html_path, png_path = daily_bundle_paths(run_date, sent_dir)
     md_path.write_text(markdown, encoding="utf-8")
+    # The 覆盖率 section counts URLs in the day's newsletter file, which does
+    # not exist until the line above. Render once more so it counts itself.
+    markdown = render_markdown(run_date, sent_dir, extra_warnings)
+    md_path.write_text(markdown, encoding="utf-8")
     return {
         "date": run_date,
         "markdown": str(md_path),
