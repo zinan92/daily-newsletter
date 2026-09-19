@@ -38,8 +38,11 @@ IMPLICIT_DISCARD_REASON = "未入选（大批次隐式淘汰：selection 只列�
 IMPLICIT_DISCARD_INSTRUCTION = (
     "\n\nLARGE BATCH RULE (overrides the discard instructions above): this batch has too many events "
     "to justify each discard. Output \"discard\": [] . Every event you do not put in brief_universe is "
-    "discarded automatically. Keep brief_universe and deep_candidates exactly as specified above."
+    "discarded automatically. Keep brief_universe and deep_candidates exactly as specified above, "
+    "but put AT MOST 40 events in brief_universe: prefer multi-source events, official releases and "
+    "tracked authors over single timeline posts."
 )
+SELECTION_LARGE_BRIEF_CAP = 40
 
 
 class AIProcessError(RuntimeError):
@@ -824,6 +827,65 @@ def repair_selection_response(events: list[dict], selection: dict, validation_er
     return repaired
 
 
+def sanitize_large_selection(events: list[dict], selection: Any) -> Any:
+    """Deterministic contract repair for large batches (no LLM call over every event).
+
+    - an unknown event_id is mapped to the closest real id (difflib ratio ≥ 0.9,
+      e.g. the model wrote "lev" for "jev") or the row is dropped;
+    - brief_universe is capped at SELECTION_LARGE_BRIEF_CAP in model order;
+    - discard rows that collide with a kept event are dropped;
+    - deep rows whose parent is not kept are dropped.
+    """
+    import difflib
+
+    if not isinstance(selection, dict):
+        return selection
+    known = list(event_lookup(events))
+    known_set = set(known)
+
+    def resolve(event_id: str) -> str:
+        if event_id in known_set:
+            return event_id
+        match = difflib.get_close_matches(event_id, known, n=1, cutoff=0.9)
+        return match[0] if match else ""
+
+    brief: list[dict] = []
+    kept: set[str] = set()
+    for row in selection.get("brief_universe") or []:
+        if not isinstance(row, dict):
+            continue
+        event_id = resolve(row_event_id(row))
+        if not event_id or event_id in kept:
+            continue
+        row["event_id"] = event_id
+        brief.append(row)
+        kept.add(event_id)
+    if len(brief) > SELECTION_LARGE_BRIEF_CAP:
+        log("ai-process", f"selection: capped brief_universe {len(brief)} → {SELECTION_LARGE_BRIEF_CAP}")
+        brief = brief[:SELECTION_LARGE_BRIEF_CAP]
+        kept = {row_event_id(row) for row in brief}
+    deep: list[dict] = []
+    for row in selection.get("deep_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        parent = resolve(str(row.get("parent_brief_event_id") or ""))
+        if parent not in kept:
+            continue
+        row["parent_brief_event_id"] = parent
+        row["event_id"] = resolve(str(row.get("event_id") or parent)) or parent
+        deep.append(row)
+    discard: list[dict] = []
+    for row in selection.get("discard") or []:
+        if not isinstance(row, dict):
+            continue
+        event_id = resolve(row_event_id(row))
+        if event_id and event_id not in kept:
+            row["event_id"] = event_id
+            discard.append(row)
+    selection.update({"brief_universe": brief, "deep_candidates": deep, "discard": discard})
+    return selection
+
+
 def fill_implicit_discard(events: list[dict], selection: Any) -> Any:
     """Every event not kept in brief_universe goes to discard with a fixed reason."""
     if not isinstance(selection, dict):
@@ -849,7 +911,7 @@ def validate_selection_with_repair(
     implicit = len(events) > SELECTION_IMPLICIT_DISCARD_ABOVE
     for attempt in range(0, max_attempts + 1):
         if implicit:
-            current = fill_implicit_discard(events, current)
+            current = fill_implicit_discard(events, sanitize_large_selection(events, current))
         try:
             return validate_selection_references(events, validate_selection(current))
         except AIProcessError as exc:
@@ -1246,7 +1308,7 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
         extra_instruction=IMPLICIT_DISCARD_INSTRUCTION if implicit_discard else "",
     )
     if implicit_discard:
-        selection = fill_implicit_discard(events, selection)
+        selection = fill_implicit_discard(events, sanitize_large_selection(events, selection))
     selection = validate_selection_with_repair(ai_dir, events, selection)
     selection = selection_from_override(ai_dir, events, selection)
     write_json(ai_dir / "03-selection.json", selection)
