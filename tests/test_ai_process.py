@@ -1472,3 +1472,36 @@ def test_event_merge_still_fails_when_a_real_card_is_missing():
             assert "omitted 1 item card" in str(exc)
         else:
             raise AssertionError("missing card must still fail")
+
+
+def test_event_merge_chunks_balance_and_group_duplicates():
+    from stages.ai_process.run import event_merge_chunks
+
+    cards = [{"id": str(i), "duplicate_key_hint": f"story-{i % 5}", "source": "x"} for i in range(232)]
+    chunks = event_merge_chunks(cards, chunk_size=80)
+    assert [len(c) for c in chunks] == [78, 77, 77]
+    assert sorted(c["id"] for chunk in chunks for c in chunk) == sorted(c["id"] for c in cards)
+    # same hint stays contiguous: at most one chunk boundary inside each story
+    for hint in {f"story-{i}" for i in range(5)}:
+        owners = {i for i, chunk in enumerate(chunks) for c in chunk if c["duplicate_key_hint"] == hint}
+        assert len(owners) <= 2
+    assert event_merge_chunks(cards[:50], chunk_size=80) == [cards[:50]]
+
+
+def test_event_merge_chunked_prefixes_ids_and_keeps_every_card(monkeypatch):
+    from stages.ai_process import run as ai
+
+    calls = []
+
+    def fake_stage(ai_dir, name, prompt, payload, max_tokens=0):
+        calls.append(len(payload))
+        return [{"event_id": "e1", "item_ids": [c["id"] for c in payload]}]
+
+    monkeypatch.setattr(ai, "call_json_stage", fake_stage)
+    monkeypatch.setattr(ai, "log", lambda *a, **k: None)
+    cards = [{"id": str(i)} for i in range(170)]
+    with tempfile.TemporaryDirectory() as td:
+        events = ai.event_merge_chunked(Path(td), cards)
+        ai.validate_event_coverage(Path(td), cards, events)
+    assert calls == [57, 57, 56]
+    assert [e["event_id"] for e in events] == ["c1-e1", "c2-e1", "c3-e1"]

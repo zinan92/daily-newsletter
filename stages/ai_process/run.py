@@ -26,6 +26,9 @@ PROMPT_DIR = REPO_ROOT / "prompts" / "ai-process"
 ITEM_UNDERSTANDING_MAX_ITEMS = 4
 ITEM_UNDERSTANDING_MAX_CONTENT_CHARS = 12000
 EVENT_MERGE_MAX_TOKENS = 30000
+# Merging more than ~100 cards in one call fails (invalid JSON, invented ids,
+# 600 s timeouts): 376, 232 and 227 cards all failed; 90-119 passed.
+EVENT_MERGE_CHUNK_SIZE = 80
 SELECTION_MAX_TOKENS = 18000
 
 
@@ -1119,6 +1122,46 @@ def cached_item_cards(ai_dir: Path, items: list[dict]) -> list[dict] | None:
     return [by_id[item_id] for item_id in wanted]
 
 
+def event_merge_chunks(cards: list[dict], chunk_size: int = EVENT_MERGE_CHUNK_SIZE) -> list[list[dict]]:
+    """Split cards so that likely duplicates land in the same chunk.
+
+    Cards are ordered by the model's own duplicate_key_hint, then source, so
+    items about the same story sit next to each other before slicing. Chunks
+    are balanced (232 cards → 78/77/77, not 80/80/72).
+    """
+    if len(cards) <= chunk_size:
+        return [cards]
+    ordered = sorted(
+        cards,
+        key=lambda c: (str(c.get("duplicate_key_hint") or "").strip().lower() or "~", str(c.get("source") or "")),
+    )
+    n_chunks = -(-len(ordered) // chunk_size)
+    base, extra = divmod(len(ordered), n_chunks)
+    chunks: list[list[dict]] = []
+    start = 0
+    for i in range(n_chunks):
+        size = base + (1 if i < extra else 0)
+        chunks.append(ordered[start:start + size])
+        start += size
+    return chunks
+
+
+def event_merge_chunked(ai_dir: Path, cards: list[dict]) -> list[dict]:
+    chunks = event_merge_chunks(cards)
+    if len(chunks) > 1:
+        log("ai-process", f"event_merge split into {len(chunks)} chunks: {', '.join(str(len(c)) for c in chunks)}")
+    events: list[dict] = []
+    for idx, chunk in enumerate(chunks, 1):
+        part = call_json_stage(ai_dir, "event_merge", "02-event-merge.md", chunk, max_tokens=EVENT_MERGE_MAX_TOKENS)
+        if not isinstance(part, list):
+            fail_schema(ai_dir, "event_merge", "event_merge must return a JSON array")
+        for event in part:
+            if isinstance(event, dict) and len(chunks) > 1:
+                event["event_id"] = f"c{idx}-{event.get('event_id') or len(events) + 1}"
+            events.append(event)
+    return events
+
+
 def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AIProcessResult:
     date = date or today()
     root = batch_dir or processed_batch_dir()
@@ -1140,9 +1183,7 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     write_json(ai_dir / "01-item-cards.json", cards)
 
     log("ai-process", f"event_merge START — {len(cards)} cards")
-    events = call_json_stage(ai_dir, "event_merge", "02-event-merge.md", cards, max_tokens=EVENT_MERGE_MAX_TOKENS)
-    if not isinstance(events, list):
-        fail_schema(ai_dir, "event_merge", "event_merge must return a JSON array")
+    events = event_merge_chunked(ai_dir, cards)
     write_json(ai_dir / "02-events.json", events)
     events = validate_event_coverage_with_repair(ai_dir, cards, events)
     write_json(ai_dir / "02-events.json", events)
