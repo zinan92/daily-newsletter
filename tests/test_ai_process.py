@@ -1536,3 +1536,32 @@ def test_small_merge_falls_back_when_llm_repair_breaks(monkeypatch):
     with tempfile.TemporaryDirectory() as td:
         out = ai.validate_event_coverage_with_repair(Path(td), cards, events)
     assert sorted(i for e in out for i in e["item_ids"]) == ["a", "b"]
+
+
+def test_large_selection_discards_unlisted_events_implicitly():
+    from stages.ai_process import run as ai
+
+    events = [{"event_id": f"e{i}", "item_ids": [str(i)]} for i in range(ai.SELECTION_IMPLICIT_DISCARD_ABOVE + 10)]
+    selection = {
+        "brief_universe": [{"event_id": "e1", "subsection": "工作流"}, {"event_id": "e2", "subsection": "内容"}],
+        "deep_candidates": [{"event_id": "e1", "parent_brief_event_id": "e1"}],
+        "discard": [],
+    }
+    with tempfile.TemporaryDirectory() as td:
+        out = ai.validate_selection_with_repair(Path(td), events, selection)
+    discarded = {row["event_id"] for row in out["discard"]}
+    assert discarded == {e["event_id"] for e in events} - {"e1", "e2"}
+    assert all(row["decision_reason"] == ai.IMPLICIT_DISCARD_REASON for row in out["discard"])
+
+
+def test_small_selection_still_requires_explicit_discards():
+    from stages.ai_process import run as ai
+
+    events = [{"event_id": "e1", "item_ids": ["1"]}, {"event_id": "e2", "item_ids": ["2"]}]
+    selection = {"brief_universe": [{"event_id": "e1", "subsection": "工作流"}], "deep_candidates": [], "discard": []}
+    try:
+        ai.validate_selection_references(events, ai.validate_selection(selection))
+    except ai.AIProcessError as exc:
+        assert "missing event_id" in str(exc)
+    else:
+        raise AssertionError("small batches keep the explicit contract")

@@ -30,6 +30,16 @@ EVENT_MERGE_MAX_TOKENS = 30000
 # 600 s timeouts): 376, 232 and 227 cards all failed; 90-119 passed.
 EVENT_MERGE_CHUNK_SIZE = 80
 SELECTION_MAX_TOKENS = 18000
+# Above this many events, selection lists only what it keeps; the rest is
+# discarded implicitly. A reasoned discard row per event made the 205-event
+# selection on 2026-09-19 run ~67 KB and truncate mid-string.
+SELECTION_IMPLICIT_DISCARD_ABOVE = 60
+IMPLICIT_DISCARD_REASON = "未入选（大批次隐式淘汰：selection 只列出入选项）"
+IMPLICIT_DISCARD_INSTRUCTION = (
+    "\n\nLARGE BATCH RULE (overrides the discard instructions above): this batch has too many events "
+    "to justify each discard. Output \"discard\": [] . Every event you do not put in brief_universe is "
+    "discarded automatically. Keep brief_universe and deep_candidates exactly as specified above."
+)
 
 
 class AIProcessError(RuntimeError):
@@ -249,8 +259,8 @@ def repair_json_response(raw: str, max_tokens: int = 8000) -> Any:
     return extract_json(repaired)
 
 
-def call_json_stage(ai_dir: Path, stage_name: str, prompt_file: str, payload: Any, max_tokens: int = 8000) -> Any:
-    prompt = load_prompt(prompt_file) + "\n\nINPUT JSON:\n" + json_payload(payload)
+def call_json_stage(ai_dir: Path, stage_name: str, prompt_file: str, payload: Any, max_tokens: int = 8000, extra_instruction: str = "") -> Any:
+    prompt = load_prompt(prompt_file) + extra_instruction + "\n\nINPUT JSON:\n" + json_payload(payload)
     raw = ""
     try:
         raw = llm_call(prompt, max_tokens=max_tokens, timeout=240)
@@ -814,6 +824,21 @@ def repair_selection_response(events: list[dict], selection: dict, validation_er
     return repaired
 
 
+def fill_implicit_discard(events: list[dict], selection: Any) -> Any:
+    """Every event not kept in brief_universe goes to discard with a fixed reason."""
+    if not isinstance(selection, dict):
+        return selection
+    kept = {row_event_id(row) for row in selection.get("brief_universe") or [] if isinstance(row, dict)}
+    listed = {row_event_id(row) for row in selection.get("discard") or [] if isinstance(row, dict)}
+    discard = [row for row in selection.get("discard") or [] if isinstance(row, dict) and row_event_id(row) not in kept]
+    for event_id in event_lookup(events):
+        if event_id not in kept and event_id not in listed:
+            discard.append({"event_id": event_id, "decision_reason": IMPLICIT_DISCARD_REASON})
+    selection["discard"] = discard
+    selection.setdefault("deep_candidates", [])
+    return selection
+
+
 def validate_selection_with_repair(
     ai_dir: Path,
     events: list[dict],
@@ -821,7 +846,10 @@ def validate_selection_with_repair(
     max_attempts: int = 2,
 ) -> dict:
     current = selection
+    implicit = len(events) > SELECTION_IMPLICIT_DISCARD_ABOVE
     for attempt in range(0, max_attempts + 1):
+        if implicit:
+            current = fill_implicit_discard(events, current)
         try:
             return validate_selection_references(events, validate_selection(current))
         except AIProcessError as exc:
@@ -1206,7 +1234,19 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     write_json(ai_dir / "02-events.json", events)
 
     log("ai-process", f"selection START — {len(events)} events")
-    selection = call_json_stage(ai_dir, "selection", "03-selection.md", events, max_tokens=SELECTION_MAX_TOKENS)
+    implicit_discard = len(events) > SELECTION_IMPLICIT_DISCARD_ABOVE
+    if implicit_discard:
+        log("ai-process", f"selection: {len(events)} events > {SELECTION_IMPLICIT_DISCARD_ABOVE}; discards are implicit")
+    selection = call_json_stage(
+        ai_dir,
+        "selection",
+        "03-selection.md",
+        events,
+        max_tokens=SELECTION_MAX_TOKENS,
+        extra_instruction=IMPLICIT_DISCARD_INSTRUCTION if implicit_discard else "",
+    )
+    if implicit_discard:
+        selection = fill_implicit_discard(events, selection)
     selection = validate_selection_with_repair(ai_dir, events, selection)
     selection = selection_from_override(ai_dir, events, selection)
     write_json(ai_dir / "03-selection.json", selection)
