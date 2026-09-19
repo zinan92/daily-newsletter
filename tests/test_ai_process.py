@@ -1505,3 +1505,34 @@ def test_event_merge_chunked_prefixes_ids_and_keeps_every_card(monkeypatch):
         ai.validate_event_coverage(Path(td), cards, events)
     assert calls == [57, 57, 56]
     assert [e["event_id"] for e in events] == ["c1-e1", "c2-e1", "c3-e1"]
+
+
+def test_large_merge_covers_missing_cards_without_llm_repair(monkeypatch):
+    from stages.ai_process import run as ai
+
+    def boom(*_a, **_k):
+        raise AssertionError("repair_event_merge must not be called for large batches")
+
+    monkeypatch.setattr(ai, "repair_event_merge", boom)
+    monkeypatch.setattr(ai, "log", lambda *a, **k: None)
+    cards = [{"id": str(i), "title": f"t{i}"} for i in range(ai.EVENT_MERGE_CHUNK_SIZE + 5)]
+    events = [{"event_id": "e1", "item_ids": [c["id"] for c in cards[:-1]]}]
+    with tempfile.TemporaryDirectory() as td:
+        out = ai.validate_event_coverage_with_repair(Path(td), cards, events)
+    assert out[-1]["item_ids"] == [cards[-1]["id"]]
+    assert out[-1]["discussion_level"] == "single"
+
+
+def test_small_merge_falls_back_when_llm_repair_breaks(monkeypatch):
+    from stages.ai_process import run as ai
+
+    def bad_repair(*_a, **_k):
+        raise ai.AIProcessError("AI response did not contain valid JSON")
+
+    monkeypatch.setattr(ai, "repair_event_merge", bad_repair)
+    monkeypatch.setattr(ai, "log", lambda *a, **k: None)
+    cards = [{"id": "a"}, {"id": "b"}]
+    events = [{"event_id": "e1", "item_ids": ["a"]}]
+    with tempfile.TemporaryDirectory() as td:
+        out = ai.validate_event_coverage_with_repair(Path(td), cards, events)
+    assert sorted(i for e in out for i in e["item_ids"]) == ["a", "b"]

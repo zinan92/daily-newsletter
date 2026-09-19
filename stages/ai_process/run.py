@@ -405,9 +405,26 @@ def validate_event_coverage_with_repair(
         last_exc = exc
 
     current = events
+    if len(cards) > EVENT_MERGE_CHUNK_SIZE:
+        # The LLM repair prompt carries ALL cards plus ALL events: exactly the
+        # oversized call that chunking exists to avoid (2026-09-19: one missed
+        # card → repair over 232 cards → invalid JSON → no paper). Cover the
+        # missing cards as single-item events; selection still judges them.
+        log("ai-process", f"event_merge: {last_exc}; {len(cards)} cards > {EVENT_MERGE_CHUNK_SIZE}, covering missing cards as single-item events")
+        current = force_cover_missing_event_cards(cards, current)
+        clear_stale_error(ai_dir)
+        validate_event_coverage(ai_dir, cards, current)
+        return current
     for attempt in range(1, max_attempts + 1):
         log("ai-process", f"event_merge: {last_exc}; retrying coverage repair {attempt}/{max_attempts}")
-        current = repair_event_merge(cards, current)
+        try:
+            current = repair_event_merge(cards, current)
+        except AIProcessError as exc:
+            log("ai-process", f"event_merge repair failed ({exc}); covering missing cards as single-item events")
+            current = force_cover_missing_event_cards(cards, current)
+            clear_stale_error(ai_dir)
+            validate_event_coverage(ai_dir, cards, current)
+            return current
         clear_stale_error(ai_dir)
         try:
             validate_event_coverage(ai_dir, cards, current)
