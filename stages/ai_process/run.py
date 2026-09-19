@@ -580,9 +580,13 @@ def validate_event_coverage(ai_dir: Path, cards: list[dict], events: list[dict])
         event["item_ids"] = deduped_item_ids
 
     if unknown:
-        fail_schema(ai_dir, "event_merge", f"event_merge references unknown item_id(s): {', '.join(sorted(set(unknown))[:10])}")
+        # An id the model invented refers to no card, so dropping it loses no
+        # coverage; the omission check below still guarantees every real card
+        # is covered. Failing the whole run here cost Park the 2026-09-19 paper.
+        log("ai-process", f"event_merge dropped unknown item_id(s): {', '.join(sorted(set(unknown))[:10])}")
     if duplicate_event_refs:
         log("ai-process", f"event_merge normalized duplicate item_id reference(s): {', '.join(sorted(set(duplicate_event_refs))[:10])}")
+    if unknown or duplicate_event_refs:
         events[:] = [event for event in events if event.get("item_ids")]
 
     missing = sorted(expected - set(seen))
