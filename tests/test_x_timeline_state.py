@@ -216,3 +216,71 @@ if __name__ == "__main__":
         test()
         print(f"PASS {test.__name__}")
     print("\nALL PASS")
+
+
+
+def test_x_fetch_rotates_least_recently_checked_and_caps_per_run():
+    state = {
+        "twitter:a": {"checked_at": "2026-09-21T11:00:00", "last_id": "1"},
+        "twitter:b": {"checked_at": "2026-09-21T09:00:00", "last_id": "1"},
+        # c has never been checked -> goes first
+    }
+    fetched = []
+
+    def fake_fetch_tweets(handle):
+        fetched.append(handle)
+        return []
+
+    old = patch_timeline(
+        load_state=lambda: state,
+        save_state=lambda data: None,
+        load_sources=lambda: [
+            {"platform": "twitter", "url": f"https://x.com/{h}", "name": h, "id": h} for h in ("a", "b", "c")
+        ],
+        fetch_tweets=fake_fetch_tweets,
+        enrich_tweet=lambda tweet: tweet,
+        today=lambda: DAY,
+        log=lambda *args, **kwargs: None,
+        MAX_HANDLES_PER_RUN=2,
+    )
+    try:
+        timeline.main()
+    finally:
+        restore_timeline(old)
+
+    assert fetched == ["c", "b"], fetched  # never-checked first, then oldest; 'a' deferred
+    assert state["twitter:c"]["status"] == "ok_no_new" and state["twitter:c"]["checked_at"]
+    assert state["twitter:a"]["checked_at"] == "2026-09-21T11:00:00"  # untouched
+
+
+def test_x_fetch_stops_after_consecutive_client_transaction_errors():
+    state = {}
+    fetched = []
+
+    def fake_fetch_tweets(handle):
+        fetched.append(handle)
+        if handle in {"b", "c", "d"}:
+            raise RuntimeError("twitter-cli exit=1: WARNING twitter_cli.client: Failed to init ClientTransaction: 'NoneType' object has no attribute 'group'")
+        return []
+
+    old = patch_timeline(
+        load_state=lambda: state,
+        save_state=lambda data: None,
+        load_sources=lambda: [
+            {"platform": "twitter", "url": f"https://x.com/{h}", "name": h, "id": h} for h in ("a", "b", "c", "d", "e")
+        ],
+        fetch_tweets=fake_fetch_tweets,
+        enrich_tweet=lambda tweet: tweet,
+        today=lambda: DAY,
+        log=lambda *args, **kwargs: None,
+        MAX_HANDLES_PER_RUN=30,
+        CONSECUTIVE_RATE_LIMIT_STOP=2,
+    )
+    try:
+        timeline.main()
+    finally:
+        restore_timeline(old)
+
+    assert fetched == ["a", "b", "c"], fetched  # stopped after two limit errors in a row; d, e untouched
+    assert state["twitter:b"]["status"] == "failed"
+    assert "twitter:e" not in state
