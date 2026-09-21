@@ -96,6 +96,136 @@ SOURCE_AUTHORITY = {
     "我的 X 收藏": 88,
 }
 
+# ---------------------------------------------------------------------------
+# Official vendor channels (2026-09-21): the same coverage we built for
+# Anthropic and OpenAI — blog / X / YouTube / GitHub releases — replicated for
+# nine more model vendors. Every source name below is a row in sources.md.
+# ---------------------------------------------------------------------------
+
+COMPANY_ORDER = [
+    "Anthropic / Claude",
+    "OpenAI / ChatGPT / Codex",
+    "Google / Gemini",
+    "xAI / Grok",
+    "Meta / Muse",
+    "千问 / Qwen",
+    "DeepSeek",
+    "Kimi / 月之暗面",
+    "智谱 / GLM",
+    "MiniMax",
+    "豆包 / 字节 Seed",
+    "其他厂商",
+]
+
+# source name -> (company label, role, authority, short label)
+OFFICIAL_SOURCES = {
+    # Anthropic
+    "Anthropic News": ("Anthropic / Claude", "company_official", 100, "Anthropic News"),
+    "Anthropic Engineering": ("Anthropic / Claude", "company_official", 98, "Anthropic Engineering"),
+    "Anthropic Institute": ("Anthropic / Claude", "company_official", 96, "Anthropic Institute"),
+    "Claude Blog": ("Anthropic / Claude", "company_official", 96, "Claude Blog"),
+    "Anthropic X": ("Anthropic / Claude", "company_official", 92, "Anthropic"),
+    "Claude X": ("Anthropic / Claude", "company_official", 91, "Claude"),
+    "Claude Devs X": ("Anthropic / Claude", "company_official", 95, "Claude Devs"),
+    "Anthropic YouTube": ("Anthropic / Claude", "company_official", 90, "Anthropic YouTube"),
+    "Claude YouTube": ("Anthropic / Claude", "company_official", 96, "Claude YouTube"),
+    "claude-code-releases": ("Anthropic / Claude", "company_official", 97, "Claude Code Release"),
+    "Dario Amodei": ("Anthropic / Claude", "company_person", 86, "Dario Amodei"),
+    "Daniela Amodei": ("Anthropic / Claude", "company_person", 84, "Daniela Amodei"),
+    "Mike Krieger": ("Anthropic / Claude", "company_person", 84, "Mike Krieger"),
+    # OpenAI
+    "OpenAI Blog": ("OpenAI / ChatGPT / Codex", "company_official", 100, "OpenAI Blog"),
+    "OpenAI X": ("OpenAI / ChatGPT / Codex", "company_official", 92, "OpenAI"),
+    "ChatGPT X": ("OpenAI / ChatGPT / Codex", "company_official", 90, "ChatGPT"),
+    "OpenAI YouTube": ("OpenAI / ChatGPT / Codex", "company_official", 90, "OpenAI YouTube"),
+    "ChatGPT YouTube": ("OpenAI / ChatGPT / Codex", "company_official", 88, "ChatGPT YouTube"),
+    "openai-codex-releases": ("OpenAI / ChatGPT / Codex", "company_official", 97, "OpenAI Codex Release"),
+    "Sam Altman": ("OpenAI / ChatGPT / Codex", "company_person", 86, "Sam Altman"),
+    "Greg Brockman": ("OpenAI / ChatGPT / Codex", "company_person", 84, "Greg Brockman"),
+    "Kevin Weil": ("OpenAI / ChatGPT / Codex", "company_person", 84, "Kevin Weil"),
+    "Mark Chen": ("OpenAI / ChatGPT / Codex", "company_person", 82, "Mark Chen"),
+    # Google / Gemini
+    "Gemini Blog": ("Google / Gemini", "company_official", 98, "Gemini Blog"),
+    "Google DeepMind Blog": ("Google / Gemini", "company_official", 98, "Google DeepMind"),
+    "Google Developers Blog": ("Google / Gemini", "company_official", 94, "Google Developers"),
+    "Google AI Blog": ("Google / Gemini", "company_official", 92, "Google AI"),
+    "Google DeepMind X": ("Google / Gemini", "company_official", 92, "Google DeepMind"),
+    "Gemini App X": ("Google / Gemini", "company_official", 90, "Gemini"),
+    "Google AI Devs X": ("Google / Gemini", "company_official", 93, "Google AI Devs"),
+    "Google DeepMind YouTube": ("Google / Gemini", "company_official", 88, "Google DeepMind YouTube"),
+    "Google for Developers YouTube": ("Google / Gemini", "company_official", 84, "Google for Developers"),
+    "Demis Hassabis": ("Google / Gemini", "company_person", 86, "Demis Hassabis"),
+    "Logan Kilpatrick": ("Google / Gemini", "company_person", 86, "Logan Kilpatrick"),
+    # xAI / Grok
+    "SpaceXAI X": ("xAI / Grok", "company_official", 92, "SpaceXAI"),
+    "Grok X": ("xAI / Grok", "company_official", 90, "Grok"),
+    "Grok YouTube": ("xAI / Grok", "company_official", 86, "Grok YouTube"),
+    # Meta
+    "AI at Meta X": ("Meta / Muse", "company_official", 92, "AI at Meta"),
+    "Alexandr Wang": ("Meta / Muse", "company_person", 84, "Alexandr Wang"),
+    # Qwen
+    "Qwen X": ("千问 / Qwen", "company_official", 92, "Qwen"),
+    "qwen-code-releases": ("千问 / Qwen", "company_official", 95, "Qwen Code Release"),
+    "Qwen YouTube": ("千问 / Qwen", "company_official", 84, "Qwen YouTube"),
+    "Junyang Lin": ("千问 / Qwen", "company_person", 86, "Junyang Lin"),
+    "Binyuan Hui": ("千问 / Qwen", "company_person", 82, "Binyuan Hui"),
+    # DeepSeek
+    "DeepSeek X": ("DeepSeek", "company_official", 92, "DeepSeek"),
+    # Kimi
+    "Kimi X": ("Kimi / 月之暗面", "company_official", 92, "Kimi"),
+    "kimi-cli-releases": ("Kimi / 月之暗面", "company_official", 95, "Kimi CLI Release"),
+    "Kimi YouTube": ("Kimi / 月之暗面", "company_official", 86, "Kimi YouTube"),
+    # Zhipu
+    "Z.ai X": ("智谱 / GLM", "company_official", 92, "Z.ai"),
+    # MiniMax
+    "MiniMax X": ("MiniMax", "company_official", 92, "MiniMax"),
+    "Hailuo X": ("MiniMax", "company_official", 86, "Hailuo"),
+    "minimax-code-releases": ("MiniMax", "company_official", 95, "MiniMax Code Release"),
+    # ByteDance
+    "ByteDance OSS X": ("豆包 / 字节 Seed", "company_official", 84, "ByteDance OSS"),
+}
+
+OFFICIAL_COMPANY_BY_SOURCE = {name: row[0] for name, row in OFFICIAL_SOURCES.items()}
+OFFICIAL_SOURCE_LABELS = {name: row[3] for name, row in OFFICIAL_SOURCES.items()}
+CODE_RELEASE_SOURCES = {name for name in OFFICIAL_SOURCES if name.endswith("-releases")}
+OFFICIAL_ITEM_CATEGORIES = {"ai-official", "ai-personal", "video-official"}
+
+# Keyword fallback for items whose source name is not in the table (e.g. an X
+# timeline post about a vendor). Checked in order; first hit wins.
+COMPANY_KEYWORDS = [
+    ("anthropic", "Anthropic / Claude"), ("claude", "Anthropic / Claude"),
+    ("openai", "OpenAI / ChatGPT / Codex"), ("chatgpt", "OpenAI / ChatGPT / Codex"), ("codex", "OpenAI / ChatGPT / Codex"),
+    ("deepmind", "Google / Gemini"), ("gemini", "Google / Gemini"), ("google", "Google / Gemini"),
+    ("spacexai", "xAI / Grok"), ("xai", "xAI / Grok"), ("grok", "xAI / Grok"),
+    ("meta", "Meta / Muse"), ("muse", "Meta / Muse"), ("llama", "Meta / Muse"),
+    ("qwen", "千问 / Qwen"), ("千问", "千问 / Qwen"), ("通义", "千问 / Qwen"),
+    ("deepseek", "DeepSeek"),
+    ("kimi", "Kimi / 月之暗面"), ("moonshot", "Kimi / 月之暗面"), ("月之暗面", "Kimi / 月之暗面"),
+    ("z.ai", "智谱 / GLM"), ("zhipu", "智谱 / GLM"), ("智谱", "智谱 / GLM"), ("glm", "智谱 / GLM"),
+    ("minimax", "MiniMax"), ("hailuo", "MiniMax"), ("海螺", "MiniMax"),
+    ("doubao", "豆包 / 字节 Seed"), ("豆包", "豆包 / 字节 Seed"), ("bytedance", "豆包 / 字节 Seed"), ("字节", "豆包 / 字节 Seed"), ("seedance", "豆包 / 字节 Seed"), ("seedream", "豆包 / 字节 Seed"),
+]
+
+
+def company_for_text(text: str) -> str:
+    lower = (text or "").lower()
+    for keyword, company in COMPANY_KEYWORDS:
+        if keyword in lower:
+            return company
+    return "其他厂商"
+
+
+def company_for_source(source: str, fallback_text: str = "") -> str:
+    company = OFFICIAL_COMPANY_BY_SOURCE.get(source)
+    if company:
+        return company
+    return company_for_text(f"{source} {fallback_text}")
+
+for _name, (_company, _role, _authority, _label) in OFFICIAL_SOURCES.items():
+    SOURCE_ROLES.setdefault(_name, _role)
+    SOURCE_AUTHORITY.setdefault(_name, _authority)
+
+
 BAD_LLM_MARKERS = (
     "I appreciate you sharing",
     "I'm Claude Code",
@@ -219,32 +349,23 @@ def source_names_for_group(group: str) -> set[str]:
             "rwayne",
             "Thariq",
         },
-        "code": {"openai-codex-releases", "claude-code-releases"},
+        "code": set(CODE_RELEASE_SOURCES),
         "official": {
-            "Anthropic News",
-            "Anthropic Engineering",
-            "Claude Blog",
-            "OpenAI Blog",
-            "OpenAI X",
-            "ChatGPT X",
-            "Anthropic X",
-            "Claude X",
-            "Claude Devs X",
+            name
+            for name, row in OFFICIAL_SOURCES.items()
+            if row[1] == "company_official" and name not in CODE_RELEASE_SOURCES and "YouTube" not in name
         },
-        "people": {
-            "Sam Altman",
-            "Greg Brockman",
-            "Kevin Weil",
-            "Mark Chen",
-            "Dario Amodei",
-            "Daniela Amodei",
-            "Mike Krieger",
-        },
+        "people": {name for name, row in OFFICIAL_SOURCES.items() if row[1] == "company_person"},
         "podcast": {
             "OpenAI YouTube",
             "ChatGPT YouTube",
             "Anthropic YouTube",
             "Claude YouTube",
+            "Grok YouTube",
+            "Google DeepMind YouTube",
+            "Google for Developers YouTube",
+            "Kimi YouTube",
+            "Qwen YouTube",
             "Dwarkesh Podcast",
             "Latent Space",
             "No Priors Podcast",

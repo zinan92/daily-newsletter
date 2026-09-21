@@ -41,6 +41,11 @@ YOUTUBE_FALLBACK_HANDLES = {
     "Anthropic YouTube": "anthropic-ai",
     "Claude YouTube": "claude",
     "Nate Herk - AI Automation": "nateherk",
+    "Grok YouTube": "grok",
+    "Google DeepMind YouTube": "GoogleDeepMind",
+    "Google for Developers YouTube": "GoogleDevelopers",
+    "Kimi YouTube": "KimiMoonshot",
+    "Qwen YouTube": "QwenLM",
 }
 
 

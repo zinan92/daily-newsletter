@@ -4,7 +4,7 @@ import json
 import os
 import re
 
-from digest_config import OFFICIAL_CATEGORY_ORDER, SOURCE_AUTHORITY, SOURCE_ROLES
+from digest_config import COMPANY_ORDER, OFFICIAL_COMPANY_BY_SOURCE, company_for_text, OFFICIAL_CATEGORY_ORDER, SOURCE_AUTHORITY, SOURCE_ROLES
 
 
 def normalized_topic_text(item: dict) -> str:
@@ -239,23 +239,13 @@ def event_layer(event: dict) -> str:
 
 def event_company(event: dict) -> str:
     source = event["primary"].get("source", "")
-    if source in {"OpenAI X", "ChatGPT X", "OpenAI Blog", "OpenAI YouTube", "ChatGPT YouTube", "openai-codex-releases", "Sam Altman", "Greg Brockman", "Kevin Weil", "Mark Chen"}:
-        return "OpenAI / ChatGPT / Codex"
-    if source in {"Anthropic News", "Anthropic Engineering", "Claude Blog", "Anthropic X", "Claude X", "Claude Devs X", "Anthropic YouTube", "Claude YouTube", "claude-code-releases", "Dario Amodei", "Daniela Amodei", "Mike Krieger"}:
-        return "Anthropic / Claude"
+    if source in OFFICIAL_COMPANY_BY_SOURCE:
+        return OFFICIAL_COMPANY_BY_SOURCE[source]
     text = normalized_topic_text(event["primary"]) + " " + " ".join(event.get("tags", []))
     key = event.get("event_key", "")
-    if key.startswith("openai-") or "openai" in text or "chatgpt" in text or "codex" in text:
+    if key.startswith("openai-"):
         return "OpenAI / ChatGPT / Codex"
-    if "claude" in text or "anthropic" in text:
-        return "Anthropic / Claude"
-    if "google" in text or "gemini" in text:
-        return "Google / Gemini"
-    if "xai" in text or "grok" in text:
-        return "xAI / Grok"
-    if "meta" in text or "llama" in text:
-        return "Meta / Llama"
-    return "其他厂商"
+    return company_for_text(text)
 
 
 def event_official_category(event: dict) -> str:
@@ -331,14 +321,7 @@ def group_events_for_digest(events: list[dict]) -> list[tuple[str, list[dict]]]:
 
 
 def group_official_events(events: list[dict]) -> list[tuple[str, list[dict]]]:
-    order = [
-        "Anthropic / Claude",
-        "OpenAI / ChatGPT / Codex",
-        "Google / Gemini",
-        "xAI / Grok",
-        "Meta / Llama",
-        "其他厂商",
-    ]
+    order = list(COMPANY_ORDER)
     groups: dict[str, list[dict]] = {name: [] for name in order}
     for event in events:
         company = event_company(event)
