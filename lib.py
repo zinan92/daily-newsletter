@@ -426,6 +426,7 @@ PROFILE_ID_BY_SOURCE_NAME = {
     "OpenAI Blog": "openai",
     "OpenAI X": "openai",
     "ChatGPT X": "openai",
+    "OpenAI Devs X": "openai",
     "OpenAI YouTube": "openai",
     "ChatGPT YouTube": "openai",
     "openai-codex-releases": "openai",

@@ -84,7 +84,21 @@ def fetch_tweets(handle, max_count=MAX_PER_HANDLE):
         env=os.environ.copy(),
     )
     if result.returncode != 0:
-        raise RuntimeError(f"twitter-cli exit={result.returncode}: {result.stderr.strip()[:300]}")
+        # twitter-cli prints the real reason as JSON on stdout ({"ok": false,
+        # "error": {...}}); stderr is usually only the ClientTransaction warning
+        # it emits on every call. Surfacing stderr alone hid "User @ChatGPTapp
+        # not found" for two months behind that warning.
+        detail = ""
+        try:
+            payload = json.loads(result.stdout or "")
+            err = payload.get("error") if isinstance(payload, dict) else None
+            if isinstance(err, dict):
+                detail = f"{err.get('code', '')}: {err.get('message', '')}".strip(": ")
+        except (json.JSONDecodeError, AttributeError):
+            detail = ""
+        stderr_lines = [line for line in result.stderr.strip().splitlines() if CLIENT_TRANSACTION_MARKER not in line]
+        reason = detail or " ".join(stderr_lines)[:300] or result.stderr.strip()[:300]
+        raise RuntimeError(f"twitter-cli exit={result.returncode}: {reason}")
     payload = json.loads(result.stdout)
     if isinstance(payload, dict) and "data" in payload:
         return payload["data"]

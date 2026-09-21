@@ -140,6 +140,7 @@ OFFICIAL_SOURCES = {
     "OpenAI YouTube": ("OpenAI / ChatGPT / Codex", "company_official", 90, "OpenAI YouTube"),
     "ChatGPT YouTube": ("OpenAI / ChatGPT / Codex", "company_official", 88, "ChatGPT YouTube"),
     "openai-codex-releases": ("OpenAI / ChatGPT / Codex", "company_official", 97, "OpenAI Codex Release"),
+    "OpenAI Devs X": ("OpenAI / ChatGPT / Codex", "company_official", 94, "OpenAI Devs"),
     "Sam Altman": ("OpenAI / ChatGPT / Codex", "company_person", 86, "Sam Altman"),
     "Greg Brockman": ("OpenAI / ChatGPT / Codex", "company_person", 84, "Greg Brockman"),
     "Kevin Weil": ("OpenAI / ChatGPT / Codex", "company_person", 84, "Kevin Weil"),
