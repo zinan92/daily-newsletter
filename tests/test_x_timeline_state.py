@@ -284,3 +284,23 @@ def test_x_fetch_stops_after_consecutive_client_transaction_errors():
     assert fetched == ["a", "b", "c"], fetched  # stopped after two limit errors in a row; d, e untouched
     assert state["twitter:b"]["status"] == "failed"
     assert "twitter:e" not in state
+
+
+
+def test_fetch_tweets_surfaces_cli_error_json_not_the_transaction_warning(monkeypatch):
+    import subprocess as sp
+
+    class Done:
+        returncode = 1
+        stdout = '{"ok": false, "error": {"code": "not_found", "message": "User @ChatGPTapp not found"}}'
+        stderr = "WARNING twitter_cli.client: Failed to init ClientTransaction: 'NoneType' object has no attribute 'group'"
+
+    monkeypatch.setattr(timeline.subprocess, "run", lambda *a, **k: Done())
+    monkeypatch.setattr(timeline, "load_twitter_env", lambda: None)
+    try:
+        timeline.fetch_tweets("ChatGPTapp")
+    except RuntimeError as exc:
+        assert "not_found: User @ChatGPTapp not found" in str(exc)
+        assert "ClientTransaction" not in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")
