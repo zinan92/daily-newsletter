@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,15 @@ MAX_PER_HANDLE = 20
 REFETCH_TODAY = os.environ.get("PARKIO_REFETCH_TODAY") == "1"
 ARTICLE_TIMEOUT_SECONDS = int(os.environ.get("PARKIO_TWITTER_ARTICLE_TIMEOUT_SECONDS", "8"))
 SUCCESS_STATUSES = {"ok_new", "ok_no_new"}
+
+# X caps how many profile timelines one session can pull in a short window.
+# Measured 2026-09-21 with 44 accounts: the first 33 succeed, everything after
+# fails with "Failed to init ClientTransaction" and burns ~40s each. So each
+# hourly run takes at most MAX_HANDLES_PER_RUN accounts, least-recently-checked
+# first, and stops early after CONSECUTIVE_RATE_LIMIT_STOP limit errors in a row.
+MAX_HANDLES_PER_RUN = int(os.environ.get("PARKIO_TWITTER_MAX_PER_RUN", "30"))
+CONSECUTIVE_RATE_LIMIT_STOP = int(os.environ.get("PARKIO_TWITTER_RATE_LIMIT_STOP", "2"))
+CLIENT_TRANSACTION_MARKER = "Failed to init ClientTransaction"
 NESTED_TWEET_KEYS = (
     "retweetedStatus",
     "retweeted_status",
@@ -101,7 +111,21 @@ def fetch_article(tweet_id):
 
 
 def is_rate_limited_error(message: str) -> bool:
-    return "Rate limited (429)" in message or " 429" in message
+    return "Rate limited (429)" in message or " 429" in message or CLIENT_TRANSACTION_MARKER in message
+
+
+def now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def order_for_run(sources: list, state: dict, limit: int) -> tuple[list, list]:
+    """Least-recently-checked accounts first; the rest wait for the next run."""
+    def checked_at(src):
+        return str(state.get(f"twitter:{extract_handle(src['url'])}", {}).get("checked_at") or "")
+    ordered = sorted(sources, key=checked_at)  # stable: ties keep sources.md order
+    if limit <= 0 or len(ordered) <= limit:
+        return ordered, []
+    return ordered[:limit], ordered[limit:]
 
 
 def tweet_local_date(tweet):
@@ -301,13 +325,16 @@ def tweet_handle(tweet, handle):
 def main():
     state = load_state()
     sources = [s for s in load_sources() if s["platform"] == "twitter"]
-    log("fetch-twitter", f"START — {len(sources)} sources")
+    run_sources, deferred = order_for_run(sources, state, MAX_HANDLES_PER_RUN)
+    log("fetch-twitter", f"START — {len(sources)} sources, {len(run_sources)} this run, {len(deferred)} deferred to next run")
 
-    for src in sources:
+    consecutive_rate_limited = 0
+    for index, src in enumerate(run_sources):
         handle = extract_handle(src["url"])
         key = f"twitter:{handle}"
         try:
             tweets = fetch_tweets(handle)
+            consecutive_rate_limited = 0
             log("fetch-twitter", f"  @{handle}: {len(tweets)} fetched")
 
             last_id = state.get(key, {}).get("last_id")
@@ -352,6 +379,7 @@ def main():
                 state[key] = {
                     "last_id": str(newest_id),
                     "last_fetch": today(),
+                    "checked_at": now_iso(),
                     "status": "ok_new",
                     "fetched_count": len(tweets),
                     "new_count": len(new_items),
@@ -362,6 +390,7 @@ def main():
                 state[key] = {
                     "last_id": prev.get("last_id", ""),
                     "last_fetch": today(),
+                    "checked_at": now_iso(),
                     "status": "ok_no_new",
                     "fetched_count": len(tweets),
                     "new_count": 0,
@@ -371,11 +400,8 @@ def main():
         except Exception as ex:
             error = f"{type(ex).__name__}: {ex}"
             prev = state.get(key, {})
-            if (
-                is_rate_limited_error(error)
-                and prev.get("last_fetch") == today()
-                and prev.get("status") in SUCCESS_STATUSES
-            ):
+            limited = is_rate_limited_error(error)
+            if limited and prev.get("last_fetch") == today() and prev.get("status") in SUCCESS_STATUSES:
                 state[key] = {
                     **prev,
                     "last_warning": error,
@@ -383,10 +409,16 @@ def main():
                 }
                 save_state(state)
                 log("fetch-twitter", f"  @{handle}: RATE LIMITED; preserved earlier successful state")
-                continue
-            state[key] = {**prev, "last_fetch": today(), "status": "failed", "error": error}
-            save_state(state)
-            log("fetch-twitter", f"  @{handle}: ERROR {type(ex).__name__}: {ex}")
+            else:
+                state[key] = {**prev, "last_fetch": today(), "status": "failed", "error": error}
+                save_state(state)
+                log("fetch-twitter", f"  @{handle}: ERROR {type(ex).__name__}: {ex}")
+            if limited:
+                consecutive_rate_limited += 1
+                if consecutive_rate_limited >= CONSECUTIVE_RATE_LIMIT_STOP:
+                    remaining = len(run_sources) - index - 1
+                    log("fetch-twitter", f"  rate limited {consecutive_rate_limited}x in a row; stopping this run, {remaining} account(s) wait for the next one")
+                    break
 
     save_state(state)
     log("fetch-twitter", "DONE")
