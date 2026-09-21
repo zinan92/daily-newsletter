@@ -1602,3 +1602,48 @@ def test_partial_deep_is_tolerated_only_above_half(monkeypatch):
     ai.validate_deep_markdown(md, ai.tolerate_partial_deep(md, urls))
     urls4 = urls + ["https://d.example", "https://e.example"]
     assert ai.tolerate_partial_deep(md, urls4) == urls4  # 2 of 5 → still fails validation
+
+
+
+def test_official_section_groups_vendor_items_by_company():
+    from stages.ai_process import run as ai
+
+    items = [
+        {"id": "a", "source": "Qwen X", "title": "Qwen3.8 发布", "url": "https://x.com/Alibaba_Qwen/status/1", "category": "ai-official"},
+        {"id": "b", "source": "Anthropic News", "title": "Claude 更新", "url": "https://www.anthropic.com/news/x", "category": "ai"},
+        {"id": "c", "source": "X 首页时间线", "title": "DeepSeek 又赢了", "url": "https://x.com/someone/status/2", "category": "ai-timeline"},
+        {"id": "d", "source": "Junyang Lin", "title": "预告", "url": "https://x.com/JustinLin610/status/3", "category": "ai-personal"},
+        {"id": "e", "source": "Qwen X", "title": "重复链接", "url": "https://x.com/Alibaba_Qwen/status/1", "category": "ai-official"},
+        {"id": "f", "source": "New Vendor X", "title": "Grok 5 上线", "url": "https://x.com/new/status/4", "category": "ai-official"},
+    ]
+    cards = [{"id": "a", "main_claim": "Qwen3.8 系列开源，" + "很长" * 100}]
+    block = ai.render_official_section(items, cards)
+    assert block.startswith("## 官方")
+    # company order follows COMPANY_ORDER: Anthropic before Google/xAI before Qwen
+    assert block.index("### Anthropic / Claude") < block.index("### xAI / Grok") < block.index("### 千问 / Qwen")
+    # official account outranks the personal account inside a company
+    assert block.index("**Qwen**") < block.index("**Junyang Lin**")
+    # timeline chatter is not official; duplicate url dropped; keyword fallback for unknown official source
+    assert "DeepSeek 又赢了" not in block and block.count("status/1") == 1 and "Grok 5 上线" in block
+    # one-liner truncated
+    assert "…" in block and len(block.split("\n")[3]) < 200
+
+    md = "# Daily Inbox 快讯 — 2026-09-21\n\n## 快讯\n\n### 底层工具\n\n- **X** | [t](https://e.com)\n"
+    out = ai.insert_official_section(md, block)
+    assert out.index("## 官方") < out.index("## 快讯")
+    assert ai.insert_official_section(md, "") == md
+
+
+def test_official_section_collapses_same_day_code_releases():
+    from stages.ai_process import run as ai
+
+    items = [
+        {"id": str(i), "source": "openai-codex-releases", "title": f"rust-v0.156.0-alpha.{i}", "url": f"https://github.com/openai/codex/releases/tag/a{i}", "category": "ai"}
+        for i in (9, 10, 11)
+    ] + [{"id": "k", "source": "kimi-cli-releases", "title": "1.50.0", "url": "https://github.com/MoonshotAI/kimi-cli/releases/tag/1.50.0", "category": "ai"}]
+    block = ai.render_official_section(items, [])
+    assert block.count("- **OpenAI Codex Release**") == 1
+    assert "今日 3 个版本，最新 rust-v0.156.0-alpha.9" in block  # string sort; fine for one-line listing
+    assert "alpha.10、rust-v0.156.0-alpha.11" in block or "alpha.11" in block
+    assert "- **Kimi CLI Release** | [1.50.0]" in block
+    assert block.index("### OpenAI / ChatGPT / Codex") < block.index("### Kimi / 月之暗面")

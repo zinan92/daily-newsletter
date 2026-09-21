@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from digest_config import OFFICIAL_SOURCES
 from lib import parse_md_items, render_frontmatter
 
 
@@ -36,6 +37,10 @@ PROTECTED_SOURCE_NAMES = {
     "openai-codex-releases",
     "claude-code-releases",
 }
+
+# Every vendor channel in the official table (2026-09-21: 11 vendors) is kept
+# regardless of the low-value patterns, exactly like the Anthropic / OpenAI rows.
+PROTECTED_SOURCE_NAMES |= set(OFFICIAL_SOURCES)
 
 PROTECTED_PLATFORMS = {"wechat", "douyin"}
 PROTECTED_CATEGORIES = {

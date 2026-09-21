@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from digest_config import COMPANY_ORDER, OFFICIAL_COMPANY_BY_SOURCE, OFFICIAL_ITEM_CATEGORIES, OFFICIAL_SOURCE_LABELS, SOURCE_AUTHORITY, CODE_RELEASE_SOURCES, company_for_text
 from lib import is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, processed_batch_dir, today
 
 
@@ -1117,6 +1118,97 @@ def append_video_updates_to_deep(markdown: str, items: list[dict], date: str) ->
     return f"{text.rstrip()}\n\n{block}", urls
 
 
+# ---------------------------------------------------------------------------
+# 官方 section: every item from a vendor's own channel, grouped by company.
+# Deterministic (no model call), rendered before 快讯. The 快讯 selection may
+# still pick some of the same items; readers asked for one place that lists
+# what the vendors themselves said today, regardless of the editor's pick.
+# ---------------------------------------------------------------------------
+
+OFFICIAL_PER_COMPANY_LIMIT = 8
+OFFICIAL_LINE_LIMIT = 120
+
+
+def official_company_for_item(item: dict) -> str:
+    """Company label for an official-channel item, '' for everything else."""
+    source = str(item.get("source") or "").strip()
+    if source in OFFICIAL_COMPANY_BY_SOURCE:
+        return OFFICIAL_COMPANY_BY_SOURCE[source]
+    if str(item.get("category") or "") in OFFICIAL_ITEM_CATEGORIES:
+        return company_for_text(f"{source} {item.get('profile_name') or ''} {item.get('title') or ''}")
+    return ""
+
+
+def official_one_liner(card: dict | None) -> str:
+    if not card:
+        return ""
+    text = re.sub(r"\s+", " ", str(card.get("main_claim") or "")).strip()
+    if len(text) > OFFICIAL_LINE_LIMIT:
+        text = text[: OFFICIAL_LINE_LIMIT - 1].rstrip("，,。；;、 ") + "…"
+    return text
+
+
+def render_official_section(items: list[dict], cards: list[dict]) -> str:
+    cards_by_id = {str(card.get("id") or ""): card for card in cards}
+    groups: dict[str, list[tuple[int, str, str]]] = {}
+    releases: dict[str, list[tuple[str, str]]] = {}
+    seen: set[str] = set()
+    for item in items:
+        company = official_company_for_item(item)
+        if not company:
+            continue
+        url = str(item.get("url") or "").strip()
+        title = str(item.get("title") or "").strip()
+        if not url or not title or url in seen:
+            continue
+        seen.add(url)
+        source = str(item.get("source") or "").strip()
+        if source in CODE_RELEASE_SOURCES:
+            # Nobody wants three bullets for alpha.9 / .10 / .11 of the same CLI.
+            releases.setdefault(source, []).append((title, url))
+            continue
+        label = OFFICIAL_SOURCE_LABELS.get(source) or source or "官方"
+        line = f"- **{label}** | [{markdown_link_text(title)}]({url})"
+        one_liner = official_one_liner(cards_by_id.get(str(item.get("id") or "")))
+        if one_liner:
+            line += f"\n  {one_liner}"
+        authority = SOURCE_AUTHORITY.get(source, 50)
+        groups.setdefault(company, []).append((-authority, title, line))
+    for source, versions in releases.items():
+        versions.sort(key=lambda row: row[0])
+        newest_title, newest_url = versions[-1]
+        label = OFFICIAL_SOURCE_LABELS.get(source) or source
+        if len(versions) == 1:
+            line = f"- **{label}** | [{markdown_link_text(newest_title)}]({newest_url})"
+        else:
+            listed = "、".join(markdown_link_text(t) for t, _ in versions)
+            line = f"- **{label}** | [今日 {len(versions)} 个版本，最新 {markdown_link_text(newest_title)}]({newest_url})\n  {listed}"
+        company = OFFICIAL_COMPANY_BY_SOURCE.get(source, "其他厂商")
+        groups.setdefault(company, []).append((-SOURCE_AUTHORITY.get(source, 50), newest_title, line))
+    if not groups:
+        return ""
+    lines = ["## 官方", ""]
+    for company in COMPANY_ORDER:
+        rows = groups.get(company)
+        if not rows:
+            continue
+        lines.extend([f"### {company}", ""])
+        for _, _, line in sorted(rows)[:OFFICIAL_PER_COMPANY_LIMIT]:
+            lines.extend([line, ""])
+    return "\n".join(lines).strip()
+
+
+def insert_official_section(markdown: str, block: str) -> str:
+    """Put the 官方 block between the H1 and ## 快讯."""
+    if not block:
+        return markdown
+    text = clean_markdown(markdown)
+    match = re.search(r"^##\s+快讯\s*$", text, flags=re.M)
+    if not match:
+        return f"{text.rstrip()}\n\n{block}"
+    return f"{text[:match.start()].rstrip()}\n\n{block}\n\n{text[match.start():]}"
+
+
 def event_display_source(event: dict) -> tuple[str, str, str, str]:
     sources = event.get("sources") or []
     first = sources[0] if sources and isinstance(sources[0], dict) else {}
@@ -1344,6 +1436,10 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     except Exception as exc:
         write_error(ai_dir, "brief_writing", raw, f"{type(exc).__name__}: {exc}")
         raise
+    official_block = render_official_section(items, cards)
+    if official_block:
+        markdown = insert_official_section(markdown, official_block)
+        log("ai-process", f"official section: {official_block.count(chr(10) + '- **')} item(s)")
     (ai_dir / "04-brief.md").write_text(markdown + "\n", encoding="utf-8")
 
     deep_markdown = ""

@@ -37,6 +37,8 @@ from lib import (
     write_health_alert,
 )
 from digest_config import (
+    OFFICIAL_SOURCE_LABELS,
+    company_for_source,
     HIGH_VALUE_SCORE,
     SCORE_THRESHOLD,
     TOP_DIGEST_EVENTS,
@@ -815,6 +817,7 @@ def item_display_author(item: dict) -> str:
         "Claude X": "Claude",
         "Claude Devs X": "Claude Devs",
         "ClaudeDevs": "Claude Devs",
+        **OFFICIAL_SOURCE_LABELS,
         "Sam Altman": "Sam Altman",
         "Greg Brockman": "Greg Brockman",
         "Kevin Weil": "Kevin Weil",
@@ -1582,6 +1585,7 @@ def source_label(name: str) -> str:
         "Anthropic X": "Anthropic",
         "Claude X": "Claude",
         "Claude Devs X": "Claude Devs",
+        **OFFICIAL_SOURCE_LABELS,
         "OpenAI YouTube": "OpenAI YouTube",
         "ChatGPT YouTube": "ChatGPT YouTube",
         "Anthropic YouTube": "Anthropic YouTube",
@@ -2409,6 +2413,10 @@ def _subchannel_bucket(path_key: str, name: str, channel: dict) -> tuple[str, st
             return "anthropic", "Anthropic", "anthropic"
         if any(token in lower for token in ("openai", "chatgpt", "codex", "sam altman", "greg brockman", "gdb", "kevin weil", "mark chen")):
             return "openai", "ChatGPT / OpenAI", "openai"
+        company = company_for_source(name, lower)
+        if company != "其他厂商":
+            slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-") or "official"
+            return slug, company, "official"
         return "official-other", "其他官方源", "official"
     if path_key == "x":
         return "x", "X", "x"
