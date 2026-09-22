@@ -384,6 +384,48 @@ def _llm_call_provider(provider: str, prompt: str, max_tokens: int, *, retries: 
     raise LLMUnavailable(f"{provider} LLM unavailable after {retries} attempts: {last_exc}") from last_exc
 
 
+# Circuit breaker for the primary provider.
+#
+# 2026-09-22: Codex hung from 07:08 to ~09:05. Every call waited the full 240s
+# timeout before failing over, 30 chunks in a row — two hours of pure waiting
+# that turned a 35-minute job into three hours, and the three-hour window then
+# lost the whole run to an ordinary restart. The failover was per-call with no
+# memory: it never concluded "this provider is down right now".
+#
+# After BREAKER_FAILURES consecutive unavailable/billing failures the primary is
+# skipped outright. Any success resets the counter, and the breaker re-probes
+# the primary every BREAKER_REPROBE_EVERY calls so a run that started during an
+# outage still returns to the primary once it recovers (Codex did, at chunk 31).
+BREAKER_FAILURES = int(os.environ.get("PARKIO_LLM_BREAKER_FAILURES", "2"))
+BREAKER_REPROBE_EVERY = int(os.environ.get("PARKIO_LLM_BREAKER_REPROBE_EVERY", "15"))
+_BREAKER: dict[str, int] = {"consecutive_failures": 0, "calls_since_trip": 0}
+
+
+def _breaker_is_open() -> bool:
+    """True when the primary should be skipped for this call."""
+    if _BREAKER["consecutive_failures"] < BREAKER_FAILURES:
+        return False
+    if BREAKER_REPROBE_EVERY > 0 and _BREAKER["calls_since_trip"] >= BREAKER_REPROBE_EVERY:
+        _BREAKER["calls_since_trip"] = 0
+        return False  # periodic re-probe: let one call try the primary again
+    _BREAKER["calls_since_trip"] += 1
+    return True
+
+
+def _breaker_record(success: bool) -> None:
+    if success:
+        _BREAKER["consecutive_failures"] = 0
+        _BREAKER["calls_since_trip"] = 0
+        return
+    _BREAKER["consecutive_failures"] += 1
+    if _BREAKER["consecutive_failures"] == BREAKER_FAILURES:
+        _BREAKER["calls_since_trip"] = 0
+
+
+def reset_llm_breaker() -> None:
+    _BREAKER.update({"consecutive_failures": 0, "calls_since_trip": 0})
+
+
 def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: int = 120) -> str:
     """POST a single user message to the active LLM provider, return its text.
 
@@ -394,17 +436,26 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
     problems are visible instead of silently masked.
     """
     primary = LLM_PROVIDER or "deepseek"
+    fallback_name = (LLM_FALLBACK_PROVIDER or "").strip().lower()
+    has_fallback = bool(fallback_name) and fallback_name not in {"none", "off", "false"} and fallback_name != primary
+    if has_fallback and _breaker_is_open():
+        # Skip the primary entirely; it failed BREAKER_FAILURES times in a row.
+        return _llm_call_provider(fallback_name, prompt, max_tokens, retries=1, timeout=max(timeout, 180))
     try:
-        return _llm_call_provider(primary, prompt, max_tokens, retries=retries, timeout=timeout)
+        text = _llm_call_provider(primary, prompt, max_tokens, retries=retries, timeout=timeout)
+        _breaker_record(True)
+        return text
     except LLMBillingError as primary_exc:
+        _breaker_record(False)
         fallback = (LLM_FALLBACK_PROVIDER or "").strip().lower()
         if not fallback or fallback in {"none", "off", "false"} or fallback == primary:
             raise
         print(f"[llm] primary {primary} billing/quota exhausted; fail over to {fallback}: {primary_exc}", file=sys.stderr)
         return _llm_call_provider(fallback, prompt, max_tokens, retries=1, timeout=max(timeout, 180))
     except LLMNonRetryable:
-        raise
+        raise  # config error: surface it, never let the breaker mask it
     except LLMUnavailable as primary_exc:
+        _breaker_record(False)
         fallback = (LLM_FALLBACK_PROVIDER or "").strip().lower()
         if not fallback or fallback in {"none", "off", "false"} or fallback == primary:
             raise

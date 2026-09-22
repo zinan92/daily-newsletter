@@ -20,7 +20,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from digest_config import COMPANY_ORDER, OFFICIAL_COMPANY_BY_SOURCE, OFFICIAL_ITEM_CATEGORIES, OFFICIAL_SOURCE_LABELS, SOURCE_AUTHORITY, CODE_RELEASE_SOURCES, company_for_text
-from lib import is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, processed_batch_dir, today
+from lib import is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, processed_batch_dir, reset_llm_breaker, today
 
 
 PROMPT_DIR = REPO_ROOT / "prompts" / "ai-process"
@@ -1315,6 +1315,55 @@ render();
 """
 
 
+def _load_checkpoint(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def cached_events(ai_dir: Path, cards: list[dict]) -> list[dict] | None:
+    """Reuse 02-events.json when it was merged from exactly these cards.
+
+    event_merge is a handful of slow reasoning calls. 2026-09-22 the run died
+    after selection and the rerun paid for the merge again even though the
+    cards had not changed. Gated on card-id coverage, like cached_item_cards:
+    any drift falls through to a fresh merge.
+    """
+    events = _load_checkpoint(ai_dir / "02-events.json")
+    if not isinstance(events, list) or not events:
+        return None
+    wanted = {str(card.get("id") or "") for card in cards if isinstance(card, dict)}
+    covered = set()
+    for event in events:
+        if not isinstance(event, dict):
+            return None
+        for source in event.get("sources") or []:
+            if isinstance(source, dict):
+                covered.add(str(source.get("id") or source.get("url") or ""))
+    if not wanted or not wanted.issubset(covered):
+        return None
+    return events
+
+
+def cached_selection(ai_dir: Path, events: list[dict]) -> dict | None:
+    """Reuse 03-selection.json when every id it references still exists."""
+    selection = _load_checkpoint(ai_dir / "03-selection.json")
+    if not isinstance(selection, dict) or not selection.get("brief_universe"):
+        return None
+    known = {str(event.get("event_id") or "") for event in events if isinstance(event, dict)}
+    for key in ("brief_universe", "deep_candidates", "discard"):
+        rows = selection.get(key) or []
+        if not isinstance(rows, list):
+            return None
+        for row in rows:
+            if not isinstance(row, dict):
+                return None
+            if str(row_event_id(row)) not in known:
+                return None
+    return selection
+
+
 def cached_item_cards(ai_dir: Path, items: list[dict]) -> list[dict] | None:
     """Reuse 01-item-cards.json when a previous run already understood every
     current item (e.g. event_merge failed afterwards). Cards are the expensive
@@ -1378,6 +1427,7 @@ def event_merge_chunked(ai_dir: Path, cards: list[dict]) -> list[dict]:
 
 def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AIProcessResult:
     date = date or today()
+    reset_llm_breaker()  # a provider that was down on the last run gets a fresh chance
     root = batch_dir or processed_batch_dir()
     ai_dir = root / "ai"
     clear_stale_error(ai_dir)
@@ -1396,29 +1446,37 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     validate_item_card_coverage(ai_dir, items, cards)
     write_json(ai_dir / "01-item-cards.json", cards)
 
-    log("ai-process", f"event_merge START — {len(cards)} cards")
-    events = event_merge_chunked(ai_dir, cards)
-    write_json(ai_dir / "02-events.json", events)
-    events = validate_event_coverage_with_repair(ai_dir, cards, events)
-    write_json(ai_dir / "02-events.json", events)
+    events = cached_events(ai_dir, cards)
+    if events is not None:
+        log("ai-process", f"event_merge SKIP — reusing {len(events)} merged events from a previous run")
+    else:
+        log("ai-process", f"event_merge START — {len(cards)} cards")
+        events = event_merge_chunked(ai_dir, cards)
+        write_json(ai_dir / "02-events.json", events)
+        events = validate_event_coverage_with_repair(ai_dir, cards, events)
+        write_json(ai_dir / "02-events.json", events)
 
-    log("ai-process", f"selection START — {len(events)} events")
-    implicit_discard = len(events) > SELECTION_IMPLICIT_DISCARD_ABOVE
-    if implicit_discard:
-        log("ai-process", f"selection: {len(events)} events > {SELECTION_IMPLICIT_DISCARD_ABOVE}; discards are implicit")
-    selection = call_json_stage(
-        ai_dir,
-        "selection",
-        "03-selection.md",
-        events,
-        max_tokens=SELECTION_MAX_TOKENS,
-        extra_instruction=IMPLICIT_DISCARD_INSTRUCTION if implicit_discard else "",
-    )
-    if implicit_discard:
-        selection = fill_implicit_discard(events, sanitize_large_selection(events, selection))
-    selection = validate_selection_with_repair(ai_dir, events, selection)
-    selection = selection_from_override(ai_dir, events, selection)
-    write_json(ai_dir / "03-selection.json", selection)
+    selection = cached_selection(ai_dir, events)
+    if selection is not None:
+        log("ai-process", f"selection SKIP — reusing {len(selection.get('brief_universe') or [])} selected event(s) from a previous run")
+    else:
+        log("ai-process", f"selection START — {len(events)} events")
+        implicit_discard = len(events) > SELECTION_IMPLICIT_DISCARD_ABOVE
+        if implicit_discard:
+            log("ai-process", f"selection: {len(events)} events > {SELECTION_IMPLICIT_DISCARD_ABOVE}; discards are implicit")
+        selection = call_json_stage(
+            ai_dir,
+            "selection",
+            "03-selection.md",
+            events,
+            max_tokens=SELECTION_MAX_TOKENS,
+            extra_instruction=IMPLICIT_DISCARD_INSTRUCTION if implicit_discard else "",
+        )
+        if implicit_discard:
+            selection = fill_implicit_discard(events, sanitize_large_selection(events, selection))
+        selection = validate_selection_with_repair(ai_dir, events, selection)
+        selection = selection_from_override(ai_dir, events, selection)
+        write_json(ai_dir / "03-selection.json", selection)
     write_json(ai_dir / "discard-log.json", selection.get("discard", []))
     write_calibration_page(root, date, events, selection)
 
