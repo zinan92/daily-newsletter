@@ -1494,10 +1494,14 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     except Exception as exc:
         write_error(ai_dir, "brief_writing", raw, f"{type(exc).__name__}: {exc}")
         raise
+    # 2026-09-26, Park: the 官方 block is raw and unfiltered (every vendor post,
+    # e.g. a person's X feed, lands there verbatim) while 快讯 already carries the
+    # useful vendor news after selection. Keep collecting and rendering it as a
+    # backend artifact, but the reader document starts at 快讯.
     official_block = render_official_section(items, cards)
     if official_block:
-        markdown = insert_official_section(markdown, official_block)
-        log("ai-process", f"official section: {official_block.count(chr(10) + '- **')} item(s)")
+        (ai_dir / "04-official.md").write_text(official_block + "\n", encoding="utf-8")
+        log("ai-process", f"official section (backend only): {official_block.count(chr(10) + '- **')} item(s) -> ai/04-official.md")
     (ai_dir / "04-brief.md").write_text(markdown + "\n", encoding="utf-8")
 
     deep_markdown = ""
