@@ -1647,3 +1647,14 @@ def test_official_section_collapses_same_day_code_releases():
     assert "alpha.10、rust-v0.156.0-alpha.11" in block or "alpha.11" in block
     assert "- **Kimi CLI Release** | [1.50.0]" in block
     assert block.index("### OpenAI / ChatGPT / Codex") < block.index("### Kimi / 月之暗面")
+
+
+
+def test_reader_brief_does_not_carry_the_official_block():
+    """Park 2026-09-26: 官方 stays in the backend, the reader brief starts at 快讯."""
+    import inspect
+    from stages.ai_process import run as ai
+
+    src = inspect.getsource(ai.run_ai_process)
+    assert "insert_official_section(" not in src
+    assert "04-official.md" in src
