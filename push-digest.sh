@@ -48,7 +48,12 @@ if [ -e "$FETCH_LOCK" ]; then
 fi
 
 PREFLIGHT_WARNINGS=()
-if [ "${PARKIO_IGNORE_BLOCKING_DEPS:-0}" != "1" ]; then
+# PARKIO_RESUME_BATCH=<YYYYMMDD>: finish an already-opened batch instead of
+# opening a new one. A second run with no new raw files would otherwise stop at
+# "no batch opened; nothing to process" and never build the day that died.
+# Stage checkpoints (item cards / events / selection) make the resume cheap.
+RESUME_BATCH="${PARKIO_RESUME_BATCH:-}"
+if [ -z "$RESUME_BATCH" ] && [ "${PARKIO_IGNORE_BLOCKING_DEPS:-0}" != "1" ]; then
   echo "[$(ts)] >>> morning-preflight.py" >> "$LOG"
   PREFLIGHT_OUTPUT="$(python3 "$SCRIPT_DIR/morning-preflight.py" 2>&1)"
   EXIT=$?
@@ -67,16 +72,21 @@ if [ "${PARKIO_IGNORE_BLOCKING_DEPS:-0}" != "1" ]; then
   fi
 fi
 
-echo "[$(ts)] >>> stages/to_md/run.py" >> "$LOG"
-python3 "$SCRIPT_DIR/stages/to_md/run.py" >> "$LOG" 2>&1
-EXIT=$?
-if [ "$EXIT" -ne 0 ]; then
-  echo "[$(ts)] !!! stages/to_md/run.py exit=$EXIT" >> "$LOG"
-  exit "$EXIT"
-fi
+if [ -n "$RESUME_BATCH" ]; then
+  echo "[$(ts)] resume batch=$RESUME_BATCH (skip preflight, to_md, coarse_filter)" >> "$LOG"
+  BATCH_ID="$RESUME_BATCH"
+else
+  echo "[$(ts)] >>> stages/to_md/run.py" >> "$LOG"
+  python3 "$SCRIPT_DIR/stages/to_md/run.py" >> "$LOG" 2>&1
+  EXIT=$?
+  if [ "$EXIT" -ne 0 ]; then
+    echo "[$(ts)] !!! stages/to_md/run.py exit=$EXIT" >> "$LOG"
+    exit "$EXIT"
+  fi
 
-echo "[$(ts)] >>> stages/coarse_filter/run.py" >> "$LOG"
-BATCH_ID="$(python3 "$SCRIPT_DIR/stages/coarse_filter/run.py" 2>> "$LOG" | tail -n 1)"
+  echo "[$(ts)] >>> stages/coarse_filter/run.py" >> "$LOG"
+  BATCH_ID="$(python3 "$SCRIPT_DIR/stages/coarse_filter/run.py" 2>> "$LOG" | tail -n 1)"
+fi
 if [ -z "$BATCH_ID" ]; then
   echo "[$(ts)] no batch opened; nothing to process" >> "$LOG"
   echo "[$(ts)] push-digest DONE" >> "$LOG"
