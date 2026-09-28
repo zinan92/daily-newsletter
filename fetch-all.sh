@@ -68,4 +68,8 @@ for stage in stages/fetch/run.py; do
   fi
 done
 
+# X 收藏当小时进 002_个人收藏（只读 raw，不影响早上的 to_md / 日报）
+echo "[$(ts)] >>> stages/archive/x_saved_now.py" >> "$LOG"
+"$PYTHON_BIN" "$SCRIPT_DIR/stages/archive/x_saved_now.py" >> "$LOG" 2>&1 || echo "[$(ts)] !!! x_saved_now exit=$?" >> "$LOG"
+
 echo "[$(ts)] fetch-all DONE" >> "$LOG"
