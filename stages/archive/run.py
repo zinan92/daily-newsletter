@@ -30,6 +30,7 @@ from lib import (
     today,
 )
 from ingestion.collection_taxonomy import classify_collection_text, tag_string
+from ingestion.collection_index import existing_collection_path_for_url
 
 
 def profile_readme(profile_dir: Path, profile_id: str, profile_name: str) -> None:
@@ -234,6 +235,10 @@ def archive_item(path: Path, batch: str, sources: dict[str, dict], selected_urls
             ]
         )
         dest = items_dir / library_item_filename(collected_date, source, item)
+        # X 收藏白天已由 x_saved_now 当小时归档过（文件名是那天的日期）；早上这趟不再按新日期写第二份。
+        existing = existing_collection_path_for_url(str(item.get("url") or ""))
+        if existing is not None and existing.name != dest.name:
+            continue
         dest.write_text(render_frontmatter(item_fm) + item_body, encoding="utf-8")
         archived += 1
     return archived
