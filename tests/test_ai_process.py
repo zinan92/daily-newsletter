@@ -1658,3 +1658,21 @@ def test_reader_brief_does_not_carry_the_official_block():
     src = inspect.getsource(ai.run_ai_process)
     assert "insert_official_section(" not in src
     assert "04-official.md" in src
+
+
+def test_event_with_empty_item_ids_is_dropped_not_fatal(tmp_path):
+    # 2026-10-01: one merged event came back with item_ids=[] and the paper died.
+    cards = [
+        {"id": "item-1", "source": "X", "author": "A", "title": "one", "url": "u1", "main_claim": "one"},
+        {"id": "item-2", "source": "X", "author": "B", "title": "two", "url": "u2", "main_claim": "two"},
+    ]
+    events = [
+        {"event_id": "e1", "event_title": "one", "sources": [], "item_ids": ["item-1"],
+         "merged_summary": "one", "evidence": "one", "discussion_level": "single"},
+        {"event_id": "e-empty", "event_title": "ghost", "sources": [], "item_ids": [],
+         "merged_summary": "ghost", "evidence": "", "discussion_level": "single"},
+    ]
+    repaired = ai_process.validate_event_coverage_with_repair(tmp_path, cards, events)
+    assert all(event["item_ids"] for event in repaired)
+    assert ai_process.missing_event_cards(cards, repaired) == []
+    assert "e-empty" not in {event["event_id"] for event in repaired}

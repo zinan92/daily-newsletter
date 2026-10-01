@@ -414,6 +414,15 @@ def validate_event_coverage_with_repair(
         validate_event_coverage(ai_dir, cards, events)
         return events
     except AIProcessError as exc:
+        if "missing non-empty item_ids" in str(exc):
+            # 2026-10-01: the merge returned an event with no item_ids and the
+            # whole paper died at validation. Drop empty events; any card they
+            # were meant to hold is kept as a single-item event.
+            log("ai-process", f"event_merge: {exc}; dropping empty events and covering missing cards")
+            current = force_cover_missing_event_cards(cards, events)
+            clear_stale_error(ai_dir)
+            validate_event_coverage(ai_dir, cards, current)
+            return current
         if "event_merge omitted" not in str(exc):
             raise
         last_exc = exc
@@ -1475,6 +1484,7 @@ def run_ai_process(date: str | None = None, batch_dir: Path | None = None) -> AI
     events = cached_events(ai_dir, cards)
     if events is not None:
         log("ai-process", f"event_merge SKIP — reusing {len(events)} merged events from a previous run")
+        events = validate_event_coverage_with_repair(ai_dir, cards, events)
     else:
         log("ai-process", f"event_merge START — {len(cards)} cards")
         events = event_merge_chunked(ai_dir, cards)
