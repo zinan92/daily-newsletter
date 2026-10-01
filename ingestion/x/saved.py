@@ -285,16 +285,20 @@ def main() -> None:
             url = tweet_url(tweet)
             if not url:
                 continue
-            is_new = tid not in db
+            previous = db.get(tid, {})
+            # 先点赞、后收藏的同一条：收藏那次也算新的，才能进 002。
+            is_new = tid not in db or (kind == "bookmark" and previous.get("saved_kind") != "bookmark")
+            # 收过藏的不因为后来又出现在点赞列表里被降级成 like。
+            stored_kind = "bookmark" if previous.get("saved_kind") == "bookmark" else kind
             record = {
                 "id": tid,
                 "url": url,
                 "author": author_name(tweet),
                 "handle": author_handle(tweet),
-                "saved_kind": kind,
+                "saved_kind": stored_kind,
                 "tweet_created_date": tweet_local_date(tweet),
                 "tweet_created_at": tweet.get("createdAtISO") or tweet.get("createdAtLocal") or "",
-                "first_seen_at": db.get(tid, {}).get("first_seen_at", now),
+                "first_seen_at": previous.get("first_seen_at", now),
                 "last_seen_at": now,
                 "text": tweet.get("text", ""),
                 "articleTitle": tweet.get("articleTitle", ""),

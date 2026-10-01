@@ -51,3 +51,12 @@
 - **Evidence:** logs/rerun*-0919.log；09-19 日报 11:10 生成，56 条快讯、10 篇深读，QA pass；晨报页 11:1x 重建发布（未重发飞书）。
 - **Gotchas:** item_understanding 仍按条数线性耗时（232 条约 31 分钟），X 首页每天 4 次后次日批次会更大，已把 launchd `com.wendy.parkio-push` 从 08:30 提前到 07:00（plist 不在仓库里，改在 ~/Library/LaunchAgents）；要不要收紧 X 首页进批门槛，先看一周的覆盖率账本再定。
 
+
+## 2026-10-01 — X 点赞不进 002_个人收藏，只有收藏才进
+
+- **Context:** Park 发现 002_个人收藏里混进了点赞的推文。`ingestion/x/saved.py` 把 bookmarks 和 likes 都写进同一个 `x-saved` profile，`is_explicit_collection_item` 只认 profile，所以点赞一起被归档；#47 之后每小时归档一次，09-30 一天进了 15 条点赞。
+- **Decision:** `is_explicit_collection_item` 挡掉 `saved_kind == like` 以及正文带「这是你点赞保存的内容」的条目（老 raw 没有 saved_kind 字段）；`to_md` 把 `saved_kind` 带进 frontmatter。点赞仍留在 x-saved，照常进日报。同时修 `saved.py`：先点赞后收藏的推文，收藏那次算新条目；已收藏的不被后续点赞抓取降级为 like。
+- **Why:** 002 的规则是「只放我明确收藏的」（PARK-OS）。只加过滤而不修先赞后藏，会让这类收藏彻底进不了 002。
+- **Alternatives rejected:** 不抓 likes（日报还要用）；把 likes 拆成单独 profile（改动面大，过滤已足够）。
+- **Evidence:** `tests/test_x_saved_now.py` 两条回归；与 X 实时核对，22 篇点赞文件全部不在收藏列表里，已移到废纸篓。
+- **Gotchas:** X 的 likes / bookmarks 接口一次最多拿 200 条，核对历史时更早的条目看不到，不代表被取消。
