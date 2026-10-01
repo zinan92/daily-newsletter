@@ -96,12 +96,20 @@ def library_item_filename(collected_date: str, source: dict, item: dict) -> str:
     return collection_item_filename(collected_date, source_code, title, item_identity(item))
 
 
+LIKE_MARKER = "这是你点赞保存的内容"
+
+
 def is_explicit_collection_item(source_name: str, source: dict, fm: dict, item: dict) -> bool:
     """Only user-explicit saves belong in 002_个人收藏.
 
     Normal AI daily candidates are useful for that day's brief, but they are not
     durable collection items unless Wendy explicitly saved or pasted them.
+    X 点赞和收藏同走 x-saved 这一路抓取，但只有收藏算数：点赞照常进日报，不进 002。
     """
+    if "like" in (str(fm.get("saved_kind") or "").lower(), str(item.get("saved_kind") or "").lower()):
+        return False
+    if LIKE_MARKER in str(item.get("content") or ""):
+        return False
     fields = " ".join(
         str(value or "")
         for value in (
