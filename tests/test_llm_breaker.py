@@ -85,3 +85,42 @@ def test_no_fallback_configured_keeps_using_the_primary(monkeypatch):
         except lib.LLMUnavailable:
             pass
     assert calls == ["codex", "codex", "codex"]
+
+
+def test_breaker_open_fallback_blip_probes_primary_instead_of_dying(monkeypatch):
+    calls, fake = _patch(monkeypatch)
+    lib.llm_call("x"); lib.llm_call("x")      # trip the breaker
+    fake.primary_down = False
+
+    real = lib._llm_call_provider
+    def flaky(provider, prompt, max_tokens, *, retries=3, timeout=120):
+        if provider == "deepseek":
+            calls.append(provider)
+            raise lib.LLMUnavailable("SSL: UNEXPECTED_EOF_WHILE_READING")
+        return real(provider, prompt, max_tokens, retries=retries, timeout=timeout)
+    monkeypatch.setattr(lib, "_llm_call_provider", flaky)
+    assert lib.llm_call("x") == "ok:codex"
+
+
+def test_codex_command_pins_the_model(monkeypatch):
+    seen = {}
+    class R:
+        returncode = 0; stdout = "ok"; stderr = ""
+    monkeypatch.setattr(lib.subprocess, "run", lambda cmd, **kw: seen.setdefault("cmd", cmd) and R())
+    monkeypatch.setattr(lib, "CODEX_MODEL", "gpt-6-astra")
+    lib._codex_cli_call("hi", timeout=10)
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("-m") + 1] == "gpt-6-astra"
+
+
+def test_codex_failure_reports_the_real_error(monkeypatch):
+    class R:
+        returncode = 1; stdout = ""
+        stderr = "warning: x\nERROR: {\"error\":{\"message\":\"The 'gpt-6.1-sol' model is not supported\"}}\n"
+    monkeypatch.setattr(lib.subprocess, "run", lambda cmd, **kw: R())
+    try:
+        lib._codex_cli_call("hi", timeout=10)
+    except lib.LLMUnavailable as exc:
+        assert "not supported" in str(exc)
+    else:
+        raise AssertionError("expected LLMUnavailable")

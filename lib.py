@@ -86,6 +86,10 @@ CODEX_LARGE_PROMPT_TIMEOUT = int(os.environ.get("PARKIO_CODEX_LARGE_PROMPT_TIMEO
 # problems that need deliberation, and the default made every call exceed the
 # 180s floor. "low" answers the same prompts in roughly twenty seconds.
 CODEX_REASONING_EFFORT = os.environ.get("PARKIO_CODEX_REASONING_EFFORT", "low")
+# Pin the model so the pipeline does not follow ~/.codex/config.toml. 2026-10-01
+# the global default was changed to a model this ChatGPT account cannot use and
+# every call failed with "exited with status 1". Empty = use the CLI default.
+CODEX_MODEL = os.environ.get("PARKIO_CODEX_MODEL", "gpt-6-astra").strip()
 
 
 def _deepseek_is_v4(model: str) -> bool:
@@ -316,6 +320,8 @@ def _codex_cli_call(prompt: str, *, timeout: int) -> str:
         "-C",
         CODEX_WORKDIR,
     ]
+    if CODEX_MODEL:
+        command += ["-m", CODEX_MODEL]
     if CODEX_REASONING_EFFORT:
         command += ["-c", f'model_reasoning_effort="{CODEX_REASONING_EFFORT}"']
     command.append("-")
@@ -333,7 +339,8 @@ def _codex_cli_call(prompt: str, *, timeout: int) -> str:
         raise LLMUnavailable(f"codex CLI timed out after {effective_timeout} seconds") from exc
     _log_codex_usage(result.stderr)
     if result.returncode != 0:
-        raise LLMUnavailable(f"codex CLI exited with status {result.returncode}")
+        reason = next((line.strip() for line in (result.stderr or "").splitlines() if line.strip().startswith("ERROR:")), "")
+        raise LLMUnavailable(f"codex CLI exited with status {result.returncode}{': ' + reason[:240] if reason else ''}")
     output = (result.stdout or "").strip()
     if not output:
         raise LLMUnavailable("codex CLI returned empty output")
@@ -439,8 +446,17 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
     fallback_name = (LLM_FALLBACK_PROVIDER or "").strip().lower()
     has_fallback = bool(fallback_name) and fallback_name not in {"none", "off", "false"} and fallback_name != primary
     if has_fallback and _breaker_is_open():
-        # Skip the primary entirely; it failed BREAKER_FAILURES times in a row.
-        return _llm_call_provider(fallback_name, prompt, max_tokens, retries=1, timeout=max(timeout, 180))
+        # Skip the primary; it failed BREAKER_FAILURES times in a row. If the
+        # fallback has a transient failure too (2026-10-01: one SSL EOF from
+        # DeepSeek killed a run that had 60 good chunks), try the primary once
+        # rather than losing the run on a single network blip.
+        try:
+            return _llm_call_provider(fallback_name, prompt, max_tokens, retries=2, timeout=max(timeout, 180))
+        except LLMUnavailable as fallback_exc:
+            print(f"[llm] fallback {fallback_name} unavailable while breaker open; probing primary {primary}: {fallback_exc}", file=sys.stderr)
+            text = _llm_call_provider(primary, prompt, max_tokens, retries=1, timeout=timeout)
+            _breaker_record(True)
+            return text
     try:
         text = _llm_call_provider(primary, prompt, max_tokens, retries=retries, timeout=timeout)
         _breaker_record(True)
@@ -460,7 +476,7 @@ def llm_call(prompt: str, max_tokens: int = 2000, *, retries: int = 3, timeout: 
         if not fallback or fallback in {"none", "off", "false"} or fallback == primary:
             raise
         print(f"[llm] primary {primary} unavailable; fail over to {fallback}: {primary_exc}", file=sys.stderr)
-        return _llm_call_provider(fallback, prompt, max_tokens, retries=1, timeout=max(timeout, 180))
+        return _llm_call_provider(fallback, prompt, max_tokens, retries=2, timeout=max(timeout, 180))
 
 PROFILE_ID_BY_SOURCE_NAME = {
     "Anthropic News": "anthropic",

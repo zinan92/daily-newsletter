@@ -503,12 +503,36 @@ def validate_item_card_ids(ai_dir: Path, stage_name: str, cards: Any, expected_i
     return by_id
 
 
+PARTIAL_CARDS = "01-item-cards.partial.json"
+
+
+def _load_partial_cards(ai_dir: Path) -> dict[str, dict]:
+    path = ai_dir / PARTIAL_CARDS
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {str(c.get("id") or ""): c for c in rows if isinstance(c, dict) and c.get("id")}
+
+
 def item_understanding(ai_dir: Path, items: list[dict]) -> list[dict]:
+    """Cards per chunk, checkpointed after every chunk.
+
+    2026-10-01 a run died at chunk 61/68 and the retry started again at chunk 1:
+    01-item-cards.json is only written once all chunks are done. Finished chunks
+    now persist to 01-item-cards.partial.json and a rerun skips them.
+    """
     chunks = chunk_items_for_understanding(items)
     cards: list[dict] = []
+    done = _load_partial_cards(ai_dir)
+    if done:
+        log("ai-process", f"item_understanding: {len(done)} card(s) from an interrupted run will be reused")
     for idx, chunk in enumerate(chunks, 1):
-        log("ai-process", f"item_understanding chunk {idx}/{len(chunks)} — {len(chunk)} items")
         expected_ids = [str(item.get("id") or "").strip() for item in chunk]
+        if expected_ids and all(i in done for i in expected_ids):
+            cards.extend(done[i] for i in expected_ids)
+            continue
+        log("ai-process", f"item_understanding chunk {idx}/{len(chunks)} — {len(chunk)} items")
         if any(not item_id for item_id in expected_ids):
             fail_schema(ai_dir, f"item_understanding_{idx:02d}", "input item missing id")
         data = call_json_stage(
@@ -542,6 +566,8 @@ def item_understanding(ai_dir: Path, items: list[dict]) -> list[dict]:
             missing = sorted(set(expected_ids) - set(cards_by_id))
             fail_schema(ai_dir, stage_name, f"item_understanding still missing card ids: {', '.join(missing[:10])}")
         cards.extend(cards_by_id[item_id] for item_id in expected_ids)
+        done.update({item_id: cards_by_id[item_id] for item_id in expected_ids})
+        write_json(ai_dir / PARTIAL_CARDS, list(done.values()))
     return cards
 
 
