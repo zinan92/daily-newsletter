@@ -14,6 +14,17 @@ cd "$SCRIPT_DIR"
 . "$SCRIPT_DIR/scripts/load-env.sh"
 mkdir -p logs
 
+# cron / launchd start with a bare PATH and no activated venv. Use the repo's
+# .venv when there is one, so every stage runs on the Python the README set up.
+if [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+  export PATH="$SCRIPT_DIR/.venv/bin:$PATH"
+  export PARKIO_PYTHON="${PARKIO_PYTHON:-$SCRIPT_DIR/.venv/bin/python}"
+fi
+if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+  echo "✗ 需要 Python 3.11+。按 README 第 1 步在仓库里建 .venv，或设置 PATH。"
+  exit 1
+fi
+
 ts() { date '+%F %T'; }
 
 echo "[$(ts)] 1/3 检查环境"

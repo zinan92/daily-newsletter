@@ -38,11 +38,11 @@ Park 自己机器每天早上跑出来的日报，09:30 左右公开在：
 - 网页：<https://park-ai-intel.com/newsletter>（往期：<https://park-ai-intel.com/newsletter/archive.html>）
 - RSS：<https://park-ai-intel.com/newsletter/feed.xml>，放进任意 RSS 阅读器（Reeder、Feedly、Inoreader、Folo…）就能每天收到全文
 
-这是**和 Park 看到的完全一样**的那一份：他的 X 关注、抖音、视频转写都在里面。下面自己部署出来的版本，取决于你有哪些登录态，可能会比它薄。
+这是**和 Park 看到的完全一样**的那一份：Park 的机器用他手上的登录态（最主要是他关注的 45 个 X 账号）跑出来的。下面自己部署出来的版本，取决于你有哪些登录态，可能会比它薄。
 
 ## 自己部署一份（5 步）
 
-需要：macOS 或 Linux，Python 3.11+，和**一个 AI**（一个 API key，或一个登录好的 Claude Code / Codex CLI）。
+需要：macOS（Linux 应该也能跑，但没实测过），Python 3.11+，和**一个 AI**（一个 API key，或一个登录好的 Claude Code / Codex CLI）。
 
 ```bash
 # 1. 拿代码、装依赖
@@ -66,6 +66,8 @@ python3 doctor.py
 crontab -e
 #    0 8 * * * cd /path/to/daily-newsletter && ./run-daily.sh >> logs/run-daily.log 2>&1
 ```
+
+cron 启动时 PATH 很短：`run-daily.sh` 会自动用仓库里的 `.venv`；但如果你用 `claude` / `codex` CLI 当 AI，要在 `.env` 里写它的绝对路径（`PARKIO_CLAUDE_BIN=$(which claude)` 的结果，或 `PARKIO_CODEX_BIN`），否则 cron 找不到。
 
 第一次跑没有历史记录，每个官网最近几篇都会被当成新内容，所以第一份日报里会混进一些旧文章；从第二天起只收新的。
 

@@ -22,7 +22,7 @@
 - **Why:** Park 的机器零改动（没有 `.env`、vault 里有 sources.md，查找顺序第一档就命中）；陌生人只填一个 key 就能出一份真实日报。X 占 45/91 个来源，没有 X 登录态的人拿到的是更薄的版本，所以公开网页 + RSS 是唯一"看到和 Park 一样内容"的路，必须并列写在 README 最前面。
 - **Alternatives rejected:** 只给 example 来源（Park 明确要全开放）；把 Park 的 vault 副本改成 symlink 到仓库（动 Park 正在跑的生产）；新增 `openai` provider（DeepSeek 路径已接受任意 OpenAI 兼容端点，多一个名字没多一种能力）。
 - **Evidence:** #51；`tests/test_self_deploy.py`；干净 HOME + 只给 DeepSeek key 的端到端运行产出 `26-10-06.md`。
-- **Gotchas:** 仓库里的 `sources.md` 是 2026-10-06 快照，Park 在 vault 里改了不会自动同步过来，要发布新来源得手动拷一次。`.env` 的空值不会覆盖代码默认值（shell 也一样），所以 `PARKIO_CODEX_MODEL` 要用 `default` 才表示「用 CLI 自己的默认模型」。`generate-status.py` 只在 `~/work/park-ai-intel/public/` 存在时才同步 dashboard JSON，别的机器不会凭空建目录。
+- **Gotchas:** 仓库里的 `sources.md` 是 2026-10-06 快照，Park 在 vault 里改了不会自动同步过来，要发布新来源得手动拷一次。`.env` 的空值不会覆盖代码默认值（shell 也一样），所以 `PARKIO_CODEX_MODEL` 要用 `default` 才表示「用 CLI 自己的默认模型」。`generate-status.py` 只在 `~/work/park-ai-intel/public/` 存在时才同步 dashboard JSON，别的机器不会凭空建目录。 同一个 PR 把 `reader_quality` 的原始转录检查从「出现 Transcript 这个词」收窄成「Transcript 作为标签出现」（行首或带冒号）：10-06 一篇讲 transcript 分类器的 Anthropic 文章让整份日报被拦。cron 下 `run-daily.sh` 自己切到仓库 `.venv`，因为 macOS 系统 Python 是 3.9，`lib.py` 在 3.9 上导入就崩。
 
 ## 2026-09-18 — 批处理按天窗口清空待处理队列，不按"今天"目录
 
