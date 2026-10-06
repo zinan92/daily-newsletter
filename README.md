@@ -31,11 +31,80 @@ Daily Newsletter 是一个 **local-first Daily Inbox pipeline**：默认只生�
 
 生产链路现在是 5-stage：`fetch -> to_md -> coarse_filter -> ai_process -> archive`。脚本只负责下载、转写、粗筛、保存和推送；内容判断、合并、打分、分类、快讯全集/深读子集选择全部交给 AI system prompt。
 
+## 不想部署？每天直接读 Park 的这一份
+
+Park 自己机器每天早上跑出来的日报，09:30 左右公开在：
+
+- 网页：<https://park-ai-intel.com/newsletter>（往期：<https://park-ai-intel.com/newsletter/archive.html>）
+- RSS：<https://park-ai-intel.com/newsletter/feed.xml>，放进任意 RSS 阅读器（Reeder、Feedly、Inoreader、Folo…）就能每天收到全文
+
+这是**和 Park 看到的完全一样**的那一份：他的 X 关注、抖音、视频转写都在里面。下面自己部署出来的版本，取决于你有哪些登录态，可能会比它薄。
+
+## 自己部署一份（5 步）
+
+需要：macOS 或 Linux，Python 3.11+，和**一个 AI**（一个 API key，或一个登录好的 Claude Code / Codex CLI）。
+
+```bash
+# 1. 拿代码、装依赖
+git clone https://github.com/zinan92/daily-newsletter && cd daily-newsletter
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt          # 只要日报本身
+# pip install -r requirements-full.txt   # 想要抖音 / 视频转写再装这个
+
+# 2. 填设置：复制一份，至少填一个 AI
+cp .env.example .env
+#    打开 .env，比如填 PARKIO_DEEPSEEK_KEY=sk-...
+
+# 3. 看看这台机器能跑哪些来源
+python3 doctor.py
+
+# 4. 跑一次
+./run-daily.sh
+#    → 日报在 ~/park-io/006_ai daily newsletter/<YY-MM-DD>.md
+
+# 5. 每天自动跑（例：每天 08:00）
+crontab -e
+#    0 8 * * * cd /path/to/daily-newsletter && ./run-daily.sh >> logs/run-daily.log 2>&1
+```
+
+来源清单 [`sources.md`](sources.md) 就是 Park 自己在用的那一份，全部开放。里面的 `## User Context` 写的是 **Park 的口味**（AI 按它判断什么值得看）；想要按你自己的口味挑，改这一段就行。
+
+### AI：API 和 CLI 都能用
+
+在 `.env` 里用 `PARKIO_LLM_PROVIDER` 选一个：
+
+| 选项 | 类型 | 要准备什么 | 填哪里 |
+|------|------|-----------|--------|
+| `deepseek`（默认） | API | DeepSeek API key | `PARKIO_DEEPSEEK_KEY` |
+| `deepseek` + 自定义端点 | API | 任何 OpenAI 兼容的 `/chat/completions`（如 OpenRouter、Kimi、Qwen） | `PARKIO_DEEPSEEK_KEY` + `PARKIO_DEEPSEEK_ENDPOINT` + `PARKIO_DEEPSEEK_MODEL` |
+| `anthropic` | API | Anthropic API key | `ANTHROPIC_API_KEY`（模型默认 `claude-sonnet-5-5`，可改 `PARKIO_ANTHROPIC_MODEL`） |
+| `claude` | CLI | 装好 Claude Code 并登录过（`claude` 能用） | 不用填 key |
+| `codex` | CLI | 装好 Codex CLI 并 `codex login` | 不用填 key |
+
+一天的日报大约要几十次 AI 调用。`PARKIO_LLM_FALLBACK_PROVIDER` 可以再指定一个备用的，主的挂了自动换。
+
+### 前置条件：每类来源要什么，没有会怎样
+
+`python3 doctor.py` 会按你这台机器逐项打勾。没有的那一类**会被跳过，日报照样出**，只是少了那部分内容；状态页里显示为 DOWN。
+
+| 来源 | 清单里有几个 | 要什么 | 没有的话 |
+|------|------------|--------|---------|
+| 官方博客 / 网站（`scrape`） | 4 | 什么都不用 | — |
+| RSS：官方博客、GitHub Releases、播客、YouTube 频道（`rss`） | 29 | 什么都不用 | — |
+| GitHub Trending（`github`） | 1 | 什么都不用 | — |
+| 公众号（`wechat`） | 7 | 什么都不用 | 只抓清单里给的那几篇种子文章，不会自动发现新文章（Park 那边也一样） |
+| X / Twitter（`twitter`） | 45 | ① `uv tool install twitter-cli`；② 浏览器登录 x.com；③ `python3 refresh-twitter-auth.py` 生成 `twitter-auth.env` | 这 45 个账号全部跳过。**这是和 Park 那份差别最大的地方。** 用的是你自己账号的登录态，抓得太勤有被 X 限流的风险 |
+| 抖音（`douyin`） | 5 | ① `pip install -r requirements-full.txt`；② 浏览器登录抖音，把 cookie 按 `vendor/content_downloader/cookies.json.example` 的格式存到 `~/park-io/_secrets/douyin-cookies.json` | 这 5 个号跳过 |
+| 视频转写（YouTube / 播客 / 抖音视频） | — | ① `requirements-full.txt`（含 yt-dlp）；② `ffmpeg`；③ YouTube cookie：浏览器装 cookies.txt 扩展，导出 youtube.com 的 cookie 到 `~/park-io/_secrets/youtube-cookies.txt`；④ 没字幕的视频要用 `mlx-whisper` 本地转写，**只支持 Apple Silicon Mac** | 视频不转写，只按标题和简介处理 |
+| 飞书推送 | — | 飞书群自定义机器人（带签名），填 `FEISHU_WEBHOOK_URL` / `FEISHU_WEBHOOK_SECRET` | 日报只存本地 Markdown |
+
+所有登录态、cookie、key 都只放在你本机（`.env`、`~/park-io/_secrets/`），不进 git。
+
 ## 当前可验证状态
 
 - 本仓库的验证入口是 `python3 -m pytest -q`、`python3 scripts/task_graph_validate.py`、`python3 scripts/workflow_graph_validate.py` 和 `python3 scripts/n8n_import_diff.py`。
 - 公开可复现的样例在 [`examples/`](examples/)，包含一份脱敏快讯、run-report 和 proof-run 记录。
-- 完整生产运行需要本机 source registry、登录态和 LLM key；没有这些私有运行时材料时，先跑测试和 workflow dry-run。
+- 从一个干净的 clone 出发，只填一个 DeepSeek key、不带任何登录态，`./run-daily.sh` 能产出一份真实日报（RSS / 官方网站 / GitHub Trending / 公众号种子）。
 
 ![Daily Newsletter public verification demo](examples/daily-newsletter-demo.gif)
 
@@ -122,7 +191,9 @@ stages/archive/run.py
 节点类型：`script`（抓取/转写/粗筛/保存/推送）· `ai`（理解/合并/选择/写作）· `local_model`（MLX Whisper，本地转录）· `human`（手动输入）· `sink`（artifact）。
 当前 repo 内 workflow 合同是 `workflow/daily-newsletter.workflow.yaml`；如果后续恢复 vault 里的 reader-facing 图，再把它作为发布视图同步，不要让不存在的 vault 文件成为运行依据。
 
-## 快速开始
+## 快速开始（开发者）
+
+一键部署看上面的「自己部署一份」。下面是改代码时的验证和逐阶段手动运行：
 
 ```bash
 # 1. 克隆
@@ -142,13 +213,7 @@ python3 scripts/workflow_graph_dry_run.py
 python3 scripts/n8n_import_diff.py
 ```
 
-生产运行还需要本地 Park-IO 数据目录和 LLM key。默认根目录是 `~/park-io`，可用 `PARKIO_HOME` 覆盖：
-
-```bash
-export PARKIO_HOME="$HOME/park-io"
-mkdir -p "$PARKIO_HOME/_secrets"
-printf "YOUR_DEEPSEEK_KEY" > "$PARKIO_HOME/_secrets/deepseek-key" && chmod 600 "$PARKIO_HOME/_secrets/deepseek-key"
-# 或者临时用 env：export PARKIO_DEEPSEEK_KEY="..."
+生产运行需要一个 LLM（见上面「AI：API 和 CLI 都能用」）。数据根目录默认 `~/park-io`，可用 `PARKIO_HOME` 覆盖。key 写在 `.env`，或者老办法写到 `$PARKIO_HOME/_secrets/deepseek-key`（权限 600）。
 
 # 手动跑一遍当天 pipeline
 ./fetch-all.sh                                    # Stage 1: 抓取 raw/legacy input
@@ -210,7 +275,7 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 | 依赖 | 服务谁 | 风险 |
 |------|--------|------|
 | 手动/seed 公众号入口 | 手动链接和 seed 文章 | 不提供自动 RSS；需要内容时通过手动链接或飞书收藏进入 pipeline |
-| `content-toolkit`（`~/content-toolkit/capabilities/download`） | `fetch-douyin` / `fetch-media-transcripts` 的抖音抓取 | 该 repo 已 archive，但仍是运行时依赖 |
+| `vendor/content_downloader`（从已 archive 的 content-toolkit 搬进本仓库） | `fetch-douyin` / `fetch-media-transcripts` 的抖音抓取 | 依赖在 `requirements-full.txt`；抖音 cookie 失效会显示 DOWN |
 | `twitter-auth.env` | 20 个 X 账号 | 登录态过期会导致全部 X 抓取失败 |
 | `~/park-io/_secrets/youtube-cookies.txt`（Netscape 格式，权限 600，仓库外） | YouTube/播客视频的 yt-dlp 下载+转录 | cookie 过期会触发 "Sign in to confirm you're not a bot" → 视频下不下来。**换法**：浏览器装 cookies.txt 扩展导出 youtube.com cookie，覆盖该文件即可（可用 `PARKIO_YTDLP_COOKIES_FILE` 改路径）。失效会在 status/digest 告警。 |
 
@@ -231,12 +296,16 @@ python3 send-feishu-digest.py --date "$(date +%F)"   # Feishu：发送完整正�
 
 ## 配置
 
-LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 HTTP 402（余额/额度不足）或 SSL/429/5xx 这类可恢复故障时，默认自动转 **Codex CLI**。Codex 通过 `codex exec --ephemeral --sandbox read-only` 在 `/tmp` 工作目录中运行，stdout 才会进入日报处理；401/400 等配置错误仍直接暴露，不会被静默隐藏。Key 从 env 或 `~/park-io/_secrets/<name>` 读取，**不进代码、不进 git**。
+所有变量都可以写在仓库根目录的 `.env`（从 `.env.example` 复制）；真实环境变量优先。LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 HTTP 402（余额/额度不足）或 SSL/429/5xx 这类可恢复故障时，默认自动转 **Codex CLI**。Codex 通过 `codex exec --ephemeral --sandbox read-only` 在 `/tmp` 工作目录中运行，stdout 才会进入日报处理；401/400 等配置错误仍直接暴露，不会被静默隐藏。Key 从 env 或 `~/park-io/_secrets/<name>` 读取，**不进代码、不进 git**。
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `PARKIO_HOME` | Park-IO 数据根目录 | `~/park-io` |
-| `PARKIO_LLM_PROVIDER` | LLM 提供方：`deepseek`、`anthropic` 或 `codex` | `deepseek` |
+| `PARKIO_LLM_PROVIDER` | LLM 提供方：API `deepseek` / `anthropic`，CLI `claude` / `codex` | `deepseek` |
+| `PARKIO_SOURCES` | 来源清单路径 | `$PARKIO_HOME/_source management/sources.md`，没有就用仓库里的 `sources.md` |
+| `ANTHROPIC_API_KEY` | Anthropic 官方 API key（`anthropic` provider） | 无 |
+| `PARKIO_ANTHROPIC_MODEL` / `PARKIO_ANTHROPIC_ENDPOINT` | Anthropic 模型 / 端点 | 官方 key：`claude-sonnet-5-5` / `api.anthropic.com`；CLIProxy：见下 |
+| `PARKIO_CLAUDE_BIN` / `PARKIO_CLAUDE_MODEL` | Claude Code CLI 路径 / 模型（`claude` provider） | `claude` / CLI 默认 |
 | `PARKIO_LLM_FALLBACK_PROVIDER` | 主 LLM 余额/临时故障时的备用 provider；可选 `codex`、`anthropic`、`none` | `codex`（主 provider 为 DeepSeek 时） |
 | `PARKIO_CODEX_BIN` | Codex CLI 可执行文件 | `codex` |
 | `PARKIO_CODEX_WORKDIR` | Codex fallback 的工作目录；应保持为只读、隔离目录 | `/tmp` |
@@ -247,7 +316,7 @@ LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 HTTP 402（�
 | `PARKIO_CLIPROXY_MODEL` | Anthropic/备用模式模型 | `claude-sonnet-4-5-20250929` |
 | `PARKIO_BATCH_ID` | 指定批次（手动跑某天） | 当天 |
 | `PARKIO_PYTHON` | fetch 阶段的 Python 3.11+ 解释器 | 自动探测 |
-| `PARKIO_DOWNLOAD_CAPABILITY` | Douyin / media downloader capability path | `~/content-toolkit/capabilities/download` |
+| `PARKIO_DOWNLOAD_CAPABILITY` | Douyin / media downloader capability path | 仓库内 `vendor/` |
 | `PARKIO_TWITTER_BIN` | X 抓取 CLI 路径 | `~/.local/bin/twitter` |
 | `PARKIO_TWITTER_AUTH_ENV` | X 登录态 env 文件 | `./twitter-auth.env` |
 
@@ -258,7 +327,13 @@ LLM 默认走 **DeepSeek**（OpenAI 兼容 API）。DeepSeek 发生 HTTP 402（�
 ```
 daily-newsletter/
 ├── SKILL.md                    # Agent-facing skill wrapper
+├── run-daily.sh                # 自部署一键入口：抓取 → AI → 日报（→ 飞书）
+├── doctor.py                   # 检查这台机器能跑哪些来源、哪个 AI
+├── .env.example                # 设置模板，复制成 .env
+├── sources.md                  # Park 的完整来源清单 + User Context
+├── vendor/content_downloader/  # 抖音 / 视频下载器（原 content-toolkit）
 ├── requirements.txt            # 最小公开验证依赖
+├── requirements-full.txt       # 抖音 / 视频转写等可选来源的依赖
 ├── examples/                   # 脱敏样例输出和 proof-run 记录
 ├── .claude-plugin/             # marketplace metadata
 ├── fetch*.py / fetch-all.sh   # public 抓取入口（兼容 wrapper）

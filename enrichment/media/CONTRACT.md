@@ -13,7 +13,7 @@ Media enrichment turns discovered video/audio items into reader-ready media summ
 ## Inputs
 
 - Media candidate URL, title, source, and metadata from YouTube, podcast, or Douyin ingestion.
-- Runtime download/transcription dependencies such as cookies, yt-dlp, MLX Whisper, or content-toolkit.
+- Runtime download/transcription dependencies such as cookies, yt-dlp, MLX Whisper, or the vendored `vendor/content_downloader` (deps in `requirements-full.txt`).
 
 ## Outputs
 

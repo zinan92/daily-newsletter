@@ -18,11 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import PROFILE_LIBRARY_DIR, load_sources, load_state, log, parkio_secret_path, profile_id_for_source, safe_filename, save_state, today, write_source_output
+from lib import DOWNLOAD_CAPABILITY, PROFILE_LIBRARY_DIR, load_sources, load_state, log, parkio_secret_path, profile_id_for_source, safe_filename, save_state, today, write_source_output
 
-DOWNLOAD_CAPABILITY = Path(
-    os.environ.get("PARKIO_DOWNLOAD_CAPABILITY", Path.home() / "content-toolkit/capabilities/download")
-).expanduser()
 COOKIE_FILE = parkio_secret_path("douyin-cookies.json")
 FETCH_LIMIT = 160
 

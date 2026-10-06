@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
 
-from lib import PARKIO, PROFILE_LIBRARY_DIR, ROOT, SENT_DIR, load_sources, parkio_secret_path, parse_frontmatter, today
+from lib import DOWNLOAD_CAPABILITY, PARKIO, PROFILE_LIBRARY_DIR, ROOT, SENT_DIR, load_sources, parkio_secret_path, parse_frontmatter, today
 import summarize
 from run_report import build_run_report, latest_run_report, media_failures_for_date, write_run_report
 
@@ -39,6 +39,10 @@ def latest_line(path: Path, needle: str) -> str:
 
 
 def write_live_dashboard_payload(payload: dict) -> None:
+    # The owner's site checkout gets a live copy. On any other machine the
+    # default target does not exist and nothing is created.
+    if "PARKIO_LIVE_DASHBOARD_JSON" not in os.environ and not LIVE_DASHBOARD_JSON.parent.is_dir():
+        return
     try:
         LIVE_DASHBOARD_JSON.parent.mkdir(parents=True, exist_ok=True)
         LIVE_DASHBOARD_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -101,11 +105,11 @@ def dependency_checks() -> list[dict]:
 
     ok, detail = check_command([
         sys.executable, "-c",
-        "import sys; from pathlib import Path; sys.path.insert(0, str(Path.home()/'content-toolkit/capabilities/download')); "
+        f"import sys; sys.path.insert(0, {str(DOWNLOAD_CAPABILITY)!r}); "
         "from content_downloader.adapters.douyin.api_client import DouyinAPIClient; print('ok')",
     ])
     checks.append({"name": "抖音下载器", "status": "ok" if ok else "failed",
-                   "detail": "api_client 可导入" if ok else f"导入失败（content-toolkit 已 archive？）：{detail}"})
+                   "detail": "api_client 可导入" if ok else f"导入失败（vendor/content_downloader 依赖没装？pip install -r requirements-full.txt）：{detail}"})
 
     # 抖音 Cookie: FUNCTIONAL — did recent douyin fetches actually succeed?
     dy_down = [v["name"] for v in by_platform("douyin") if v.get("state") == "DOWN"]
