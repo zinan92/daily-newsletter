@@ -1,5 +1,6 @@
 # Secrets — NEVER commit
 *.env
+.env
 twitter-auth.env
 
 # Runtime state / data (regenerated each run, not source)

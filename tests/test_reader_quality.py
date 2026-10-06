@@ -104,3 +104,12 @@ def test_reader_quality_rejects_empty_product_radar_explanation(tmp_path):
 
     codes = {row["code"] for row in report["issues"] if row["severity"] == "fail"}
     assert "product_radar_empty_state" in codes
+
+
+def test_reader_quality_allows_the_word_transcript_inside_a_summary():
+    import reader_quality
+
+    prose = "  Claude Code 推出 auto mode，输出层用基于 Sonnet 4.6 的 transcript 分类器取代人工权限审批。"
+    assert not reader_quality.RAW_TRANSCRIPT_RE.search(prose)
+    assert reader_quality.RAW_TRANSCRIPT_RE.search("  Transcript 是的。就是这样。")
+    assert reader_quality.RAW_TRANSCRIPT_RE.search("内容如下 Transcript: hello everyone")

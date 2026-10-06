@@ -157,7 +157,8 @@ def test_media_title_cleans_anthropic_data_agent_series():
 
 
 def test_html_renders_funnel_and_contact_images_from_markdown():
-    md = """# AI 情报日报 — 2026-06-07
+    contact_image = summarize.PARKIO / "_contact" / "x.jpg"
+    md = f"""# AI 情报日报 — 2026-06-07
 
 ## 今日结论
 - **X 应用层** — 获取 10 → 收录 3（score >= 3，未收录 7 条） → 展示 1 + 未进入正文 0 + 合并 2
@@ -166,7 +167,7 @@ def test_html_renders_funnel_and_contact_images_from_markdown():
 
 ### [X](https://x.com/xparkzz)
 
-![X](/Users/wendy/park-io/_contact/x.jpg)
+![X]({contact_image})
 
 @xparkzz
 """

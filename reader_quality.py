@@ -21,7 +21,12 @@ from lib import PROCESSED_DIR, SENT_DIR
 
 MACHINE_COMMENT_RE = re.compile(r"<!--\s*parkio-[\s\S]*?-->", re.M)
 LOCAL_PATH_RE = re.compile(r"/Users/[^\s>)]+")
-RAW_TRANSCRIPT_RE = re.compile(r"\bTranscript\b|转录原文|原始转录", re.I)
+# A leaked transcript shows up as a label ("Transcript: ..." or a line that
+# starts with it). The bare word inside a summary is fine: 2026-10-06 the
+# Anthropic auto-mode article was failed for mentioning its "transcript 分类器".
+RAW_TRANSCRIPT_RE = re.compile(
+    r"^\s*(?:[-*>]\s*)?(?:\*\*)?Transcript\b|\bTranscript\s*[:：]|转录原文|原始转录", re.I | re.M
+)
 FILLER_RE = re.compile(r"(干杯|就是这样|我知道|是的)[。.\s，,、]*(?:\1[。.\s，,、]*){2,}")
 PRODUCT_RADAR_SECTION_RE = re.compile(r"^## 产品雷达\s*$([\s\S]*?)(?=^##\s|\Z)", re.M)
 PRODUCT_CHOICE_RE = re.compile(r"^\d+\.\s+[^：:\n]+[：:].+", re.M)

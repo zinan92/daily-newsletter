@@ -174,6 +174,7 @@ def test_v4_request_sends_thinking_disabled():
     with patch.object(lib, "LLM_PROVIDER", "deepseek"), \
             patch.object(lib, "DEEPSEEK_MODEL", "deepseek-v4-flash"), \
             patch.object(lib, "DEEPSEEK_THINKING", "disabled"), \
+            patch.dict(os.environ, {"PARKIO_DEEPSEEK_KEY": "test-key"}), \
             patch("urllib.request.urlopen", fake_urlopen):
         lib.llm_call("hi", max_tokens=100, retries=1, timeout=60)
 

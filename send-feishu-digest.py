@@ -201,10 +201,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     config = load_env(args.config)
-    webhook_url = config.get("FEISHU_WEBHOOK_URL", "")
-    webhook_secret = config.get("FEISHU_WEBHOOK_SECRET", "")
+    webhook_url = config.get("FEISHU_WEBHOOK_URL", "") or os.environ.get("FEISHU_WEBHOOK_URL", "")
+    webhook_secret = config.get("FEISHU_WEBHOOK_SECRET", "") or os.environ.get("FEISHU_WEBHOOK_SECRET", "")
     if not webhook_url or not webhook_secret:
-        raise FeishuPushError(f"Missing FEISHU_WEBHOOK_URL or FEISHU_WEBHOOK_SECRET in {args.config}")
+        raise FeishuPushError(
+            f"Missing FEISHU_WEBHOOK_URL or FEISHU_WEBHOOK_SECRET in {args.config} or .env"
+        )
 
     path = artifact_path(args.date)
     if not path.exists():

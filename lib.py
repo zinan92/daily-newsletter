@@ -14,12 +14,54 @@ from pathlib import Path
 from typing import Tuple
 
 ROOT = Path(__file__).resolve().parent
+
+
+def load_env_file(path: Path = ROOT / ".env") -> None:
+    """Read KEY=VALUE lines from the repo's untracked .env into os.environ.
+
+    A fresh clone is configured by copying .env.example to .env and filling in
+    one key. Variables already set in the real environment win, so launchd /
+    shell exports keep working exactly as before. Missing file = no-op.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        if value.startswith("~/"):
+            value = str(Path.home() / value[2:])
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+
+
+load_env_file()
+
 PARKIO = Path(os.environ.get("PARKIO_HOME", Path.home() / "park-io")).expanduser()
 SOURCE_MANAGEMENT_DIR = PARKIO / "_source management"
-SOURCES_PATH = SOURCE_MANAGEMENT_DIR / "sources.md"
+# Source list lookup: PARKIO_SOURCES → the owner's live copy under PARKIO_HOME →
+# the full list shipped in this repo (what a fresh clone runs on).
+REPO_SOURCES_PATH = ROOT / "sources.md"
+if os.environ.get("PARKIO_SOURCES"):
+    SOURCES_PATH = Path(os.environ["PARKIO_SOURCES"]).expanduser()
+elif (SOURCE_MANAGEMENT_DIR / "sources.md").exists():
+    SOURCES_PATH = SOURCE_MANAGEMENT_DIR / "sources.md"
+else:
+    SOURCES_PATH = REPO_SOURCES_PATH
 TRACKING_LIST = SOURCES_PATH
 STATE_PATH = ROOT / "state.json"
 LOGS = ROOT / "logs"
+# Douyin / media downloader (content_downloader). Vendored in ./vendor; the env
+# var points elsewhere when a separate checkout is preferred.
+DOWNLOAD_CAPABILITY = Path(os.environ.get("PARKIO_DOWNLOAD_CAPABILITY", ROOT / "vendor")).expanduser()
 PROMPTS = ROOT / "prompts"
 INBOX = PARKIO / "_inbox"
 RAW_DIR = INBOX / "raw"
@@ -39,11 +81,13 @@ PROFILE_LIBRARY_DIR = PARKIO / ".system" / "source-profiles"
 # provider; this is service-level failover, not content/template fallback.
 #
 # Provider is switchable via PARKIO_LLM_PROVIDER:
-#   "deepseek"  (default) — OpenAI-compatible: /chat/completions, Bearer auth
-#   "anthropic"           — CLIProxyAPI: /v1/messages, x-api-key
-# Fallback is switchable via PARKIO_LLM_FALLBACK_PROVIDER:
-#   "codex" (default when primary is deepseek) — local Codex CLI
-#   "anthropic"                                  — CLIProxyAPI / Sonnet
+#   "deepseek"  (default) — API, OpenAI-compatible: /chat/completions, Bearer auth
+#   "anthropic"           — API, /v1/messages: api.anthropic.com with an
+#                           ANTHROPIC_API_KEY, or a local CLIProxyAPI
+#   "codex"               — CLI, local Codex CLI (ChatGPT login)
+#   "claude"              — CLI, local Claude Code (`claude -p`, Claude login)
+# Fallback is switchable via PARKIO_LLM_FALLBACK_PROVIDER (same names):
+#   "codex" (default when primary is deepseek)
 #   "" / "none"                                  — disabled
 # Keys are read from env or a local untracked secret file — never hardcoded, so
 # the repo carries no credential.
@@ -74,9 +118,18 @@ DEEPSEEK_THINKING = os.environ.get("PARKIO_DEEPSEEK_THINKING", "disabled").lower
 # answer; prompt instructions still control answer length.
 DEEPSEEK_MAX_OUTPUT = int(os.environ.get("PARKIO_DEEPSEEK_MAX_OUTPUT", "8000"))
 
-# Anthropic via CLIProxyAPI (legacy / fallback)
+# Anthropic Messages API. Two ways in:
+#   - official API: ANTHROPIC_API_KEY (or PARKIO_ANTHROPIC_KEY) → api.anthropic.com
+#   - CLIProxyAPI (owner's legacy setup): PARKIO_CLIPROXY_KEY / _secrets/cliproxy-key
+#     → localhost:8317
+# PARKIO_ANTHROPIC_ENDPOINT / PARKIO_ANTHROPIC_MODEL override either.
+ANTHROPIC_OFFICIAL_ENDPOINT = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_OFFICIAL_MODEL = "claude-sonnet-5-5"
 CLIPROXY_ENDPOINT = os.environ.get("PARKIO_CLIPROXY_ENDPOINT", "http://localhost:8317/v1/messages")
 CLIPROXY_MODEL = os.environ.get("PARKIO_CLIPROXY_MODEL", "claude-sonnet-4-5-20250929")
+# Claude Code CLI as a text provider: print mode, no tools, no session on disk.
+CLAUDE_BIN = os.environ.get("PARKIO_CLAUDE_BIN", "claude")
+CLAUDE_MODEL = os.environ.get("PARKIO_CLAUDE_MODEL", "").strip()
 CODEX_BIN = os.environ.get("PARKIO_CODEX_BIN", "codex")
 CODEX_WORKDIR = os.environ.get("PARKIO_CODEX_WORKDIR", "/tmp")
 CODEX_LARGE_PROMPT_CHARS = int(os.environ.get("PARKIO_CODEX_LARGE_PROMPT_CHARS", "24000"))
@@ -88,8 +141,10 @@ CODEX_LARGE_PROMPT_TIMEOUT = int(os.environ.get("PARKIO_CODEX_LARGE_PROMPT_TIMEO
 CODEX_REASONING_EFFORT = os.environ.get("PARKIO_CODEX_REASONING_EFFORT", "low")
 # Pin the model so the pipeline does not follow ~/.codex/config.toml. 2026-10-01
 # the global default was changed to a model this ChatGPT account cannot use and
-# every call failed with "exited with status 1". Empty = use the CLI default.
+# every call failed with "exited with status 1". "default" = use the CLI default.
 CODEX_MODEL = os.environ.get("PARKIO_CODEX_MODEL", "gpt-6-astra").strip()
+if CODEX_MODEL.lower() == "default":
+    CODEX_MODEL = ""
 
 
 def _deepseek_is_v4(model: str) -> bool:
@@ -246,10 +301,19 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
     """
     provider = (provider or LLM_PROVIDER or "deepseek").lower()
     if provider == "anthropic":
-        key = _load_secret("PARKIO_CLIPROXY_KEY", "cliproxy-key")
+        official_key = os.environ.get("PARKIO_ANTHROPIC_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        if official_key:
+            key = official_key.strip()
+            endpoint = os.environ.get("PARKIO_ANTHROPIC_ENDPOINT", ANTHROPIC_OFFICIAL_ENDPOINT)
+            model = os.environ.get("PARKIO_ANTHROPIC_MODEL", ANTHROPIC_OFFICIAL_MODEL)
+        else:
+            key = _load_secret("PARKIO_CLIPROXY_KEY", "cliproxy-key")
+            endpoint = os.environ.get("PARKIO_ANTHROPIC_ENDPOINT", CLIPROXY_ENDPOINT)
+            model = os.environ.get("PARKIO_ANTHROPIC_MODEL", CLIPROXY_MODEL)
         if not key:
             raise LLMNonRetryable(
-                f"missing anthropic LLM key: set PARKIO_CLIPROXY_KEY or {parkio_secret_path('cliproxy-key')}"
+                "missing anthropic LLM key: set ANTHROPIC_API_KEY (official API) or "
+                f"PARKIO_CLIPROXY_KEY / {parkio_secret_path('cliproxy-key')} (local CLIProxyAPI)"
             )
         headers = {
             "Content-Type": "application/json",
@@ -260,7 +324,7 @@ def _llm_endpoint_config(max_tokens: int, provider: str | None = None):
             return "".join(
                 c.get("text", "") for c in resp.get("content", []) if c.get("type") == "text"
             ).strip()
-        return CLIPROXY_ENDPOINT, CLIPROXY_MODEL, headers, parse
+        return endpoint, model, headers, parse
     if provider != "deepseek":
         raise LLMNonRetryable(f"unknown LLM provider: {provider}")
     # default: deepseek (OpenAI-compatible)
@@ -347,11 +411,56 @@ def _codex_cli_call(prompt: str, *, timeout: int) -> str:
     return output
 
 
+def _claude_cli_call(prompt: str, *, timeout: int) -> str:
+    """Run Claude Code in print mode as a plain text provider.
+
+    The prompt goes in on stdin (prompts reach tens of KB). Tools are switched
+    off and nothing is written to the session store, so the CLI only answers.
+    It runs in CODEX_WORKDIR (default /tmp) so no project CLAUDE.md is loaded.
+    """
+    minimum_timeout = CODEX_LARGE_PROMPT_TIMEOUT if len(prompt) >= CODEX_LARGE_PROMPT_CHARS else 180
+    effective_timeout = max(timeout, minimum_timeout)
+    command = [
+        CLAUDE_BIN,
+        "-p",
+        "--output-format",
+        "text",
+        "--tools",
+        "",
+        "--no-session-persistence",
+    ]
+    if CLAUDE_MODEL:
+        command += ["--model", CLAUDE_MODEL]
+    try:
+        result = subprocess.run(
+            command,
+            input=prompt,
+            text=True,
+            capture_output=True,
+            timeout=effective_timeout,
+            cwd=CODEX_WORKDIR,
+        )
+    except FileNotFoundError as exc:
+        raise LLMNonRetryable(f"claude CLI not found: {CLAUDE_BIN}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise LLMUnavailable(f"claude CLI timed out after {effective_timeout} seconds") from exc
+    if result.returncode != 0:
+        detail = ((result.stderr or "").strip() or (result.stdout or "").strip()).splitlines()
+        reason = detail[-1][:240] if detail else ""
+        raise LLMUnavailable(f"claude CLI exited with status {result.returncode}{': ' + reason if reason else ''}")
+    output = (result.stdout or "").strip()
+    if not output:
+        raise LLMUnavailable("claude CLI returned empty output")
+    return output
+
+
 def _llm_call_provider(provider: str, prompt: str, max_tokens: int, *, retries: int, timeout: int) -> str:
     """Call one provider. Raises LLMUnavailable only for transient failures."""
     provider = (provider or "").lower()
     if provider == "codex":
         return _codex_cli_call(prompt, timeout=timeout)
+    if provider == "claude":
+        return _claude_cli_call(prompt, timeout=timeout)
     url, model, headers, parse = _llm_endpoint_config(max_tokens, provider)
     payload: dict = {
         "model": model,
@@ -369,6 +478,10 @@ def _llm_call_provider(provider: str, prompt: str, max_tokens: int, *, retries: 
         if _deepseek_thinking_on(model):
             payload["max_tokens"] = max(max_tokens, DEEPSEEK_MAX_OUTPUT)
             timeout = max(timeout, 300)
+    if provider == "anthropic" and model.startswith("claude-sonnet-5-5"):
+        # Sonnet 5.5 thinks by default and thinking counts against max_tokens;
+        # these are fixed-shape summarisation calls, so keep it off.
+        payload["thinking"] = {"type": "between_tools"}
     body = json.dumps(payload).encode("utf-8")
     last_exc: Exception | None = None
     for attempt in range(1, retries + 1):

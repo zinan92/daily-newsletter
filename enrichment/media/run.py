@@ -22,16 +22,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from lib import PARKIO, ROOT, is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, parkio_secret_path, today
+from lib import DOWNLOAD_CAPABILITY, PARKIO, ROOT, is_youtube_short, llm_call, log, parse_frontmatter, parse_md_items, parkio_secret_path, today
 from summarize import (
     one_line,
 )
 
 MEDIA_SUMMARIES_PATH = ROOT / "media-summaries.json"
 MEDIA_QUEUE_PATH = ROOT / "media-queue.json"
-DOWNLOAD_CAPABILITY = Path(
-    os.environ.get("PARKIO_DOWNLOAD_CAPABILITY", Path.home() / "content-toolkit/capabilities/download")
-).expanduser()
 DOUYIN_COOKIE_FILE = parkio_secret_path("douyin-cookies.json")
 # Lowered from 1200: a YouTube Short / brief clip's full transcript can be
 # 400-1000 chars and still summarize fine. 1200 silently dropped Shorts to
