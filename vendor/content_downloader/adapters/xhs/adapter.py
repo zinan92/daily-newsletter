@@ -273,5 +273,3 @@ class XHSAdapter:
             )
 
         return item
-
-
