@@ -67,6 +67,8 @@ crontab -e
 #    0 8 * * * cd /path/to/daily-newsletter && ./run-daily.sh >> logs/run-daily.log 2>&1
 ```
 
+第一次跑没有历史记录，每个官网最近几篇都会被当成新内容，所以第一份日报里会混进一些旧文章；从第二天起只收新的。
+
 来源清单 [`sources.md`](sources.md) 就是 Park 自己在用的那一份，全部开放。里面的 `## User Context` 写的是 **Park 的口味**（AI 按它判断什么值得看）；想要按你自己的口味挑，改这一段就行。
 
 ### AI：API 和 CLI 都能用
