@@ -37,6 +37,7 @@ Park 自己机器每天早上跑出来的日报，09:30 左右公开在：
 
 - 网页：<https://park-ai-intel.com/newsletter>（往期：<https://park-ai-intel.com/newsletter/archive.html>）
 - RSS：<https://park-ai-intel.com/newsletter/feed.xml>，放进任意 RSS 阅读器（Reeder、Feedly、Inoreader、Folo…）就能每天收到全文
+- 想把每天的热点直接变成你的选题：[选题工作台](https://xuanti.park-ai-intel.com/) 的「找」，网页上直接用，免费试用 7 天
 
 这是**和 Park 看到的完全一样**的那一份：Park 的机器用他手上的登录态（最主要是他关注的 45 个 X 账号）跑出来的。下面自己部署出来的版本，取决于你有哪些登录态，可能会比它薄。
 
