@@ -1112,25 +1112,6 @@ def test_item_understanding_repairs_missing_card_for_a_chunk():
     assert len(calls) == 2
 
 
-def test_item_understanding_rejects_unknown_card_id():
-    items = [
-        {"id": "item-a", "title": "A", "content": "A content"},
-        {"id": "item-b", "title": "B", "content": "B content"},
-    ]
-
-    def fake_call_json_stage(*_args, **_kwargs):
-        return [{"id": "item-a"}, {"id": "unknown"}]
-
-    with tempfile.TemporaryDirectory() as td:
-        with patch.object(ai_process, "call_json_stage", fake_call_json_stage):
-            try:
-                ai_process.item_understanding(Path(td) / "ai", items)
-            except ai_process.AIProcessError as exc:
-                assert "unknown" in str(exc)
-            else:
-                raise AssertionError("unknown item card ids must fail")
-
-
 def test_collect_processed_items_ignores_ai_debug_dirs():
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -1676,3 +1657,193 @@ def test_event_with_empty_item_ids_is_dropped_not_fatal(tmp_path):
     assert all(event["item_ids"] for event in repaired)
     assert ai_process.missing_event_cards(cards, repaired) == []
     assert "e-empty" not in {event["event_id"] for event in repaired}
+
+
+# 2026-11-07: the batch died at chunk 7/47 because the model copied a 19-digit X
+# id with one wrong digit. These are the real ids from that chunk.
+REAL_X_ID = "2118537386040975379"
+TYPO_X_ID = "2118537386040975369"
+
+
+def _nov7_items():
+    return [
+        {"id": "2118478787566588009", "title": "A", "content": "A content"},
+        {"id": REAL_X_ID, "title": "B", "content": "B content"},
+    ]
+
+
+def test_typo_card_id_is_dropped_and_repaired_instead_of_stopping_the_daily():
+    items = _nov7_items()
+    calls = []
+
+    def fake_call_json_stage(ai_dir, stage_name, prompt_file, payload, max_tokens=8000):
+        calls.append(stage_name)
+        if stage_name == "item_understanding_01":
+            return [{"id": items[0]["id"]}, {"id": TYPO_X_ID}]
+        assert payload == [items[1]]
+        return [{"id": REAL_X_ID}]
+
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td) / "ai"
+        with patch.object(ai_process, "call_json_stage", fake_call_json_stage):
+            cards = ai_process.item_understanding(ai_dir, items)
+        ai_process.validate_item_card_coverage(ai_dir, items, cards)
+        assert not (ai_dir / ai_process.SKIPPED_CARDS).exists()
+
+    assert [card["id"] for card in cards] == [items[0]["id"], REAL_X_ID]
+    assert calls == ["item_understanding_01", "item_understanding_01_repair"]
+
+
+def test_item_still_without_a_card_after_repair_is_skipped_and_recorded():
+    items = _nov7_items()
+
+    def fake_call_json_stage(ai_dir, stage_name, prompt_file, payload, max_tokens=8000):
+        if stage_name == "item_understanding_01":
+            return [{"id": items[0]["id"]}, {"id": TYPO_X_ID}]
+        return [{"id": TYPO_X_ID}, {"id": TYPO_X_ID}]
+
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td) / "ai"
+        logged = []
+        with patch.object(ai_process, "call_json_stage", fake_call_json_stage), patch.object(
+            ai_process, "log", lambda _tag, message: logged.append(message)
+        ):
+            cards = ai_process.item_understanding(ai_dir, items)
+        ai_process.validate_item_card_coverage(ai_dir, items, cards)
+        skipped = json.loads((ai_dir / ai_process.SKIPPED_CARDS).read_text(encoding="utf-8"))
+
+    assert [card["id"] for card in cards] == [items[0]["id"]]
+    assert skipped == [REAL_X_ID]
+    assert any(TYPO_X_ID in line for line in logged)
+    assert any(REAL_X_ID in line and "skip" in line for line in logged)
+
+
+def test_duplicate_and_idless_cards_are_dropped_keeping_the_first():
+    items = _nov7_items()
+
+    def fake_call_json_stage(*_args, **_kwargs):
+        return [
+            {"id": items[0]["id"], "main_claim": "first"},
+            {"id": items[0]["id"], "main_claim": "second"},
+            {"main_claim": "no id"},
+            "not a card",
+            {"id": REAL_X_ID},
+        ]
+
+    with tempfile.TemporaryDirectory() as td:
+        with patch.object(ai_process, "call_json_stage", fake_call_json_stage):
+            cards = ai_process.item_understanding(Path(td) / "ai", items)
+
+    assert [card["id"] for card in cards] == [items[0]["id"], REAL_X_ID]
+    assert cards[0]["main_claim"] == "first"
+
+
+def test_a_card_lost_without_a_skip_record_still_fails_coverage():
+    items = _nov7_items()
+    with tempfile.TemporaryDirectory() as td:
+        try:
+            ai_process.validate_item_card_coverage(Path(td), items, [{"id": items[0]["id"]}])
+        except ai_process.AIProcessError as exc:
+            assert REAL_X_ID in str(exc)
+        else:
+            raise AssertionError("an unrecorded loss must not pass")
+
+
+def test_too_many_bad_cards_stops_instead_of_shipping_a_hollow_daily():
+    items = [{"id": f"item-{n}", "title": "t", "content": "c"} for n in range(40)]
+    limit = ai_process.item_card_skip_limit(len(items))
+
+    def fake_call_json_stage(*_args, **_kwargs):
+        return [{"id": "hallucinated"}]
+
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td) / "ai"
+        with patch.object(ai_process, "call_json_stage", fake_call_json_stage):
+            cards = ai_process.item_understanding(ai_dir, items)
+        try:
+            ai_process.validate_item_card_coverage(ai_dir, items, cards)
+        except ai_process.AIProcessError as exc:
+            assert f"limit {limit}" in str(exc)
+            assert (ai_dir / "error.json").exists()
+        else:
+            raise AssertionError("mass card failure must stop the run")
+
+
+def test_skipped_item_does_not_force_item_understanding_to_rerun():
+    items = _nov7_items()
+    with tempfile.TemporaryDirectory() as td:
+        ai_dir = Path(td)
+        ai_process.write_json(ai_dir / "01-item-cards.json", [{"id": items[0]["id"]}])
+        assert ai_process.cached_item_cards(ai_dir, items) is None
+        ai_process.write_json(ai_dir / ai_process.SKIPPED_CARDS, [REAL_X_ID])
+        assert [c["id"] for c in ai_process.cached_item_cards(ai_dir, items)] == [items[0]["id"]]
+
+
+def test_typo_card_id_does_not_stop_the_whole_daily():
+    """End to end: the 11/07 failure, repair also wrong, daily still comes out."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        items_dir = root / "items"
+        items_dir.mkdir()
+        for idx in range(3):
+            write_item(items_dir / f"item-{idx}.md", idx, f"AI 工具内容 {idx}", "这是一条可用于测试的 AI 工具内容。")
+
+        def fake_llm(prompt, *args, **kwargs):
+            if "first AI processing stage" in prompt:
+                payload = json.loads(prompt.split("INPUT JSON:\n", 1)[1])
+                return json.dumps([
+                    {"id": "item-2x" if item["id"] == "item-2" else item["id"], "main_claim": "AI 工具更新"}
+                    for item in payload
+                ], ensure_ascii=False)
+            if "second AI processing stage" in prompt:
+                assert "item-2" not in prompt.split("INPUT JSON:\n", 1)[1]
+                return json.dumps([{
+                    "event_id": "e1",
+                    "event_title": "AI 工具更新",
+                    "sources": [{"source": "X", "author": "Author 0", "title": "AI", "url": "https://example.com/0"}],
+                    "item_ids": ["item-0", "item-1"],
+                    "merged_summary": "AI 工具更新。",
+                    "evidence": "两条内容。",
+                    "discussion_level": "multiple_sources",
+                }], ensure_ascii=False)
+            if "third AI processing stage" in prompt:
+                return json.dumps({
+                    "brief_universe": [{
+                        "event_id": "e1",
+                        "subsection": "底层工具",
+                        "importance_score": 5,
+                        "insight_score": 5,
+                        "practical_impact_score": 5,
+                        "decision_reason": "有用。",
+                        "summary": "AI 工具更新。",
+                    }],
+                    "deep_candidates": [],
+                    "discard": [],
+                }, ensure_ascii=False)
+            return """# Daily Inbox 快讯 — 2026-06-11
+
+## 快讯
+
+### 底层工具
+
+- **X / Author 0** | [AI 工具更新](https://example.com/0)
+  AI 工具更新。
+
+### 工作流
+
+*(今日无内容)*
+
+### 内容
+
+*(今日无内容)*
+"""
+
+        with patch.object(ai_process, "llm_call", fake_llm):
+            result = ai_process.run_ai_process("2026-06-11", root)
+
+        assert "AI 工具更新" in result.markdown
+        assert not (root / "ai" / "error.json").exists()
+        cards = json.loads((root / "ai" / "01-item-cards.json").read_text(encoding="utf-8"))
+        assert [card["id"] for card in cards] == ["item-0", "item-1"]
+        skipped = json.loads((root / "ai" / ai_process.SKIPPED_CARDS).read_text(encoding="utf-8"))
+        assert skipped == ["item-2"]

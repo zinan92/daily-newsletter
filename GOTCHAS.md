@@ -140,9 +140,14 @@ per-day override.
   exhaustion and may fall through to the local Codex CLI; 401/400 and malformed
   requests still fail fast. Codex runs through `codex exec` with ephemeral,
   read-only, isolated settings, and a failed fallback must remain visible.
-- **#32 Exact item-card coverage** — each item-understanding chunk must cover its
-  input ids exactly; a missing card gets a focused AI retry, while duplicate,
-  unknown, or still-missing ids stop the stage. Never accept count-only coverage.
+- **#32 Exact item-card coverage** — coverage is checked by id, never by count.
+  A card with an unknown, duplicate or empty id is dropped and logged, and its
+  item gets the focused AI retry. An item still without a card is skipped,
+  logged and listed in `ai/01-item-cards.skipped.json`; the daily goes on. Never
+  guess which item a bad id meant. Any item missing without that record still
+  stops the stage, and so does skipping more than `max(3, 10% of items)` or
+  ending with no cards: that is a broken model, not a typo (#21). (2026-11-07:
+  one wrong digit in a 19-digit X id stopped the whole daily for three hours.)
 
 ---
 
