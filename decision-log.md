@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-11-07 — 坏卡片 id 不再中断日报；补跑成功后也发布到网站
+
+- **Context:** 11/07 日报 10:28 才出来，网站到 10:29 手动发布才有。07:21 第 7 个 chunk 里 AI 把 19 位 X id `2118537386040975379` 抄错一位成 `…975369`，`validate_item_card_ids` 对未知 id 直接 `fail_schema`，整份日报停住。09:30 补跑成功，但网站的 `refresh-newsletter.sh` 只在 09:30 跑一次，那次日报还没出来，所以补跑的结果永远不会发布。
+- **Decision:** ① 未知、重复、没有 id 的卡丢掉并记日志，对应条目走现有的单独重试；重试后还没卡的条目跳过，记进 `ai/01-item-cards.skipped.json`，其余内容照常出。② 跳过超过 `max(3, 总数 10%)` 或一张卡都没有时仍然停。③ `retry-digest.sh` 只要当天日报存在，发完飞书就调一次网站的发布脚本；路径默认 `~/work/park-ai-intel/scripts/refresh-newsletter.sh`，可用 `PARKIO_PUBLISH_SCRIPT` 改，脚本不存在就跳过。
+- **Why:** 一条内容的价值远小于整份日报迟到三小时，#50 对 event_merge 里 AI 编出来的 id 已经是同样的做法。保留上限是因为 #21：不能在模型整体失常时发出一份空心的日报。发布挂在 retry 上，不用改 launchd，日报一出来就发，也同时覆盖 07:00 那轮自己拖过 09:30 的情况。
+- **Alternatives rejected:** 模糊匹配把坏 id 认回真实 id（可能认错内容，判断归 AI）；给 `com.wendy.park-newsletter` 多加几个时间点（改 launchd，而且还是要等下一个点）；只在本次 retry 自己产出日报时才发布（漏掉 07:00 拖过 09:30 的情况）。
+- **Evidence:** `tests/test_ai_process.py`（真实 id 复现、端到端）、`tests/test_retry_digest.py`（沙盒跑真脚本，飞书和发布都是桩）；网站侧的等待锁见 park-ai-intel 同日 PR。
+- **Gotchas:** 09:30 这一刻 retry 和 launchd 都会调发布脚本，所以它带等待锁；这条依赖 park-ai-intel 那边的改动。`push-digest.sh` 跑过 11:00 才结束的话，当天没有下一次 retry，网站仍不会发布。测试这个脚本时必须用桩：`send-feishu-digest.py` 和 `refresh-newsletter.sh` 都是真发。
+
+---
+
 ## 2026-10-06 — 开源后陌生人能自己部署：来源清单进仓库、一个 .env、API 和 CLI 都能当 AI
 
 - **Context:** Park 答应把 AI 日报开源。干净 clone 能过测试却出不了日报：`sources.md` 只在 Park 的 `~/park-io`，找不到时静默抓 0 条；抖音下载器在已 archive 的 `~/content-toolkit`；AI 只认 DeepSeek / 本机 CLIProxy / Codex；没有一处写清每类来源要什么登录态。

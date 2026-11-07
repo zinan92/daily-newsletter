@@ -9,6 +9,12 @@
 #   - pipeline running    -> leave it alone; push-feishu-digest.sh sends when done
 #   - batch opened, died  -> resume that batch (checkpoints make this cheap)
 #   - nothing today       -> run the full pipeline
+#
+# The website only publishes on its own at 09:30 (launchd com.wendy.park-newsletter),
+# so a daily that lands later would never reach the site or the feed. Whenever
+# today's daily exists this also runs the site's publish script, which pushes
+# only when the content changed and waits its turn if the 09:30 run is active.
+# PARKIO_PUBLISH_SCRIPT overrides the path; a clone without that script skips it.
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,6 +28,7 @@ SHORT="$(date '+%y-%m-%d')"
 BID="$(date '+%Y%m%d')"
 DAILY="$(python3 -c 'import lib; print(lib.SENT_DIR)' 2>/dev/null)/$SHORT.md"
 BATCH_DIR="$(python3 -c 'import lib; print(lib.PROCESSED_DIR)' 2>/dev/null)/$SHORT"
+PUBLISH_SCRIPT="${PARKIO_PUBLISH_SCRIPT:-$HOME/work/park-ai-intel/scripts/refresh-newsletter.sh}"
 
 echo "[$(ts)] retry-digest check date=$RUN_DATE" >> "$LOG"
 if pgrep -f "push-digest.sh|build-digest.py" >/dev/null; then
@@ -40,6 +47,12 @@ fi
 if [ -f "$DAILY" ]; then
   python3 "$SCRIPT_DIR/send-feishu-digest.py" --date "$RUN_DATE" >> "$LOG" 2>&1
   echo "[$(ts)] retry-digest: feishu exit=$?" >> "$LOG"
+  if [ -f "$PUBLISH_SCRIPT" ]; then
+    /bin/bash "$PUBLISH_SCRIPT" >> "$LOG" 2>&1
+    echo "[$(ts)] retry-digest: publish exit=$?" >> "$LOG"
+  else
+    echo "[$(ts)] retry-digest: publish skipped, no $PUBLISH_SCRIPT" >> "$LOG"
+  fi
 else
   echo "[$(ts)] retry-digest: still no daily after retry" >> "$LOG"
   exit 1

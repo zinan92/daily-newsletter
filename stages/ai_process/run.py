@@ -513,6 +513,39 @@ def validate_item_card_ids(ai_dir: Path, stage_name: str, cards: Any, expected_i
 
 
 PARTIAL_CARDS = "01-item-cards.partial.json"
+SKIPPED_CARDS = "01-item-cards.skipped.json"
+ITEM_CARD_MIN_SKIP_LIMIT = 3
+ITEM_CARD_SKIP_DIVISOR = 10
+
+
+def keep_valid_item_cards(ai_dir: Path, stage_name: str, cards: Any, expected_ids: list[str]) -> dict[str, dict]:
+    """The cards from one AI reply whose id is one we asked for, by id.
+
+    2026-11-07 the model copied a 19-digit X id with one wrong digit and the
+    strict check stopped the whole daily. A bad card is now dropped and logged;
+    its item just has no card yet, so the caller retries it. Never guess which
+    item a bad id meant. A reply that is not an array at all still fails.
+    """
+    if not isinstance(cards, list):
+        fail_schema(ai_dir, stage_name, "item understanding must return a JSON array")
+    expected = set(expected_ids)
+    by_id: dict[str, dict] = {}
+    for idx, card in enumerate(cards, 1):
+        card_id = str(card.get("id") or "").strip() if isinstance(card, dict) else ""
+        if not card_id:
+            log("ai-process", f"{stage_name}: dropped card {idx}: no id")
+        elif card_id not in expected:
+            log("ai-process", f"{stage_name}: dropped card {idx}: unknown id {card_id}")
+        elif card_id in by_id:
+            log("ai-process", f"{stage_name}: dropped card {idx}: duplicate id {card_id}")
+        else:
+            by_id[card_id] = card
+    return by_id
+
+
+def item_card_skip_limit(total: int) -> int:
+    """A stray bad id must not cost the daily; a model that cannot copy ids must."""
+    return max(ITEM_CARD_MIN_SKIP_LIMIT, total // ITEM_CARD_SKIP_DIVISOR)
 
 
 def _load_partial_cards(ai_dir: Path) -> dict[str, dict]:
@@ -524,15 +557,36 @@ def _load_partial_cards(ai_dir: Path) -> dict[str, dict]:
     return {str(c.get("id") or ""): c for c in rows if isinstance(c, dict) and c.get("id")}
 
 
+def _load_skipped_cards(ai_dir: Path) -> set[str]:
+    try:
+        rows = json.loads((ai_dir / SKIPPED_CARDS).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    return {str(item_id) for item_id in rows} if isinstance(rows, list) else set()
+
+
+def _record_skipped_cards(ai_dir: Path, skipped: list[str]) -> None:
+    path = ai_dir / SKIPPED_CARDS
+    if skipped:
+        write_json(path, skipped)
+    elif path.exists():
+        path.unlink()
+
+
 def item_understanding(ai_dir: Path, items: list[dict]) -> list[dict]:
     """Cards per chunk, checkpointed after every chunk.
 
     2026-10-01 a run died at chunk 61/68 and the retry started again at chunk 1:
     01-item-cards.json is only written once all chunks are done. Finished chunks
     now persist to 01-item-cards.partial.json and a rerun skips them.
+
+    An item that still has no usable card after the focused retry is skipped,
+    logged and listed in 01-item-cards.skipped.json; the rest of the daily goes
+    on. validate_item_card_coverage stops the run if too many were skipped.
     """
     chunks = chunk_items_for_understanding(items)
     cards: list[dict] = []
+    skipped: list[str] = []
     done = _load_partial_cards(ai_dir)
     if done:
         log("ai-process", f"item_understanding: {len(done)} card(s) from an interrupted run will be reused")
@@ -552,7 +606,7 @@ def item_understanding(ai_dir: Path, items: list[dict]) -> list[dict]:
             max_tokens=12000,
         )
         stage_name = f"item_understanding_{idx:02d}"
-        cards_by_id = validate_item_card_ids(ai_dir, stage_name, data, expected_ids)
+        cards_by_id = keep_valid_item_cards(ai_dir, stage_name, data, expected_ids)
         missing_items = [item for item in chunk if str(item.get("id") or "").strip() not in cards_by_id]
         if missing_items:
             missing_ids = [str(item["id"]) for item in missing_items]
@@ -564,19 +618,21 @@ def item_understanding(ai_dir: Path, items: list[dict]) -> list[dict]:
                 missing_items,
                 max_tokens=12000,
             )
-            repaired_by_id = validate_item_card_ids(
+            repaired_by_id = keep_valid_item_cards(
                 ai_dir,
                 f"{stage_name}_repair",
                 repaired,
                 [str(item["id"]) for item in missing_items],
             )
             cards_by_id.update(repaired_by_id)
-        if set(cards_by_id) != set(expected_ids):
-            missing = sorted(set(expected_ids) - set(cards_by_id))
-            fail_schema(ai_dir, stage_name, f"item_understanding still missing card ids: {', '.join(missing[:10])}")
-        cards.extend(cards_by_id[item_id] for item_id in expected_ids)
-        done.update({item_id: cards_by_id[item_id] for item_id in expected_ids})
+        lost = [item_id for item_id in expected_ids if item_id not in cards_by_id]
+        if lost:
+            log("ai-process", f"{stage_name}: skip {len(lost)} item(s) with no usable card after retry: {', '.join(lost[:10])}")
+            skipped.extend(lost)
+        cards.extend(cards_by_id[item_id] for item_id in expected_ids if item_id in cards_by_id)
+        done.update(cards_by_id)
         write_json(ai_dir / PARTIAL_CARDS, list(done.values()))
+    _record_skipped_cards(ai_dir, skipped)
     return cards
 
 
@@ -585,12 +641,20 @@ def validate_item_card_coverage(ai_dir: Path, items: list[dict], cards: list[dic
     if any(not item_id for item_id in expected_ids):
         fail_schema(ai_dir, "item_understanding", "input item missing id")
     cards_by_id = validate_item_card_ids(ai_dir, "item_understanding", cards, expected_ids)
-    if len(cards_by_id) != len(expected_ids):
-        missing = sorted(set(expected_ids) - set(cards_by_id))
+    missing = sorted(set(expected_ids) - set(cards_by_id))
+    unrecorded = sorted(set(missing) - _load_skipped_cards(ai_dir))
+    if unrecorded:
         fail_schema(
             ai_dir,
             "item_understanding",
-            f"item_understanding coverage mismatch: expected {len(expected_ids)}, got {len(cards_by_id)}; missing {', '.join(missing[:10])}",
+            f"item_understanding coverage mismatch: expected {len(expected_ids)}, got {len(cards_by_id)}; missing {', '.join(unrecorded[:10])}",
+        )
+    limit = item_card_skip_limit(len(expected_ids))
+    if not cards_by_id or len(missing) > limit:
+        fail_schema(
+            ai_dir,
+            "item_understanding",
+            f"item_understanding skipped {len(missing)} of {len(expected_ids)} item(s) (limit {limit}): {', '.join(missing[:10])}",
         )
 
 
@@ -1403,7 +1467,8 @@ def cached_item_cards(ai_dir: Path, items: list[dict]) -> list[dict] | None:
     """Reuse 01-item-cards.json when a previous run already understood every
     current item (e.g. event_merge failed afterwards). Cards are the expensive
     stage; a rerun must not pay for them twice. Returns None when any item is
-    missing a card, so partial or stale caches fall through to a fresh run."""
+    missing a card and was not deliberately skipped, so partial or stale caches
+    fall through to a fresh run."""
     path = ai_dir / "01-item-cards.json"
     if not path.exists():
         return None
@@ -1414,10 +1479,11 @@ def cached_item_cards(ai_dir: Path, items: list[dict]) -> list[dict] | None:
     if not isinstance(cards, list):
         return None
     by_id = {str(card.get("id") or ""): card for card in cards if isinstance(card, dict)}
+    skipped = _load_skipped_cards(ai_dir)
     wanted = [str(item.get("id") or "") for item in items]
-    if not wanted or any(item_id not in by_id for item_id in wanted):
+    if not wanted or any(item_id not in by_id and item_id not in skipped for item_id in wanted):
         return None
-    return [by_id[item_id] for item_id in wanted]
+    return [by_id[item_id] for item_id in wanted if item_id in by_id]
 
 
 def event_merge_chunks(cards: list[dict], chunk_size: int = EVENT_MERGE_CHUNK_SIZE) -> list[list[dict]]:
